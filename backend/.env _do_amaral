@@ -1,0 +1,12 @@
+#PG_URL="postgresql://vecontab:Vec123vec@vecontab.com:5432/vecontab?schema=public&connection_limit=10"  
+
+PG_URL="postgresql://vecontab:Vec123vec@localhost:5432/vecontab?schema=public&connection_limit=10"  
+
+SERVER_PORT = 3333
+
+#JWT_SECRET "Su4S3nh4"
+JWT_SECRET = aaabbbcccddd111222333444
+
+# ATENÇÃO à variável abaixo: se for produção, alterar para production
+
+NODE_ENV = development

@@ -1,0 +1,265 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type GrupoPassosListParams struct {
+	First     int
+	Rows      int
+	SortField string
+	SortOrder int
+	Descricao string
+}
+
+type GrupoPassosMunicipio struct {
+	ID   string `json:"id"`
+	Nome string `json:"nome"`
+}
+
+type GrupoPassosTipoEmpresa struct {
+	ID        string `json:"id"`
+	Descricao string `json:"descricao"`
+}
+
+type GrupoPassosListItem struct {
+	ID            string                 `json:"id"`
+	Descricao     string                 `json:"descricao"`
+	MunicipioID   string                 `json:"municipio_id"`
+	TipoEmpresaID string                 `json:"tipoempresa_id"`
+	Municipio     GrupoPassosMunicipio   `json:"municipio"`
+	TipoEmpresa   GrupoPassosTipoEmpresa `json:"tipoempresa"`
+}
+
+type GrupoPassosMutationItem struct {
+	ID            string `json:"id"`
+	Descricao     string `json:"descricao"`
+	MunicipioID   string `json:"municipio_id"`
+	TipoEmpresaID string `json:"tipoempresa_id"`
+	Ativo         bool   `json:"ativo"`
+}
+
+type GrupoPassosRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewGrupoPassosRepository(pool *pgxpool.Pool) *GrupoPassosRepository {
+	return &GrupoPassosRepository{pool: pool}
+}
+
+func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosListParams) ([]GrupoPassosListItem, int64, error) {
+	whereParts := []string{"g.ativo = true"}
+	args := []any{}
+	argIndex := 1
+
+	if strings.TrimSpace(params.Descricao) != "" {
+		whereParts = append(whereParts, fmt.Sprintf("g.descricao ILIKE $%d", argIndex))
+		args = append(args, "%"+strings.TrimSpace(params.Descricao)+"%")
+		argIndex++
+	}
+
+	orderBy := "g.descricao ASC"
+	switch params.SortField {
+	case "municipio":
+		if params.SortOrder == -1 {
+			orderBy = "m.nome ASC"
+		} else {
+			orderBy = "m.nome DESC"
+		}
+	case "descricao":
+		if params.SortOrder == -1 {
+			orderBy = "g.descricao ASC"
+		} else {
+			orderBy = "g.descricao DESC"
+		}
+	case "tipoempresa":
+		if params.SortOrder == -1 {
+			orderBy = "t.descricao ASC"
+		} else {
+			orderBy = "t.descricao DESC"
+		}
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			g.id,
+			g.descricao,
+			g.municipio_id,
+			g.tipoempresa_id,
+			m.id,
+			m.nome,
+			e.sigla,
+			t.id,
+			t.descricao
+		FROM public.grupopassos g
+		JOIN public.municipio m ON m.id = g.municipio_id
+		JOIN public.tipoempresa t ON t.id = g.tipoempresa_id
+		JOIN public.estado e ON e.id = m.ufid
+		WHERE %s
+		ORDER BY %s
+		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
+	args = append(args, params.Rows, params.First)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list grupopassos: %w", err)
+	}
+	defer rows.Close()
+
+	grupos := make([]GrupoPassosListItem, 0)
+	for rows.Next() {
+		var id, descricao, municipioID, tipoEmpresaID, mid, mnome, sigla, tid, tdesc string
+		if err := rows.Scan(&id, &descricao, &municipioID, &tipoEmpresaID, &mid, &mnome, &sigla, &tid, &tdesc); err != nil {
+			return nil, 0, fmt.Errorf("scan grupopassos: %w", err)
+		}
+
+		grupos = append(grupos, GrupoPassosListItem{
+			ID:            id,
+			Descricao:     descricao,
+			MunicipioID:   municipioID,
+			TipoEmpresaID: tipoEmpresaID,
+			Municipio: GrupoPassosMunicipio{
+				ID:   mid,
+				Nome: mnome + " / " + sigla,
+			},
+			TipoEmpresa: GrupoPassosTipoEmpresa{
+				ID:        tid,
+				Descricao: tdesc,
+			},
+		})
+	}
+
+	countQuery := fmt.Sprintf("SELECT count(*) FROM public.grupopassos g WHERE %s", strings.Join(whereParts, " AND "))
+	var total int64
+	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
+	}
+
+	return grupos, total, nil
+}
+
+func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipioID, tipoEmpresaID string) ([]GrupoPassosMutationItem, int64, error) {
+	const query = `
+		INSERT INTO public.grupopassos (descricao, municipio_id, tipoempresa_id)
+		VALUES ($1, $2, $3)
+		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
+
+	rows, err := r.pool.Query(ctx, query, descricao, municipioID, tipoEmpresaID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("create grupopassos: %w", err)
+	}
+	defer rows.Close()
+
+	grupos := make([]GrupoPassosMutationItem, 0)
+	for rows.Next() {
+		var id, d, m, t string
+		var ativo bool
+		if err := rows.Scan(&id, &d, &m, &t, &ativo); err != nil {
+			return nil, 0, fmt.Errorf("scan created grupopassos: %w", err)
+		}
+		grupos = append(grupos, GrupoPassosMutationItem{ID: id, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+	}
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
+	}
+
+	return grupos, total, nil
+}
+
+func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, municipioID, tipoEmpresaID string) ([]GrupoPassosMutationItem, int64, error) {
+	const query = `
+		UPDATE public.grupopassos
+		SET descricao = $1, municipio_id = $2, tipoempresa_id = $3
+		WHERE id = $4
+		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
+
+	rows, err := r.pool.Query(ctx, query, descricao, municipioID, tipoEmpresaID, id)
+	if err != nil {
+		return nil, 0, fmt.Errorf("update grupopassos: %w", err)
+	}
+	defer rows.Close()
+
+	grupos := make([]GrupoPassosMutationItem, 0)
+	for rows.Next() {
+		var gid, d, m, t string
+		var ativo bool
+		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
+			return nil, 0, fmt.Errorf("scan updated grupopassos: %w", err)
+		}
+		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+	}
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
+	}
+
+	return grupos, total, nil
+}
+
+func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]GrupoPassosMutationItem, int64, error) {
+	const query = `
+		UPDATE public.grupopassos
+		SET ativo = false
+		WHERE id = $1
+		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
+
+	rows, err := r.pool.Query(ctx, query, id)
+	if err != nil {
+		return nil, 0, fmt.Errorf("delete grupopassos: %w", err)
+	}
+	defer rows.Close()
+
+	grupos := make([]GrupoPassosMutationItem, 0)
+	for rows.Next() {
+		var gid, d, m, t string
+		var ativo bool
+		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
+			return nil, 0, fmt.Errorf("scan deleted grupopassos: %w", err)
+		}
+		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+	}
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
+	}
+
+	return grupos, total, nil
+}
+
+func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]GrupoPassosMutationItem, int64, error) {
+	const query = `
+		SELECT id, descricao, municipio_id, tipoempresa_id, ativo
+		FROM public.grupopassos
+		WHERE id = $1`
+
+	rows, err := r.pool.Query(ctx, query, id)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get grupopassos by id: %w", err)
+	}
+	defer rows.Close()
+
+	grupos := make([]GrupoPassosMutationItem, 0)
+	for rows.Next() {
+		var gid, d, m, t string
+		var ativo bool
+		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
+			return nil, 0, fmt.Errorf("scan grupopassos by id: %w", err)
+		}
+		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+	}
+
+	var total int64
+	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
+	}
+
+	return grupos, total, nil
+}
