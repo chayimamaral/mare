@@ -107,13 +107,16 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requesterRole == "ADMIN" && targetRole == "SUPER" {
+	if requesterRole != "SUPER" && targetRole == "SUPER" {
 		render.WriteError(w, http.StatusForbidden, "Usuario nao autorizado")
 		return
 	}
 
 	targetTenantID := payload.TenantID
 	if requesterRole == "ADMIN" {
+		targetTenantID = requesterTenantID
+	}
+	if targetRole == "SUPER" {
 		targetTenantID = requesterTenantID
 	}
 
@@ -171,13 +174,16 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requesterRole == "ADMIN" && targetRole == "SUPER" {
+	if requesterRole != "SUPER" && targetRole == "SUPER" {
 		render.WriteError(w, http.StatusForbidden, "Usuario nao autorizado")
 		return
 	}
 
 	targetTenantID := payload.TenantID
 	if requesterRole == "ADMIN" {
+		targetTenantID = requesterTenantID
+	}
+	if targetRole == "SUPER" {
 		targetTenantID = requesterTenantID
 	}
 
@@ -192,7 +198,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Email:    payload.Email,
 		Role:     targetRole,
 		TenantID: targetTenantID,
-	})
+	}, requesterRole, requesterTenantID)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -216,12 +222,13 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requesterRole := middleware.Role(r.Context())
+	requesterTenantID := middleware.TenantID(r.Context())
 	if requesterRole != "ADMIN" && requesterRole != "SUPER" {
 		render.WriteError(w, http.StatusForbidden, "Usuario nao autorizado")
 		return
 	}
 
-	response, err := h.service.Delete(r.Context(), id)
+	response, err := h.service.Delete(r.Context(), id, requesterRole, requesterTenantID)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

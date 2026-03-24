@@ -67,12 +67,13 @@ type UserTenantIDResponse struct {
 }
 
 type UserListItem struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenantid"`
-	Active   bool   `json:"active"`
+	ID         string `json:"id"`
+	Nome       string `json:"nome"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
+	TenantID   string `json:"tenantid"`
+	TenantNome string `json:"tenantnome,omitempty"`
+	Active     bool   `json:"active"`
 }
 
 type UserRepository struct {
@@ -202,22 +203,29 @@ func (r *UserRepository) TenantID(ctx context.Context, userID string) (UserTenan
 	return UserTenantIDResponse{TenantID: tenantID}, nil
 }
 
-func (r *UserRepository) ListByTenant(ctx context.Context, tenantID string, first, rows int, sortField string, sortOrder int, nomeFilter string) ([]UserListItem, int64, error) {
-	whereParts := []string{"active = true", "tenantid = $1"}
-	args := []any{tenantID}
-	argIndex := 2
+func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string, first, rows int, sortField string, sortOrder int, nomeFilter string) ([]UserListItem, int64, error) {
+	whereParts := []string{"u.active = true", "u.role IN ('ADMIN', 'SUPER')"}
+	args := make([]any, 0)
+	argIndex := 1
+
+	if strings.ToUpper(strings.TrimSpace(role)) != "SUPER" {
+		whereParts = append(whereParts, fmt.Sprintf("u.tenantid = $%d", argIndex))
+		args = append(args, tenantID)
+		argIndex++
+	}
 
 	if strings.TrimSpace(nomeFilter) != "" {
-		whereParts = append(whereParts, fmt.Sprintf("nome ILIKE $%d", argIndex))
+		whereParts = append(whereParts, fmt.Sprintf("u.nome ILIKE $%d", argIndex))
 		args = append(args, "%"+strings.TrimSpace(nomeFilter)+"%")
 		argIndex++
 	}
 
-	orderBy := "nome ASC"
+	orderBy := "u.nome ASC"
 	allowedSort := map[string]string{
-		"nome":  "nome",
-		"email": "email",
-		"id":    "id",
+		"nome":  "u.nome",
+		"email": "u.email",
+		"id":    "u.id",
+		"role":  "u.role",
 	}
 	if field, ok := allowedSort[sortField]; ok {
 		direction := "DESC"
@@ -228,7 +236,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, tenantID string, firs
 	}
 
 	listQuery := fmt.Sprintf(
-		"SELECT id, nome, email, role, tenantid, active FROM public.usuario WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d",
+		"SELECT u.id, u.nome, u.email, u.role, u.tenantid, COALESCE(NULLIF(BTRIM(t.nome), ''), '(sem nome)'), u.active FROM public.usuario u LEFT JOIN public.tenant t ON t.id = u.tenantid WHERE %s ORDER BY %s LIMIT $%d OFFSET $%d",
 		strings.Join(whereParts, " AND "),
 		orderBy,
 		argIndex,
@@ -244,16 +252,16 @@ func (r *UserRepository) ListByTenant(ctx context.Context, tenantID string, firs
 
 	usuarios := make([]UserListItem, 0)
 	for rowsData.Next() {
-		var id, nome, email, role, tenant string
+		var id, nome, email, role, tenant, tenantNome string
 		var active bool
-		if err := rowsData.Scan(&id, &nome, &email, &role, &tenant, &active); err != nil {
+		if err := rowsData.Scan(&id, &nome, &email, &role, &tenant, &tenantNome, &active); err != nil {
 			return nil, 0, fmt.Errorf("scan usuario: %w", err)
 		}
 
-		usuarios = append(usuarios, UserListItem{ID: id, Nome: nome, Email: email, Role: role, TenantID: tenant, Active: active})
+		usuarios = append(usuarios, UserListItem{ID: id, Nome: nome, Email: email, Role: role, TenantID: tenant, TenantNome: tenantNome, Active: active})
 	}
 
-	countQuery := fmt.Sprintf("SELECT count(*) FROM public.usuario WHERE %s", strings.Join(whereParts, " AND "))
+	countQuery := fmt.Sprintf("SELECT count(*) FROM public.usuario u WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
 	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count usuarios: %w", err)
@@ -288,8 +296,8 @@ func (r *UserRepository) Create(ctx context.Context, nome, email, password, role
 	return usuarios, nil
 }
 
-func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID string) ([]UserListItem, error) {
-	const query = `
+func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, requesterRole, requesterTenantID string) ([]UserListItem, error) {
+	query := `
 		UPDATE public.usuario
 		SET nome = $1,
 			email = $2,
@@ -297,8 +305,21 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 			tenantid = $4
 		WHERE id = $5
 		RETURNING id, nome, email, role, tenantid, active`
+	args := []any{nome, email, role, tenantID, id}
 
-	rows, err := r.pool.Query(ctx, query, nome, email, role, tenantID, id)
+	if requesterRole != "SUPER" {
+		query = `
+			UPDATE public.usuario
+			SET nome = $1,
+				email = $2,
+				role = $3,
+				tenantid = $4
+			WHERE id = $5 AND tenantid = $6
+			RETURNING id, nome, email, role, tenantid, active`
+		args = append(args, requesterTenantID)
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("update usuario: %w", err)
 	}
@@ -315,17 +336,31 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 		usuarios = append(usuarios, UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
 	}
 
+	if len(usuarios) == 0 {
+		return nil, fmt.Errorf("usuario nao encontrado ou sem permissao")
+	}
+
 	return usuarios, nil
 }
 
-func (r *UserRepository) Delete(ctx context.Context, id string) ([]UserListItem, error) {
-	const query = `
+func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requesterTenantID string) ([]UserListItem, error) {
+	query := `
 		UPDATE public.usuario
 		SET active = false
 		WHERE id = $1
 		RETURNING id, nome, email, role, tenantid, active`
+	args := []any{id}
 
-	rows, err := r.pool.Query(ctx, query, id)
+	if requesterRole != "SUPER" {
+		query = `
+			UPDATE public.usuario
+			SET active = false
+			WHERE id = $1 AND tenantid = $2
+			RETURNING id, nome, email, role, tenantid, active`
+		args = append(args, requesterTenantID)
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("delete usuario: %w", err)
 	}
@@ -340,6 +375,10 @@ func (r *UserRepository) Delete(ctx context.Context, id string) ([]UserListItem,
 		}
 
 		usuarios = append(usuarios, UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
+	}
+
+	if len(usuarios) == 0 {
+		return nil, fmt.Errorf("usuario nao encontrado ou sem permissao")
 	}
 
 	return usuarios, nil

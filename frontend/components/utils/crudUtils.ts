@@ -16,7 +16,16 @@ export const withAuthServerSideProps = (pageHandler) => {
           dados: dados,
         },
       };
-    } catch (err) {
+    } catch (err: any) {
+      // Se for "no rows in result set", apenas continua sem dados
+      if (err?.response?.status === 400 && err?.response?.data?.error?.includes('no rows in result set')) {
+        return {
+          props: {
+            dados: {},
+          },
+        };
+      }
+
       console.log(err);
 
       return {

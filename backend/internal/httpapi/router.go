@@ -57,14 +57,15 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	nodeHandler := handlers.NewNodeHandler(nodeService)
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
+	requireSuper := apiMiddleware.RequireAnyRole("SUPER")
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, requireAuth, requireAdmin)
+	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, requireAuth, requireAdmin, requireSuper)
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, requireAuth, requireAdmin)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, requireAuth, requireAdmin, requireSuper)
 	})
 
 	return r
@@ -89,12 +90,13 @@ func registerRoutes(
 	nodeHandler *handlers.NodeHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
+	requireSuper func(http.Handler) http.Handler,
 ) {
 	r.Post("/registro", registroHandler.Create)
 	r.With(requireAuth).Put("/registro", registroHandler.Update)
 	r.With(requireAuth).Get("/registro", registroHandler.Detail)
 
-	r.Post("/tenant", tenantHandler.Create)
+	r.With(requireAuth, requireSuper).Post("/tenant", tenantHandler.Create)
 	r.With(requireAuth).Get("/tenant", tenantHandler.Detail)
 	r.With(requireAuth, requireAdmin).Put("/tenant", tenantHandler.Update)
 	r.With(requireAuth).Get("/tenants", tenantHandler.List)

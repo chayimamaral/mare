@@ -58,12 +58,12 @@ export const LoginPage: Page = () => {
     return (
         <div className={containerClassName}>
             <div className="flex flex-column align-items-center justify-content-center">
-                <img src={`/layout/images/vecontab-${layoutConfig.colorScheme === 'light' ? 'dark' : 'white'}.svg`} alt="VECONTAB logo" className="mb-5 w-6rem flex-shrink-0" />
+                <img src="/mare.svg" alt="MARE logo" className="mb-5 w-6rem flex-shrink-0" />
                 <div style={{ borderRadius: '56px', padding: '0.3rem', background: 'linear-gradient(180deg, var(--primary-color) 10%, rgba(33, 150, 243, 0) 30%)' }}>
                     <div className="w-full surface-card py-8 px-5 sm:px-8" style={{ borderRadius: '53px' }}>
                         <div className="text-center mb-5">
 
-                            <div className="text-900 text-3xl font-medium mb-3">VECONTAB</div>
+                            <div className="text-900 text-3xl font-medium mb-3">MARE</div>
                             <span className="text-600 font-medium">Faça login para continuar</span>
                         </div>
 
@@ -82,9 +82,12 @@ export const LoginPage: Page = () => {
 
                             <div className="flex align-items-center justify-content-between mb-5 gap-5">
 
-                                <a className="font-medium no-underline ml-2 text-center cursor-pointer" style={{ color: 'var(--primary-color)' }}>
-                                    Ainda não tem conta ? Cadastre-se <Link href='/auth/register'><strong> aqui</strong></Link>
-                                </a>
+                                <span className="font-medium ml-2 text-center" style={{ color: 'var(--primary-color)' }}>
+                                    Ainda não tem conta ? Cadastre-se{' '}
+                                    <Link href='/auth/register' className="font-bold no-underline cursor-pointer">
+                                        aqui
+                                    </Link>
+                                </span>
 
                             </div>
 

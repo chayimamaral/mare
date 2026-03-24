@@ -54,7 +54,14 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato string) (Te
 }
 
 func (r *TenantRepository) Detail(ctx context.Context, id string) (TenantEntity, error) {
-	const query = `SELECT id, nome, contato, active, plano FROM public.tenant WHERE id = $1`
+	const query = `
+		SELECT id,
+		       COALESCE(nome, ''),
+		       COALESCE(contato, ''),
+		       COALESCE(active, false),
+		       COALESCE(plano::text, '')
+		FROM public.tenant
+		WHERE id::text = $1`
 
 	var tenant TenantEntity
 	if err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -74,8 +81,8 @@ func (r *TenantRepository) Update(ctx context.Context, id, nome, contato string,
 	const query = `
 		UPDATE public.tenant
 		SET nome = $1, active = $2, contato = $3
-		WHERE id = $4
-		RETURNING id, nome, contato, active, plano`
+		WHERE id::text = $4
+		RETURNING id, COALESCE(nome, ''), COALESCE(contato, ''), COALESCE(active, false), COALESCE(plano::text, '')`
 
 	var tenant TenantEntity
 	if err := r.pool.QueryRow(ctx, query, nome, active, contato, id).Scan(
@@ -92,11 +99,25 @@ func (r *TenantRepository) Update(ctx context.Context, id, nome, contato string,
 }
 
 func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]TenantEntity, error) {
-	query := `SELECT id, nome, contato, active, plano FROM public.tenant WHERE id = $1`
+	query := `
+		SELECT id,
+		       COALESCE(nome, ''),
+		       COALESCE(contato, ''),
+		       COALESCE(active, false),
+		       COALESCE(plano::text, '')
+		FROM public.tenant
+		WHERE id::text = $1`
 	args := []any{tenantID}
 
 	if role == "SUPER" {
-		query = `SELECT id, nome, contato, active, plano FROM public.tenant`
+		query = `
+			SELECT id,
+			       COALESCE(nome, ''),
+			       COALESCE(contato, ''),
+			       COALESCE(active, false),
+			       COALESCE(plano::text, '')
+			FROM public.tenant
+			WHERE NULLIF(BTRIM(COALESCE(nome, '')), '') IS NOT NULL`
 		args = []any{}
 	}
 

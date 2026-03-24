@@ -134,6 +134,7 @@ declare namespace Vec {
         password?: string;
         role?: string;
         tenantid?: string;
+        tenantnome?: string;
         active?: boolean;
     }
 

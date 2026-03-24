@@ -66,7 +66,11 @@ func NewRegistroRepository(pool *pgxpool.Pool) *RegistroRepository {
 }
 
 func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string) (DadosComplementaresRecord, error) {
-	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.dadoscomplementares WHERE tenantid = $1 LIMIT 1`
+	if tenantID == "" {
+		return DadosComplementaresRecord{}, nil
+	}
+
+	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.dadoscomplementares WHERE tenantid::text = $1 LIMIT 1`
 
 	var record DadosComplementaresRecord
 	err := r.pool.QueryRow(ctx, query, tenantID).Scan(
@@ -86,6 +90,11 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 		&record.Observacoes,
 	)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			// Some tenants (e.g. manually provisioned SUPER tenant) may not have
+			// dadoscomplementares yet; return an empty payload instead of 400.
+			return DadosComplementaresRecord{Tenantid: tenantID}, nil
+		}
 		return DadosComplementaresRecord{}, fmt.Errorf("detail registro: %w", err)
 	}
 	return record, nil
@@ -173,11 +182,11 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 	}
 
 	const tenantQuery = `
-		INSERT INTO public.tenant (active, plano, contato)
-		VALUES ($1, $2, $3)
+		INSERT INTO public.tenant (nome, active, plano, contato)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 	var tenantID string
-	if err := tx.QueryRow(ctx, tenantQuery, true, "DEMO", input.Nome).Scan(&tenantID); err != nil {
+	if err := tx.QueryRow(ctx, tenantQuery, input.Nome, true, "DEMO", input.Nome).Scan(&tenantID); err != nil {
 		return RegistroUserRecord{}, fmt.Errorf("create tenant: %w", err)
 	}
 
