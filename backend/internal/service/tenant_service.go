@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/chayimamaral/vecontab/backendgo/internal/repository"
 )
@@ -50,6 +51,13 @@ func (s *TenantService) Update(ctx context.Context, id, nome, contato string, ac
 }
 
 func (s *TenantService) List(ctx context.Context, role, tenantID string) (any, error) {
+	role = strings.ToUpper(strings.TrimSpace(role))
+	tenantID = strings.TrimSpace(tenantID)
+
+	if role != "SUPER" && tenantID == "" {
+		return []repository.TenantEntity{}, nil
+	}
+
 	tenants, err := s.repo.List(ctx, role, tenantID)
 	if err != nil {
 		return nil, err

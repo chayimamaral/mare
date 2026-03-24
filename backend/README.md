@@ -1,53 +1,396 @@
-# backendgo
+# MARE Backend - API REST em Go
 
-Primeira base do porte do backend Node/TypeScript para Go.
+API REST robusta para o sistema MARE de gestão de contabilidade. Backend construído em Go com PostgreSQL, autenticação JWT e suporte multi-tenant.
 
-## O que ja esta portado
+## 📋 Índice
 
-- bootstrap HTTP em Go
-- conexao PostgreSQL com pool
-- autenticacao JWT
-- login em `/session` e `/api/session`
-- usuario logado em `/me`, `/usuariorole` e `/usuariotenant`
-- modulo `estado` em `/estados`, `/estado`, `/deleteestado` e `/ufscidade`
-- modulo `cidade` em `/cidades`, `/cidade` (POST/PUT/DELETE) e `/cidadeslite`
-- modulo `tenant` em `/tenant` (POST/GET/PUT) e `/tenants`
-- usuario em `/usuarios` (list) e `/usuario` (create)
-- modulo `tipoempresa` em `/tiposempresa`, `/tipoempresa`, `/deletetipoempresa` e `/tiposempresalite`
-- modulo `passo` em `/passos`, `/passo`, `/deletepasso`, `/getPassoById` e `/passosporcidade`
-- modulo `grupopassos` em `/grupopassos`, `/grupopasso`, `/deletegrupopasso` e `/getgrupopassobyid`
-- modulo `feriado` em `/feriados`, `/feriado` e `/deleteferiado`
-- modulo `empresa` em `/empresas`, `/empresa`, `/updateempresa`, `/deleteempresa` e `/iniciarprocesso`
-- modulo `cnae` em `/cnaes`, `/cnae`, `/deletecnae`, `/cnaelite` e `/validacnae`
-- modulo `agenda` em `/agendalist` e `/agendadetalhes`
-- modulo `rotina` em `/rotinas`, `/rotina`, `/deleterotina`, `/rotinaitens`, `/rotinaitemcreate`, `/rotinaitemupdate`, `/rotinaitemdelete`, `/listrotinas`, `/listrotinaslite`, `/listrotinaitensselected`, `/salvarselecao` e `/removepassoselecionado`
-- modulo `registro` em `/registro` (POST/GET/PUT)
-- modulo `node` em `/node`, `/family` e `/recurso`
-- hardening inicial de tenant em `empresa` e `agenda`, sempre usando o tenant do JWT em vez de confiar em query/body
-- hardening de role em rotas administrativas de escrita (ADMIN/SUPER)
-- hardening de criacao de usuario: apenas ADMIN/SUPER, com validacao de role alvo (`USER|ADMIN|SUPER`) e bloqueio de elevacao para `SUPER` por ADMIN
-- reducao progressiva de `map[string]any` com respostas internas tipadas nos modulos `agenda`, `empresa`, `node`, `tenant`, `auth`, `grupopassos`, `feriado`, `estado`, `rotina`, `registro` (service + repository), `user`, `cidade`, `passo`, `cnae` (service + repository), e `tipoempresa` (service + repository lite)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Requisitos](#requisitos)
+- [Instalação](#instalação)
+- [Execução](#execução)
+- [Endpoints](#endpoints)
+- [Autenticação](#autenticação)
+- [Variáveis de Ambiente](#variáveis-de-ambiente)
 
-## Variaveis de ambiente
+## 📁 Estrutura do Projeto
 
-- `SERVER_PORT`: porta HTTP, padrao `3333`
-- `PG_URL`: string de conexao PostgreSQL
-- `JWT_SECRET`: segredo do token JWT
-- `PG_SSL_ROOT_CERT`: caminho do certificado CA
-- `PG_SSL_INSECURE`: `true` ou `false`
+```
+backend/
+├── cmd/
+│   └── api/
+│       ├── main.go          # Entrypoint da aplicação
+│       └── main             # Binário compilado
+├── internal/
+│   ├── auth/
+│   │   └── jwt.go           # Autenticação JWT
+│   ├── config/
+│   │   └── config.go        # Configurações da app
+│   ├── db/
+│   │   └── postgres.go      # Conexão com PostgreSQL
+│   ├── httpapi/
+│   │   ├── response.go      # Formatação de respostas
+│   │   ├── router.go        # Rotas da API
+│   │   ├── handlers/        # Handlers dos endpoints
+│   │   ├── middleware/      # Middlewares (auth, CORS, etc)
+│   │   └── render/          # Renderização de responses
+│   ├── repository/          # Camada de dados
+│   │   ├── agenda_repository.go
+│   │   ├── cidade_repository.go
+│   │   ├── cnae_repository.go
+│   │   ├── empresa_repository.go
+│   │   ├── estado_repository.go
+│   │   ├── feriado_repository.go
+│   │   ├── grupopassos_repository.go
+│   │   ├── node_repository.go
+│   │   ├── passo_repository.go
+│   │   ├── registro_repository.go
+│   │   ├── rotina_repository.go
+│   │   ├── tenant_repository.go
+│   │   ├── tipoempresa_repository.go
+│   │   └── user_repository.go
+│   └── service/             # Lógica de negócio
+│       ├── agenda_service.go
+│       ├── auth_service.go
+│       ├── cidade_service.go
+│       ├── cnae_service.go
+│       ├── empresa_service.go
+│       ├── estado_service.go
+│       ├── feriado_service.go
+│       ├── grupopassos_service.go
+│       ├── node_service.go
+│       ├── passo_service.go
+│       ├── registro_service.go
+│       ├── rotina_service.go
+│       ├── tenant_service.go
+│       ├── tipoempresa_service.go
+│       └── user_service.go
+├── go.mod                   # Dependências Go
+├── nginx.conf               # Configuração Nginx (reverse proxy)
+├── bkp_vecontab.sql        # Backup do banco de dados
+└── README.md               # Este arquivo
+```
 
-## Rodando localmente
+## 🔧 Requisitos
+
+- **Go:** 1.18+ (verificar com `go version`)
+- **PostgreSQL:** 12+
+- **Nginx:** (opcional, para reverse proxy em produção)
+
+## ⚙️ Instalação
+
+### 1. Preparar ambiente
 
 ```bash
+cd backend
+go mod download
 go mod tidy
+```
+
+### 2. Configurar banco de dados
+
+```bash
+# Criar banco de dados
+psql -U postgres -c "CREATE DATABASE mare;"
+
+# Restaurar schema (se houver backup)
+# psql -U postgres -d mare -f bkp_vecontab.sql
+```
+
+### 3. Variáveis de Ambiente
+
+Criar arquivo `.env` na raiz do backend:
+
+```bash
+SERVER_PORT=3333
+PG_URL=postgres://user:password@localhost:5432/mare
+JWT_SECRET=sua_chave_secreta_super_segura_aqui
+```
+
+## 🚀 Execução
+
+### Desenvolvimento
+
+```bash
 go run ./cmd/api
 ```
 
-## Estrategia de migracao
+API estará em http://localhost:3333
 
-1. manter o contrato HTTP existente
-2. portar modulo por modulo, com SQL explicito
-3. trocar stubs `501` por handlers reais
+### Build para Produção
+
+```bash
+go build -o mare ./cmd/api/main.go
+./mare
+```
+
+### Com Nginx (Reverse Proxy)
+
+```bash
+nginx -c ./nginx.conf
+# Acesso via http://localhost (porta 80 redireciona para 3333)
+```
+
+## 📡 Endpoints
+
+### 🔐 Autenticação
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/api/session` | Login com email/senha |
+| GET | `/me` | Dados do usuário logado |
+| GET | `/api/usuariorole` | Role do usuário (ADMIN/USER) |
+| GET | `/api/usuariotenant` | Tenant do usuário |
+
+### 👥 Usuários
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/usuarios` | Listar usuários (com lazy loading) |
+| POST | `/api/usuarios` | Criar usuário (ADMIN only) |
+| PUT | `/api/usuarios/:id` | Atualizar usuário |
+| DELETE | `/api/usuarios/:id` | Deletar usuário |
+
+### 🏢 Empresas
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/empresas` | Listar empresas (lazy loading) |
+| GET | `/api/empresas/:id` | Obter empresa |
+| POST | `/api/empresas` | Criar empresa |
+| PUT | `/api/empresas/:id` | Atualizar empresa |
+| DELETE | `/api/empresas/:id` | Deletar empresa |
+| GET | `/api/validacnae` | Validar CNAE |
+
+### 📅 Agenda
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/agenda` | Listar eventos |
+| GET | `/api/agendadetalhes/:id` | Detalhes do evento |
+
+### 📋 Rotinas & Passos
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/rotinas` | Listar rotinas |
+| GET | `/api/passos` | Listar passos |
+| GET | `/api/grupopassos` | Listar grupos de passos |
+
+### 📊 Registros Contábeis
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/registro` | Listar registros |
+| POST | `/api/registro` | Criar registro |
+| PUT | `/api/registro/:id` | Atualizar registro |
+
+### 📍 Localidades
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/estados` | Listar estados |
+| GET | `/api/cidades` | Listar cidades |
+| GET | `/api/cidades/:estado` | Cidades por estado |
+
+### 🔧 Configuração
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/tiposempresa` | Tipos de empresa |
+| GET | `/api/cnaes` | Listar CNAEs |
+
+## 🔐 Autenticação
+
+### Header Requerido
+
+Todas as requisições autenticadas precisam do header:
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+### Fluxo de Login
+
+```bash
+# 1. POST /api/session com email/senha
+curl -X POST http://localhost:3333/api/session \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"senha123"}'
+
+# Resposta:
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-uuid",
+    "nome": "João Silva",
+    "email": "user@example.com",
+    "role": "ADMIN"
+  }
+}
+
+# 2. Usar token nas requisições
+curl -H "Authorization: Bearer eyJhbGc..." http://localhost:3333/api/usuarios
+```
+
+### JWT Claims
+
+```json
+{
+  "nome": "Valéria Amaral",
+  "email": "val@vec.com",
+  "tenant": {
+    "id": "d1e9e353-9d14-4f94-a426-6af374a6a7e0",
+    "active": true,
+    "nome": "Betel Contabilidade",
+    "contato": "Valéria Amaral",
+    "plano": "DEMO"
+  },
+  "role": "ADMIN",
+  "sub": "56bc8d60-a196-428c-a5fd-d3031ceb0d11",
+  "exp": 1776896987,
+  "iat": 1774304987
+}
+```
+
+## 🔒 Segurança
+
+### Hardening Implementado
+
+- ✅ Isolamento por tenant (JWT sempre consultado)
+- ✅ Validação de role em rotas administrativas (ADMIN/SUPER)
+- ✅ Bloqueio de elevação de privilégio (USER → SUPER)
+- ✅ Validação de entrada
+- ✅ CORS headers configurados
+- ✅ JWT invalidação em logout
+
+### Roles Disponíveis
+
+- `ADMIN` - Acesso total ao tenant
+- `USER` - Acesso limitado a funcionalidades básicas
+
+## 📊 Lazy Loading
+
+Endpoints de listagem suportam paginação lazy:
+
+```
+GET /api/usuarios?
+  page=1&
+  rows=20&
+  sortField=nome&
+  sortOrder=1&
+  filters[nome][value]=João&
+  filters[nome][matchMode]=contains
+```
+
+Resposta:
+
+```json
+{
+  "success": true,
+  "data": {
+    "usuarios": [...],
+    "totalRecords": 150
+  }
+}
+```
+
+## 🛠️ Desenvolvimento
+
+### Padrão de Resposta
+
+```json
+{
+  "success": true,
+  "data": {...},
+  "error": null,
+  "message": "Sucesso"
+}
+```
+
+### Adicionar novo endpoint
+
+1. Criar handler em `internal/httpapi/handlers/`
+2. Criar service em `internal/service/`
+3. Criar repository em `internal/repository/`
+4. Registrar rota em `internal/httpapi/router.go`
+5. Adicionar middleware de autenticação se necessário
+
+### Estrutura típica
+
+```go
+// handler
+func (h *Handler) ListarUsuarios(w http.ResponseWriter, r *http.Request) {
+    // validações
+    // chamada ao service
+    // renderização da resposta
+}
+
+// service
+func (s *UsuarioService) ListarUsuarios(ctx context.Context, tenantID string) ([]Usuario, error) {
+    // lógica de negócio
+    // chamada ao repository
+}
+
+// repository
+func (r *UsuarioRepository) ListarByTenant(ctx context.Context, tenantID string) ([]Usuario, error) {
+    // execução SQL
+    // scan dos resultados
+}
+```
+
+## 🐛 Troubleshooting
+
+### "connection refused" ao conectar PostgreSQL
+
+```bash
+# Verificar se PostgreSQL está rodando
+psql -U postgres
+
+# Verificar DATABASE_URL está correto
+echo $PG_URL
+```
+
+### "no rows in result set"
+
+API retorna erro 400 para queries sem resultados. Considere retornar array vazio.
+
+### "invalid token"
+
+- JWT_SECRET está consistente?
+- Token não expirou? (check claim `exp`)
+- Authorization header tem "Bearer " prefixo?
+
+### Erro 405 (Method Not Allowed)
+
+- Endpoint existe em `router.go`?
+- Método HTTP (GET/POST/PUT) está correto?
+
+## 📝 Logs
+
+### Ver logs em tempo real
+
+```bash
+go run ./cmd/api 2>&1 | tee app.log
+```
+
+### Verificar healthcheck
+
+```bash
+curl http://localhost:3333/healthcheck || echo "Down"
+```
+
+## 🔄 Estratégia de Migração (Legacy)
+
+Transição do Node.js/TypeScript:
+
+1. ✅ Manter contrato HTTP existente
+2. ✅ Portar módulo por módulo
+3. ✅ SQL explícito em cada repository
+4. ✅ Substituir stubs 501 por handlers reais
+
+## 📞 Informações Adicionais
+
+Consulte [README principal](../README.md) para visão geral do projeto.
 4. validar o frontend contra o backend Go antes de desligar o Node
 
 ## Arquitetura

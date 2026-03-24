@@ -75,6 +75,7 @@ func (s *UserService) List(ctx context.Context, input ListUsersInput) (ListUsers
 
 	usuarios, total, err := s.users.ListByTenant(
 		ctx,
+		input.Role,
 		input.TenantID,
 		input.First,
 		input.Rows,
@@ -108,10 +109,10 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (Create
 	return CreateUserResponse{Usuarios: usuarios}, nil
 }
 
-func (s *UserService) Update(ctx context.Context, input UpdateUserInput) (CreateUserResponse, error) {
+func (s *UserService) Update(ctx context.Context, input UpdateUserInput, requesterRole, requesterTenantID string) (CreateUserResponse, error) {
 	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
 
-	usuarios, err := s.users.Update(ctx, input.ID, input.Nome, input.Email, input.Role, input.TenantID)
+	usuarios, err := s.users.Update(ctx, input.ID, input.Nome, input.Email, input.Role, input.TenantID, requesterRole, requesterTenantID)
 	if err != nil {
 		return CreateUserResponse{}, err
 	}
@@ -119,8 +120,8 @@ func (s *UserService) Update(ctx context.Context, input UpdateUserInput) (Create
 	return CreateUserResponse{Usuarios: usuarios}, nil
 }
 
-func (s *UserService) Delete(ctx context.Context, userID string) (CreateUserResponse, error) {
-	usuarios, err := s.users.Delete(ctx, userID)
+func (s *UserService) Delete(ctx context.Context, userID, requesterRole, requesterTenantID string) (CreateUserResponse, error) {
+	usuarios, err := s.users.Delete(ctx, userID, requesterRole, requesterTenantID)
 	if err != nil {
 		return CreateUserResponse{}, err
 	}

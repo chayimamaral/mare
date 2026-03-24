@@ -1,6 +1,5 @@
 import setupAPIClient from '../../components/api/api';
 import { AxiosError } from 'axios';
-import { AxiosError } from 'axios';
 
 export default function UsuarioService() {
 
@@ -64,6 +63,17 @@ export default function UsuarioService() {
       }
     },
 
+    getTenants: async () => {
+      const apiClient = setupAPIClient(undefined);
+      try {
+        const response = await apiClient.get('/api/tenants');
+        return {
+          data: response.data
+        }
+      } catch (err) {
+        throw new Error('Erro ao buscar Tenants')
+      }
+    },
 
     createUsuario: async (params) => {
       const apiClient = setupAPIClient(undefined);

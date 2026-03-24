@@ -739,6 +739,7 @@ const Rotinas = () => {
                             <PickList
                                 source={source}
                                 target={target}
+                                dataKey="id"
                                 onChange={onPassoChange}
                                 itemTemplate={passoTemplate}
                                 onMoveToSource={handleMoveToSource}

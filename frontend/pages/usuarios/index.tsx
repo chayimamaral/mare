@@ -26,7 +26,11 @@ interface Logado {
   email: string;
   role: string;
   tenantid: string;
+}
 
+interface TenantOption {
+  id: string;
+  nome: string;
 }
 
 interface LazyTableState {
@@ -73,6 +77,7 @@ const Usuarios = ({ user_id }) => {
   const [confirmSenha, setConfirmSenha] = useState<string>('');
 
   const [logado, setLogado] = useState<Logado>();
+  const [tenants, setTenants] = useState<TenantOption[]>([]);
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
     totalRecords: totalRecords,
@@ -89,17 +94,35 @@ const Usuarios = ({ user_id }) => {
 
   const roles = [
     { name: 'Administrador', key: 'ADMIN' },
-    { name: 'Usuário', key: 'USER' }
+    { name: 'Usuário', key: 'USER' },
+    { name: 'Super', key: 'SUPER' }
   ];
+
+  const availableRoles = logado?.role === 'SUPER'
+    ? roles
+    : logado?.role === 'ADMIN'
+      ? roles.filter((role) => role.key !== 'SUPER')
+      : roles.filter((role) => role.key === 'USER');
+
+  const canChangeRole = logado?.role === 'SUPER' || logado?.role === 'ADMIN';
 
   const [selectedRole, setSelectedRole] = useState(roles[1]);
 
+  const usuarioService = UsuarioService();
+
   useEffect(() => {
     loadLazyLogado();
+  }, []);
+
+  useEffect(() => {
     loadLazyUsuario();
   }, [lazyState]);
 
-  const usuarioService = UsuarioService();
+  useEffect(() => {
+    if (logado?.role === 'SUPER') {
+      loadTenants();
+    }
+  }, [logado?.role]);
 
   const loadLazyUsuario = () => {
     setLoading(true);
@@ -114,10 +137,36 @@ const Usuarios = ({ user_id }) => {
   }
 
   const loadLazyLogado = () => {
-    //setLoading(true);
     usuarioService.getUserRole(user_id).then(({ data }) => {
       setLogado(data.logado);
     })
+  }
+
+  const loadTenants = () => {
+    usuarioService.getTenants().then(({ data }) => {
+      const parsed = Array.isArray(data) ? data : [];
+      let normalized = parsed
+        .map((tenant: any) => {
+          const id = String(tenant?.id ?? '').trim();
+          const nome = String(tenant?.nome ?? '').trim();
+
+          if (!id || !nome) {
+            return null;
+          }
+
+          return { id, nome } as TenantOption;
+        })
+        .filter((tenant: TenantOption | null): tenant is TenantOption => tenant !== null)
+        .sort((a: TenantOption, b: TenantOption) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+      if (logado?.tenantid && !normalized.some((tenant) => tenant.id === logado.tenantid)) {
+        normalized = [{ id: logado.tenantid, nome: 'Meu tenant' }, ...normalized];
+      }
+
+      setTenants(normalized);
+    }).catch(() => {
+      toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar tenants', life: 3000 });
+    });
   }
 
   const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyUsuario} />;
@@ -212,7 +261,11 @@ const Usuarios = ({ user_id }) => {
 
   const openNew = () => {
     setAcao('Novo')
-    setUsuario(emptyUsuario);
+    setUsuario({
+      ...emptyUsuario,
+      role: 'USER',
+      tenantid: logado?.role === 'ADMIN' ? logado?.tenantid : ''
+    });
     setSubmitted(false);
     setUsuarioDialog(true);
   };
@@ -245,48 +298,68 @@ const Usuarios = ({ user_id }) => {
   const saveUsuario = (event) => {
     setSubmitted(true);
 
-    if (usuario?.nome?.trim()) {
-      let _usuario = { ...usuario };
-
-      if (usuario.id) {
-        usuarioService.updateUsuario(_usuario)
-          .then(() => {
-            toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Usuário atualizado', life: 3000 });
-          })
-          .catch((error) => {
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao atualizar o usuário', life: 3000 });
-          })
-          .finally(() => {
-            //setLoading(false);
-            setUsuarioDialog(false);
-            setUsuario(emptyUsuario);
-            loadLazyUsuario();
-          });
-      } else {
-        _usuario.tenantid = logado?.tenantid;
-        _usuario.active = true;
-        //_usuario.role = 'USER';
-        _usuario.password = '123456';
-        usuarioService.createUsuario(_usuario)
-          .then((response) => {
-            if (response && response.data) {
-              setUsuarios(response.data.usuarios);
-              setTotalRecords(response.data.totalRecords);
-            }
-            toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Usuário criado', life: 3000 });
-          })
-          .catch((error) => {
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao criar o usuário', life: 3000 });
-          })
-          .finally(() => {
-            //setLoading(false);
-            setUsuarioDialog(false);
-            setUsuario(emptyUsuario);
-            loadLazyUsuario();
-          });
-      }
+    if (!usuario?.nome?.trim() || !usuario?.email?.trim()) {
+      setSubmitted(false);
+      return;
     }
-    setSubmitted(false);
+
+    let _usuario = { ...usuario };
+
+    if (logado?.role === 'ADMIN') {
+      _usuario.tenantid = logado?.tenantid;
+    }
+
+    if (logado?.role === 'SUPER' && _usuario.role === 'SUPER') {
+      _usuario.tenantid = logado?.tenantid;
+    }
+
+    if (logado?.role === 'SUPER' && _usuario.role !== 'SUPER' && !_usuario.tenantid) {
+      toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Selecione o tenant do usuário', life: 3000 });
+      setSubmitted(false);
+      return;
+    }
+
+    if (usuario.id) {
+      usuarioService.updateUsuario(_usuario)
+        .then(() => {
+          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Usuário atualizado', life: 3000 });
+        })
+        .catch((error) => {
+          toast.current?.show({ severity: 'error', summary: 'Erro', detail: error?.message || 'Erro ao atualizar o usuário', life: 3000 });
+        })
+        .finally(() => {
+          setUsuarioDialog(false);
+          setUsuario(emptyUsuario);
+          loadLazyUsuario();
+          setSubmitted(false);
+        });
+      return;
+    }
+
+    if (!_usuario.password || !_usuario.password.trim()) {
+      toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Informe a senha inicial do usuário', life: 3000 });
+      setSubmitted(false);
+      return;
+    }
+
+    _usuario.active = true;
+    usuarioService.createUsuario(_usuario)
+      .then((response) => {
+        if (response && response.data) {
+          setUsuarios(response.data.usuarios);
+          setTotalRecords(response.data.totalRecords);
+        }
+        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Usuário criado', life: 3000 });
+      })
+      .catch((error) => {
+        toast.current?.show({ severity: 'error', summary: 'Erro', detail: error?.message || 'Erro ao criar o usuário', life: 3000 });
+      })
+      .finally(() => {
+        setUsuarioDialog(false);
+        setUsuario(emptyUsuario);
+        loadLazyUsuario();
+        setSubmitted(false);
+      });
   };
 
   const editUsuario = (usuario: Vec.Usuarios) => {
@@ -338,20 +411,55 @@ const Usuarios = ({ user_id }) => {
   };
 
   function onRoleChange(e: RadioButtonChangeEvent, role: string): void {
+    if (!canChangeRole) {
+      return;
+    }
+
     let _usuario = { ...usuario };
     setSelectedRole(e.value);
     _usuario[`${role}`] = e.value;
 
+    if (logado?.role === 'SUPER' && e.value === 'SUPER') {
+      _usuario.tenantid = logado?.tenantid;
+    }
+
     setUsuario(_usuario);
   }
 
+  const roleBodyTemplate = (rowData: Vec.Usuarios) => {
+    return (
+      <>
+        <span className="p-column-title">Permissão</span>
+        {rowData.role}
+      </>
+    );
+  };
+
+  const tenantBodyTemplate = (rowData: Vec.Usuarios) => {
+    const tenantNome = String(rowData.tenantnome || '').trim();
+
+    return (
+      <>
+        <span className="p-column-title">Tenant</span>
+        {tenantNome || getTenantDisplayName(rowData.tenantid)}
+      </>
+    );
+  };
+
+  const getTenantDisplayName = (tenantID?: string) => {
+    const id = String(tenantID || '').trim();
+    if (!id) return '';
+
+    const tenant = tenants.find((item) => item.id === id);
+    return tenant?.nome || 'Meu tenant';
+  };
+
   const leftToolbarTemplate = () => {
-    if (logado?.role == 'ADMIN') {
+    if (logado?.role === 'ADMIN' || logado?.role === 'SUPER') {
       return (
         <React.Fragment>
           <div className="my-2">
             <Button label="Criar" icon="pi pi-plus" severity="success" className=" mr-2" onClick={openNew} />
-            {/* estou <Button label="Deletar" icon="pi pi-trash" severity="danger" onClick={confirmDeleteSelected} disabled={!selectedEstados || !selectedEstados.length} /> */}
           </div>
         </React.Fragment>
       );
@@ -444,6 +552,8 @@ const Usuarios = ({ user_id }) => {
           >
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column field="email" header="Email" sortable body={emailBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
+            <Column field="role" header="Permissão" sortable body={roleBodyTemplate} headerStyle={{ minWidth: '10rem' }}></Column>
+            <Column field="tenantid" header="Tenant" body={tenantBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
             <Column body={actionBodyTemplate} headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
 
@@ -461,15 +571,52 @@ const Usuarios = ({ user_id }) => {
             </div>
             <div className="flex flex-wrap gap-3">
               <label htmlFor="role">Permissão :  </label>
-              {roles.map((role) => {
+              {availableRoles.map((role) => {
                 return (
                   <div key={role.key} className="flex align-items-center">
-                    <RadioButton inputId={role.key} name="role" value={role.key} onChange={(e) => onRoleChange(e, 'role')} checked={usuario.role === role.key} />
+                    <RadioButton inputId={role.key} name="role" value={role.key} onChange={(e) => onRoleChange(e, 'role')} checked={usuario.role === role.key} disabled={!canChangeRole} />
                     <label htmlFor={role.key} className="ml-2">{role.name}</label>
                   </div>
                 );
               })}
             </div>
+
+            {logado?.role === 'SUPER' && usuario.role !== 'SUPER' && (
+              <div className="field">
+                <label htmlFor="tenant_">Tenant</label>
+                <Dropdown
+                  id="tenant_"
+                  value={usuario.tenantid}
+                  options={tenants}
+                  optionLabel="nome"
+                  optionValue="id"
+                  placeholder="Selecione o tenant"
+                  onChange={(e) => {
+                    const _usuario = { ...usuario, tenantid: e.value };
+                    setUsuario(_usuario);
+                  }}
+                  className={classNames({ 'p-invalid': submitted && !usuario.tenantid })}
+                />
+                {submitted && !usuario.tenantid && <small className="p-invalid">Tenant é obrigatório para SUPER.</small>}
+              </div>
+            )}
+
+            {logado?.role === 'SUPER' && usuario.role === 'SUPER' && (
+              <div className="field">
+                <label htmlFor="tenant_super_">Tenant</label>
+                <InputText id="tenant_super_" value={getTenantDisplayName(usuario.tenantid || logado?.tenantid)} readOnly />
+                <small className="text-500">Usuários SUPER sempre pertencem ao mesmo tenant do seu usuário.</small>
+              </div>
+            )}
+
+            {acao === 'Novo' && (
+              <div className="field">
+                <label htmlFor="password_">Senha Inicial</label>
+                <InputText id="password_" value={usuario.password} type='password' onChange={(e) => onInputChange(e, 'password')} required className={classNames({ 'p-invalid': submitted && !usuario.password })} />
+                {submitted && !usuario.password && <small className="p-invalid">Senha inicial é obrigatória.</small>}
+              </div>
+            )}
+
             {acao === 'Senha' && (
               <div className="field">
                 <label htmlFor="password_">Senha Atual</label>

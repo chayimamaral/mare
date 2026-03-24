@@ -151,12 +151,12 @@ const Empresas = ({ dados }) => {
 
   }
 
-  function handleCnaesChange(event): void {
+  async function handleCnaesChange(event): Promise<void> {
 
     empresa.cnaes = event.value;
     const cnae = empresa.cnaes[empresa.cnaes.length - 1];
 
-    const isValid = validaCnae(cnae);
+    const isValid = await validaCnae(cnae);
 
     if (isValid) {
       setEmpresa({ ...empresa, cnaes: event.value });
@@ -368,11 +368,11 @@ const Empresas = ({ dados }) => {
     loadLazyRotinas();
   }
 
-  async function validaCnae(cnae: string): boolean {
+  async function validaCnae(cnae: string): Promise<boolean> {
     const empresaService = EmpresaService();
     try {
-      const data = empresaService.validaCnae(cnae);
-      return data.cnaeValido;
+      const data = await empresaService.validaCnae(cnae);
+      return data.data.cnaeValido;
     } catch (error) {
       toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao validar o CNAE', life: 3000 });
       return false;

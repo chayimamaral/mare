@@ -60,7 +60,7 @@ const AppConfig = (props: AppConfigProps) => {
 
     return (
         <>
-            <button className="layout-config-button p-link" type="button" onClick={onConfigButtonClick}>
+            <button className="layout-config-button p-link" type="button" onClick={onConfigButtonClick} aria-label="Configurações">
                 <i className="pi pi-cog"></i>
             </button>
 
