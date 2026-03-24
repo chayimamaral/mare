@@ -204,11 +204,18 @@ func (r *UserRepository) TenantID(ctx context.Context, userID string) (UserTenan
 }
 
 func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string, first, rows int, sortField string, sortOrder int, nomeFilter string) ([]UserListItem, int64, error) {
-	whereParts := []string{"u.active = true", "u.role IN ('ADMIN', 'SUPER')"}
+	whereParts := []string{"u.active = true"}
 	args := make([]any, 0)
 	argIndex := 1
 
-	if strings.ToUpper(strings.TrimSpace(role)) != "SUPER" {
+	requesterRole := strings.ToUpper(strings.TrimSpace(role))
+	switch requesterRole {
+	case "SUPER":
+		// SUPER visualiza todos os ADMIN (de todos os tenants)
+		whereParts = append(whereParts, "u.role = 'ADMIN'")
+	default:
+		// ADMIN visualiza ADMIN e USER apenas do seu tenant
+		whereParts = append(whereParts, "u.role IN ('ADMIN', 'USER')")
 		whereParts = append(whereParts, fmt.Sprintf("u.tenantid = $%d", argIndex))
 		args = append(args, tenantID)
 		argIndex++

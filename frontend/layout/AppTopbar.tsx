@@ -13,7 +13,8 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
     const menubuttonRef = useRef(null);
     const topbarmenuRef = useRef(null);
     const topbarmenubuttonRef = useRef(null);
-    const { logoutUser } = useContext(AuthContext);
+    const { logoutUser, user } = useContext(AuthContext);
+    const loggedUserName = user?.nome?.trim() || 'Profile';
 
     useImperativeHandle(ref, () => ({
         menubutton: menubuttonRef.current,
@@ -53,9 +54,9 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
                     </button>
                 </Link>
                 <Tooltip target=".btn-login" position="bottom" />
-                <button type="button" className="btn-login p-link layout-topbar-button" data-pr-tooltip='Trocar Usuário' onClick={handleProfile}>
+                <button type="button" className="btn-login p-link layout-topbar-button layout-topbar-user-button" data-pr-tooltip='Trocar Usuário' onClick={handleProfile}>
                     <i className="pi pi-user"></i>
-                    <span>Profile</span>
+                    <span>{loggedUserName}</span>
                 </button>
 
                 <Link href="/registro">
