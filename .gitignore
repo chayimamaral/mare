@@ -1,0 +1,5 @@
+# Local scratch images
+Imagem colada*.png
+
+# Local compiled backend binary
+backend/cmd/api/api-mare
