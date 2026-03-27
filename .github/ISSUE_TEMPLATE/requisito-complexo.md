@@ -1,12 +1,11 @@
 ---
 name: Requisito complexo
 about: Documentar uma necessidade funcional ou regra de negocio complexa
-title: '[Requisito] '
+title: '[CU-XXX] Nome do Caso de Uso'
 labels: enhancement
 assignees: ''
 ---
 
-##[CU-XXX] Nome do Caso de Uso
 ###Resumo
 Breve descrição do que o caso de uso realiza.
 
