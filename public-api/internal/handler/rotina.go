@@ -1,26 +1,26 @@
-package publicapi
+package handler
 
 import (
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/public-api/internal/repository"
 	"github.com/gin-gonic/gin"
 )
 
 var uuidPathSegment = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-// Handler expõe endpoints públicos (somente leitura).
-type Handler struct {
-	repo *Repository
+type Rotina struct {
+	repo *repository.Rotina
 }
 
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewRotina(repo *repository.Rotina) *Rotina {
+	return &Rotina{repo: repo}
 }
 
-// GetRotinas retorna JSON agregado de rotinas com passos (rotinaitens) para município e tipo de empresa.
-func (h *Handler) GetRotinas(c *gin.Context) {
+func (h *Rotina) GetPorMunicipioTipo(c *gin.Context) {
 	municipioID := strings.TrimSpace(c.Param("municipio_id"))
 	tipoEmpresaID := strings.TrimSpace(c.Param("tipo_empresa_id"))
 	if municipioID == "" || tipoEmpresaID == "" {
@@ -37,10 +37,11 @@ func (h *Handler) GetRotinas(c *gin.Context) {
 		return
 	}
 
-	payload, err := h.repo.ListRotinasJSON(c.Request.Context(), municipioID, tipoEmpresaID)
+	payload, err := h.repo.ListByMunicipioTipoJSON(c.Request.Context(), municipioID, tipoEmpresaID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao consultar rotinas"})
 		_ = c.Error(err)
+		log.Printf("Erro no banco: %v", err)
 		return
 	}
 

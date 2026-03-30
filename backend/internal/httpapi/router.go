@@ -8,7 +8,6 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/handlers"
 	apiMiddleware "github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/publicapi"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -86,8 +85,6 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	r.Route("/api", func(api chi.Router) {
 		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, compromissoHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, requireAuth, requireAdmin, requireSuper)
 	})
-
-	r.Mount("/v1/public", publicapi.NewRouter(cfg, pool))
 
 	return r
 }

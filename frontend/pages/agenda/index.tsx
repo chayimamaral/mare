@@ -12,10 +12,15 @@ import { Calendar as PRCalendar } from 'primereact/calendar';
 //import EventService from '../service/EventService';
 import AgendaService from '../../services/cruds/AgendaService';
 import styles from './agenda.module.css';
-import AgendaDialog from './AgendaDialog';
+//import AgendaDialog from './AgendaDialog';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import { Calendar } from '@fullcalendar/core'
+import dynamic from 'next/dynamic';
+
+const AgendaDialog = dynamic(() => import('./AgendaDialog'), {
+  ssr: false, // Isso desativa a renderização no servidor para este componente
+});
 
 type CalendarioProps = {
   dados: string;

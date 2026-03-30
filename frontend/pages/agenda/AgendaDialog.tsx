@@ -14,6 +14,8 @@ import { render } from '@fullcalendar/core/preact';
 
 const SecondCalendar = ({ eventData, agenda_id, isOpen }) => {
 
+  if (typeof window === 'undefined') return null;
+
   const [events, setEvents] = useState<any[]>([]);
 
   const [isUpdating, setIsUpdating] = useState(false);

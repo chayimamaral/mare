@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Tooltip } from 'primereact/tooltip';
-import { canSSRAuth } from './utils/canSSRAuth';
+import { canSSRAuth } from '../services/utils/canSSRAuth';
 
 type ModuloAtivo = {
     future?: false;
