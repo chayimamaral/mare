@@ -65,92 +65,69 @@ export default function RotinaService() {
     };
 
     const deleteRotina = async (params) => {
+        const apiClient = setupAPIClient(undefined);
         try {
-            const apiClient = setupAPIClient(undefined);
             const response = await apiClient.put('/api/deleterotina', {
                 params: {
                     ...params
                 }
+            });
 
-            })
-
-            const { rotinas, totalRecords } = response.data
-
-            return {
-                props: {
-                    rotinas,
-                    totalRecords,
-                }
-            }
-        } catch (err) {
-            return {
-                redirect: {
-                    destination: '/rotinas',
-                    permanent: false
-
-                }
-            }
-        }
-    }
-
-
-    const updateRotina = async (params) => {
-        try {
-            const apiClient = setupAPIClient(undefined);
-
-            const response = await apiClient.put('/api/rotina', {
-                params: {
-                    ...params
-                }
-
-            })
-
-            const { rotinas, totalRecords } = response.data
+            const { rotinas, totalRecords } = response.data;
 
             return {
                 data: {
                     rotinas,
                     totalRecords,
                 }
-            }
+            };
         } catch (err) {
-            return {
-                redirect: {
-                    destination: '/rotinas',
-                    permanent: false
+            throw err;
+        }
+    }
 
+
+    const updateRotina = async (params) => {
+        const apiClient = setupAPIClient(undefined);
+        try {
+            const response = await apiClient.put('/api/rotina', {
+                params: {
+                    ...params
                 }
-            }
+            });
+
+            const { rotinas, totalRecords } = response.data;
+
+            return {
+                data: {
+                    rotinas,
+                    totalRecords,
+                }
+            };
+        } catch (err) {
+            throw err;
         }
     }
 
     const createRotina = async (params) => {
+        const apiClient = setupAPIClient(undefined);
         try {
-            const apiClient = setupAPIClient(undefined);
-
             const response = await apiClient.post('/api/rotina', {
                 params: {
                     ...params
                 }
-            })
+            });
 
-            const { rotinas, totalRecords } = response.data
+            const { rotinas, totalRecords } = response.data;
 
             return {
                 data: {
                     rotinas,
                     totalRecords
                 }
-            }
-
+            };
         } catch (err) {
-            return {
-                redirect: {
-                    destination: '/rotinas',
-                    permanent: false
-
-                }
-            }
+            throw err;
         }
     }
 

@@ -165,9 +165,9 @@ func registerRoutes(
 	r.With(requireAuth).Get("/getgrupopassobyid", grupoPassosHandler.GetByID)
 
 	r.With(requireAuth).Get("/rotinas", rotinaHandler.List)
-	r.With(requireAuth, requireAdmin).Post("/rotina", rotinaHandler.Create)
-	r.With(requireAuth, requireAdmin).Put("/deleterotina", rotinaHandler.Delete)
-	r.With(requireAuth, requireAdmin).Put("/rotina", rotinaHandler.Update)
+	r.With(requireAuth).Post("/rotina", rotinaHandler.Create)
+	r.With(requireAuth).Put("/deleterotina", rotinaHandler.Delete)
+	r.With(requireAuth).Put("/rotina", rotinaHandler.Update)
 	r.With(requireAuth).Get("/rotinaitens", rotinaHandler.RotinaItens)
 	r.With(requireAuth, requireAdmin).Get("/rotinaitemcreate", rotinaHandler.RotinaItemCreate)
 	r.With(requireAuth, requireAdmin).Get("/rotinaitemupdate", rotinaHandler.RotinaItemUpdate)

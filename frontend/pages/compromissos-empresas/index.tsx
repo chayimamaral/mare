@@ -33,6 +33,7 @@ type NodeData = {
 
 type TableFilters = NonNullable<TreeTableProps['filters']>;
 type SelectOption = { label: string; value: string };
+type PrazoFiltro = 'TODOS' | 'VENCENDO' | 'ATRASADOS' | 'FUTUROS';
 
 const TABLE_STATE_STORAGE_KEY = 'vecontab.compromissos-empresas.treetable.v1';
 
@@ -56,9 +57,15 @@ const NATUREZA_FILTER_OPTIONS = [
 ];
 
 const STATUS_FILTER_OPTIONS = [
-    { label: 'Todos', value: null },
     { label: 'Pendente', value: 'pendente' },
-    { label: 'Concluído', value: 'concluído' },
+    { label: 'Concluído', value: 'concluido' },
+];
+
+const PRAZO_FILTER_OPTIONS: Array<{ label: string; value: PrazoFiltro }> = [
+    { label: 'Todos', value: 'TODOS' },
+    { label: 'Vencendo', value: 'VENCENDO' },
+    { label: 'Atrasados', value: 'ATRASADOS' },
+    { label: 'Futuros', value: 'FUTUROS' },
 ];
 
 const formatDate = (value?: string): string => {
@@ -108,6 +115,19 @@ const defaultExpandedKeys = (roots: TreeNode[]): Record<string, boolean> => {
 
 const statusNorm = (s: string) => s.trim().toLowerCase();
 
+function diffDiasParaHoje(isoDate?: string): number | null {
+    if (!isoDate || isoDate.length < 10) {
+        return null;
+    }
+    const alvo = new Date(`${isoDate.slice(0, 10)}T00:00:00`);
+    if (Number.isNaN(alvo.getTime())) {
+        return null;
+    }
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return Math.floor((alvo.getTime() - hoje.getTime()) / 86400000);
+}
+
 function vencimentoOrdemFilter(value: unknown, filter: unknown): boolean {
     if (filter == null || !(filter instanceof Date) || Number.isNaN(filter.getTime())) {
         return true;
@@ -152,6 +172,7 @@ export default function CompromissosEmpresasPage() {
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [globalFilterDraft, setGlobalFilterDraft] = useState('');
     const [filters, setFilters] = useState<TableFilters>(() => ({ ...INITIAL_FILTERS }));
+    const [prazoFiltro, setPrazoFiltro] = useState<PrazoFiltro>('TODOS');
     const toast = useRef<Toast>(null);
     const svc = useMemo(() => EmpresaCompromissoService(), []);
 
@@ -384,18 +405,16 @@ export default function CompromissosEmpresasPage() {
         setFirst(0);
     };
 
-    const onPage = (event: { first: number; rows: number }) => {
-        setFirst(event.first);
-        setRows(event.rows);
+    const onPage = (event: { first?: number; rows?: number }) => {
+        const nextFirst = typeof event.first === 'number' ? event.first : 0;
+        const nextRows = typeof event.rows === 'number' && event.rows > 0 ? event.rows : rows;
+        setFirst(nextFirst);
+        setRows(nextRows);
     };
 
     const onSort: TreeTableProps['onSort'] = (event) => {
-        if (event.sortField) {
-            setSortField(event.sortField);
-        }
-        if (event.sortOrder === 1 || event.sortOrder === -1) {
-            setSortOrder(event.sortOrder);
-        }
+        setSortField(event.sortField || 'nome');
+        setSortOrder(event.sortOrder === -1 ? -1 : 1);
     };
 
     const clearFilters = () => {
@@ -403,7 +422,42 @@ export default function CompromissosEmpresasPage() {
         setGlobalFilterValue('');
         setGlobalFilterDraft('');
         setFilters({ ...INITIAL_FILTERS });
+        setPrazoFiltro('TODOS');
     };
+
+    const nodesFiltradosPorPrazo = useMemo(() => {
+        if (prazoFiltro === 'TODOS') {
+            return nodes;
+        }
+        const filtrados: TreeNode[] = [];
+        for (const emp of nodes) {
+            const filhos = (emp.children || []).filter((child) => {
+                const d = child.data as NodeData | undefined;
+                if (d?.tipoNo !== 'COMPROMISSO') {
+                    return false;
+                }
+                const diff = diffDiasParaHoje(d.dataVencimentoISO);
+                if (diff == null) {
+                    return false;
+                }
+                const st = statusNorm(d.status || '');
+                switch (prazoFiltro) {
+                    case 'VENCENDO':
+                        return diff >= 0 && diff <= 7;
+                    case 'ATRASADOS':
+                        return diff < 0 && st === 'pendente';
+                    case 'FUTUROS':
+                        return diff > 7;
+                    default:
+                        return true;
+                }
+            });
+            if (filhos.length > 0) {
+                filtrados.push({ ...emp, children: filhos });
+            }
+        }
+        return filtrados;
+    }, [nodes, prazoFiltro]);
 
     const pendenteCorUrgencia = (u: 'ok' | 'warn' | 'overdue' | undefined) => {
         if (u === 'warn') {
@@ -717,10 +771,21 @@ export default function CompromissosEmpresasPage() {
                     onClick={abrirInclusaoManual}
                     tooltip="Inclusão Manual de Compromisso"
                 />
+                <div className="ml-2" style={{ minWidth: '16rem' }}>
+                    <Dropdown
+                        value={prazoFiltro}
+                        options={PRAZO_FILTER_OPTIONS}
+                        onChange={(e) => {
+                            setPrazoFiltro((e.value as PrazoFiltro) || 'TODOS');
+                            setFirst(0);
+                        }}
+                        className="w-full"
+                    />
+                </div>
             </div>
 
             <TreeTable
-                value={nodes}
+                value={nodesFiltradosPorPrazo}
                 loading={loading}
                 expandedKeys={expandedKeys}
                 onToggle={(e: { value: Record<string, boolean> }) => setExpandedKeys(e.value)}
@@ -734,7 +799,6 @@ export default function CompromissosEmpresasPage() {
                 sortField={sortField}
                 sortOrder={sortOrder}
                 onSort={onSort}
-                removableSort
                 filters={filters}
                 onFilter={onTreeFilter}
                 globalFilter={globalFilterValue}
@@ -779,7 +843,17 @@ export default function CompromissosEmpresasPage() {
                     style={{ width: '12%' }}
                 />
                 <Column field="valorText" header="Valor" sortable filter filterPlaceholder="Filtrar" body={valorBodyTemplate} style={{ width: '12%' }} />
-                <Column field="status" header="Status" body={statusBodyTemplate} sortable filter filterPlaceholder="Filtrar" style={{ width: '14%' }} />
+                <Column
+                    field="status"
+                    header="Status"
+                    body={statusBodyTemplate}
+                    sortable
+                    filter
+                    showFilterMenu={false}
+                    filterMatchMode={FilterMatchMode.EQUALS}
+                    filterElement={statusFilterEl}
+                    style={{ width: '14%' }}
+                />
                 <Column header="Ações" body={acoesBodyTemplate} style={{ width: '14%' }} />
             </TreeTable>
 

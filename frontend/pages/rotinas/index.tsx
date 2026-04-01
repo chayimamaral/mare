@@ -368,9 +368,13 @@ const Rotinas = () => {
             setSubmitted(false);
             return;
         }
-        rotina['cidade_id'] = municipio.id;
-
-        let _rotina = { ...rotina, tipo_empresa_id: tipoEmpresa.id };
+        const _rotina = {
+            id: rotina.id ?? '',
+            descricao: rotina.descricao ?? '',
+            cidade_id: municipio.id ?? '',
+            tipo_empresa_id: tipoEmpresa.id ?? '',
+            link: (rotina as any).link ?? '',
+        };
 
         if (rotina.id) {
             rotinaService.updateRotina(_rotina)

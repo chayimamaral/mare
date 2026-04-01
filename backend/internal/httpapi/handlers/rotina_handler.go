@@ -21,6 +21,10 @@ type rotinaEnvelope struct {
 		Descricao      string `json:"descricao"`
 		CidadeID       string `json:"cidade_id"`
 		TipoEmpresaID  string `json:"tipo_empresa_id"`
+		TipoempresaID  string `json:"tipoempresa_id"`
+		TipoEmpresa    struct {
+			ID string `json:"id"`
+		} `json:"tipo_empresa"`
 		Link           string `json:"link"`
 		TempoEstimado  int    `json:"tempoestimado"`
 		RotinaID       string `json:"rotina_id"`
@@ -92,7 +96,8 @@ func (h *RotinaHandler) Create(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Favor informar o município da rotina!")
 		return
 	}
-	if strings.TrimSpace(payload.Params.TipoEmpresaID) == "" {
+	tipoEmpresaID := resolveTipoEmpresaID(payload)
+	if tipoEmpresaID == "" {
 		render.WriteError(w, http.StatusBadRequest, "Favor informar o tipo de empresa da rotina!")
 		return
 	}
@@ -100,7 +105,7 @@ func (h *RotinaHandler) Create(w http.ResponseWriter, r *http.Request) {
 	response, err := h.service.Create(r.Context(), service.RotinaInput{
 		Descricao:     payload.Params.Descricao,
 		CidadeID:      payload.Params.CidadeID,
-		TipoEmpresaID: payload.Params.TipoEmpresaID,
+		TipoEmpresaID: tipoEmpresaID,
 		Link:          payload.Params.Link,
 	})
 	if err != nil {
@@ -124,7 +129,8 @@ func (h *RotinaHandler) Update(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Favor informar o município da rotina!")
 		return
 	}
-	if strings.TrimSpace(payload.Params.TipoEmpresaID) == "" {
+	tipoEmpresaID := resolveTipoEmpresaID(payload)
+	if tipoEmpresaID == "" {
 		render.WriteError(w, http.StatusBadRequest, "Favor informar o tipo de empresa da rotina!")
 		return
 	}
@@ -133,7 +139,7 @@ func (h *RotinaHandler) Update(w http.ResponseWriter, r *http.Request) {
 		ID:            payload.Params.ID,
 		Descricao:     payload.Params.Descricao,
 		CidadeID:      payload.Params.CidadeID,
-		TipoEmpresaID: payload.Params.TipoEmpresaID,
+		TipoEmpresaID: tipoEmpresaID,
 		Link:          payload.Params.Link,
 	})
 	if err != nil {
@@ -416,4 +422,14 @@ func asInt(v any) int {
 	default:
 		return 0
 	}
+}
+
+func resolveTipoEmpresaID(payload rotinaEnvelope) string {
+	if id := strings.TrimSpace(payload.Params.TipoEmpresaID); id != "" {
+		return id
+	}
+	if id := strings.TrimSpace(payload.Params.TipoempresaID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(payload.Params.TipoEmpresa.ID)
 }

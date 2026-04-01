@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict 2Hz3z0zyJJAVxOT8nfhZGBobclhguvhORv0898ceuCmtnyYnufzWsIJvd7lKFSX
+\restrict PQSpTDlBkfoOuyhToNIVm4NCeIBLCzCmvrKBCJNklPFCApTIcwcK2M90KWlQC92
 
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
 
--- Started on 2026-03-31 20:14:25 -03
+-- Started on 2026-04-01 10:40:25 -03
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -30,7 +30,7 @@ SET row_security = off;
 
 
 --
--- TOC entry 895 (class 1247 OID 17605)
+-- TOC entry 899 (class 1247 OID 17605)
 -- Name: feriado; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -43,7 +43,7 @@ CREATE TYPE public.feriado AS ENUM (
 
 
 --
--- TOC entry 898 (class 1247 OID 17614)
+-- TOC entry 902 (class 1247 OID 17614)
 -- Name: feriado_old; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -57,7 +57,7 @@ CREATE TYPE public.feriado_old AS ENUM (
 
 
 --
--- TOC entry 901 (class 1247 OID 17626)
+-- TOC entry 905 (class 1247 OID 17626)
 -- Name: plano; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -70,7 +70,7 @@ CREATE TYPE public.plano AS ENUM (
 
 
 --
--- TOC entry 904 (class 1247 OID 17636)
+-- TOC entry 908 (class 1247 OID 17636)
 -- Name: role; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -86,7 +86,7 @@ CREATE TYPE public.role AS ENUM (
 
 
 --
--- TOC entry 907 (class 1247 OID 17652)
+-- TOC entry 911 (class 1247 OID 17652)
 -- Name: status; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -124,7 +124,7 @@ $$;
 
 
 --
--- TOC entry 266 (class 1255 OID 17658)
+-- TOC entry 265 (class 1255 OID 17658)
 -- Name: gerar_agenda(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -181,7 +181,7 @@ $$;
 
 
 --
--- TOC entry 267 (class 1255 OID 17659)
+-- TOC entry 266 (class 1255 OID 17659)
 -- Name: gerar_agenda_trigger(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -199,11 +199,11 @@ $$;
 
 
 --
--- TOC entry 254 (class 1255 OID 28901)
--- Name: gerar_compromissos_mensais(text, date, text); Type: FUNCTION; Schema: public; Owner: -
+-- TOC entry 274 (class 1255 OID 28904)
+-- Name: gerar_compromissos_core(date, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.gerar_compromissos_mensais(in_tenant_id text, in_data_referencia date DEFAULT CURRENT_DATE, in_empresa_id text DEFAULT NULL::text) RETURNS integer
+CREATE FUNCTION public.gerar_compromissos_core(in_data_referencia date DEFAULT CURRENT_DATE, in_empresa_id text DEFAULT NULL::text, in_tenant_id text DEFAULT NULL::text) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -218,8 +218,8 @@ DECLARE
     v_valor numeric(12,3);
     v_status varchar(20) := 'pendente';
 BEGIN
-    IF trim(COALESCE(in_tenant_id, '')) = '' THEN
-        RAISE EXCEPTION 'tenant_id é obrigatório';
+    IF in_empresa_id IS NOT NULL AND trim(in_empresa_id) = '' THEN
+        RAISE EXCEPTION 'empresa_id inválido';
     END IF;
 
     FOR rec IN
@@ -245,7 +245,7 @@ BEGIN
         LEFT JOIN public.tipoempresa_obriga_municipio om ON om.obrigacao_id = o.id
         LEFT JOIN public.tipoempresa_obriga_bairro ob ON ob.tipoempresa_obrigacao_id = o.id
         WHERE e.ativo = true
-          AND e.tenant_id = in_tenant_id
+          AND (in_tenant_id IS NULL OR e.tenant_id = in_tenant_id)
           AND (in_empresa_id IS NULL OR e.id = in_empresa_id)
           AND (
             o.abrangencia = 'FEDERAL'
@@ -287,25 +287,8 @@ BEGIN
         v_dia := LEAST(GREATEST(rec.dia_base, 1), EXTRACT(DAY FROM (date_trunc('month', v_competencia) + interval '1 month - 1 day'))::int);
         v_data_venc := make_date(v_ref_ano, v_ref_mes, v_dia);
 
-        -- Ajuste inteligente: usa função existente (finais de semana + feriado fixo/variável).
-        v_data_venc := public.calcular_data_termino(v_data_venc, 0);
-
-        -- Complementa com escopo municipal/estadual.
-        WHILE EXISTS (
-            SELECT 1
-            FROM public.feriados f
-            LEFT JOIN public.feriado_municipal fm ON fm.feriado_id = f.id
-            LEFT JOIN public.feriado_estadual fe ON fe.feriado_id = f.id
-            WHERE f.ativo = true
-              AND (
-                (f.feriado = 'MUNICIPAL' AND fm.municipio_id = rec.municipio_id)
-                OR (f.feriado = 'ESTADUAL' AND fe.uf_id = rec.estado_id)
-              )
-              AND to_date(f.data || '/' || EXTRACT(YEAR FROM v_data_venc)::int, 'DD/MM/YYYY') = v_data_venc
-        ) LOOP
-            v_data_venc := v_data_venc + interval '1 day';
-            v_data_venc := public.calcular_data_termino(v_data_venc, 0);
-        END LOOP;
+        -- Posterga para próximo dia útil considerando finais de semana e todos os feriados aplicáveis.
+        v_data_venc := public.postergar_para_proximo_dia_util(v_data_venc, rec.municipio_id, rec.estado_id);
 
         IF upper(trim(COALESCE(rec.tipo_classificacao, ''))) IN ('TRIBUTARIA', 'TRIBUTO') THEN
             v_valor := rec.valor_raw;
@@ -333,7 +316,57 @@ $$;
 
 
 --
--- TOC entry 268 (class 1255 OID 17660)
+-- TOC entry 275 (class 1255 OID 28906)
+-- Name: gerar_compromissos_empresa(text, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gerar_compromissos_empresa(in_empresa_id text, in_data_referencia date DEFAULT CURRENT_DATE) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF trim(COALESCE(in_empresa_id, '')) = '' THEN
+        RAISE EXCEPTION 'empresa_id é obrigatório';
+    END IF;
+
+    RETURN public.gerar_compromissos_core(in_data_referencia, in_empresa_id, NULL);
+END;
+$$;
+
+
+--
+-- TOC entry 276 (class 1255 OID 28907)
+-- Name: gerar_compromissos_geral(date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gerar_compromissos_geral(in_data_referencia date DEFAULT ((date_trunc('month'::text, (CURRENT_DATE)::timestamp with time zone) + '1 mon'::interval))::date) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RETURN public.gerar_compromissos_core(in_data_referencia, NULL, NULL);
+END;
+$$;
+
+
+--
+-- TOC entry 277 (class 1255 OID 28901)
+-- Name: gerar_compromissos_mensais(text, date, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gerar_compromissos_mensais(in_tenant_id text, in_data_referencia date DEFAULT CURRENT_DATE, in_empresa_id text DEFAULT NULL::text) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF trim(COALESCE(in_tenant_id, '')) = '' THEN
+        RAISE EXCEPTION 'tenant_id é obrigatório';
+    END IF;
+
+    RETURN public.gerar_compromissos_core(in_data_referencia, in_empresa_id, in_tenant_id);
+END;
+$$;
+
+
+--
+-- TOC entry 267 (class 1255 OID 17660)
 -- Name: get_cidades_with_ufs(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -362,7 +395,7 @@ $$;
 
 
 --
--- TOC entry 269 (class 1255 OID 17661)
+-- TOC entry 268 (class 1255 OID 17661)
 -- Name: get_cidades_with_ufs2(character varying, integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -392,7 +425,7 @@ $$;
 
 
 --
--- TOC entry 270 (class 1255 OID 17662)
+-- TOC entry 269 (class 1255 OID 17662)
 -- Name: get_passos_nested(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -417,7 +450,7 @@ $$;
 
 
 --
--- TOC entry 271 (class 1255 OID 17663)
+-- TOC entry 270 (class 1255 OID 17663)
 -- Name: get_passos_nested_children(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -444,7 +477,7 @@ $$;
 
 
 --
--- TOC entry 272 (class 1255 OID 17664)
+-- TOC entry 271 (class 1255 OID 17664)
 -- Name: get_passos_recur(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -473,8 +506,6 @@ END;
 $$;
 
 
-SET default_tablespace = '';
-
 SET default_table_access_method = heap;
 
 --
@@ -491,7 +522,7 @@ CREATE TABLE public.estado (
 
 
 --
--- TOC entry 273 (class 1255 OID 17675)
+-- TOC entry 272 (class 1255 OID 17675)
 -- Name: getfoo(character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -547,6 +578,52 @@ BEGIN
       WHERE node_parent_id = _Id
     )
   ));
+END;
+$$;
+
+
+--
+-- TOC entry 273 (class 1255 OID 28903)
+-- Name: postergar_para_proximo_dia_util(date, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.postergar_para_proximo_dia_util(in_data date, in_municipio_id text DEFAULT NULL::text, in_estado_id text DEFAULT NULL::text) RETURNS date
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_data date := in_data;
+BEGIN
+    IF v_data IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    LOOP
+        -- Fim de semana.
+        IF EXTRACT(ISODOW FROM v_data) IN (6, 7) THEN
+            v_data := v_data + 1;
+            CONTINUE;
+        END IF;
+
+        -- Feriado: FIXO / VARIAVEL / MUNICIPAL / ESTADUAL.
+        IF EXISTS (
+            SELECT 1
+            FROM public.feriados f
+            LEFT JOIN public.feriado_municipal fm ON fm.feriado_id = f.id
+            LEFT JOIN public.feriado_estadual fe ON fe.feriado_id = f.id
+            WHERE f.ativo = true
+              AND (
+                    f.feriado IN ('FIXO', 'VARIAVEL')
+                    OR (f.feriado = 'MUNICIPAL' AND fm.municipio_id = in_municipio_id)
+                    OR (f.feriado = 'ESTADUAL' AND fe.uf_id = in_estado_id)
+                  )
+              AND to_date(f.data || '/' || EXTRACT(YEAR FROM v_data)::int, 'DD/MM/YYYY') = v_data
+        ) THEN
+            v_data := v_data + 1;
+            CONTINUE;
+        END IF;
+
+        RETURN v_data;
+    END LOOP;
 END;
 $$;
 
@@ -1054,7 +1131,7 @@ CREATE TABLE public.usuario (
 
 
 --
--- TOC entry 4766 (class 0 OID 17681)
+-- TOC entry 4770 (class 0 OID 17681)
 -- Dependencies: 220
 -- Data for Name: agenda; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1070,7 +1147,7 @@ e046dbb2-bfc7-49af-be92-924810821ab3	2023-09-22	\N	passos_concluidos	5bf1a2bc-b3
 
 
 --
--- TOC entry 4767 (class 0 OID 17696)
+-- TOC entry 4771 (class 0 OID 17696)
 -- Dependencies: 221
 -- Data for Name: agendaitens; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1104,7 +1181,7 @@ ef3f73f9-34d1-4d83-8eba-ff1941ea2ada	1ea777c7-574e-4b84-82b0-e0db28344ffc	5047a6
 
 
 --
--- TOC entry 4768 (class 0 OID 17707)
+-- TOC entry 4772 (class 0 OID 17707)
 -- Dependencies: 222
 -- Data for Name: cnae; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1116,7 +1193,7 @@ COPY public.cnae (id, subclasse, denominacao, ativo) FROM stdin;
 
 
 --
--- TOC entry 4769 (class 0 OID 17718)
+-- TOC entry 4773 (class 0 OID 17718)
 -- Dependencies: 223
 -- Data for Name: dadoscomplementares; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1133,7 +1210,7 @@ Rua das Curruiras, 175	Campeche	Florianópolis	SC	88063091	48 988151381	chayimam
 
 
 --
--- TOC entry 4770 (class 0 OID 17728)
+-- TOC entry 4774 (class 0 OID 17728)
 -- Dependencies: 224
 -- Data for Name: empresa; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1152,7 +1229,7 @@ a0ef2dad-5f65-4821-bbf2-034477183f44	Empresa Teste	abfd20e5-d561-4c44-ba42-ae194
 
 
 --
--- TOC entry 4792 (class 0 OID 28766)
+-- TOC entry 4796 (class 0 OID 28766)
 -- Dependencies: 246
 -- Data for Name: empresa_agenda; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1162,7 +1239,7 @@ COPY public.empresa_agenda (id, empresa_id, template_id, descricao, data_vencime
 
 
 --
--- TOC entry 4793 (class 0 OID 28851)
+-- TOC entry 4797 (class 0 OID 28851)
 -- Dependencies: 247
 -- Data for Name: empresa_compromissos; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1170,20 +1247,21 @@ COPY public.empresa_agenda (id, empresa_id, template_id, descricao, data_vencime
 COPY public.empresa_compromissos (id, descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, criado_em, atualizado_em, competencia) FROM stdin;
 e02cd007-30e7-4337-ad20-71062fa55cb2	Compromisso bairro mensal nao financeiro	\N	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	93c6a4dc-ae55-431a-b0d8-b69bc237875f	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
 6b8ed10c-8eda-4161-aa52-8c62509d3cd4	Compromisso municipal mensal financeiro	120.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	cf548021-bc2d-4091-8f1a-087918e5f577	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
-beb2fae6-cdba-4b15-be1d-d70dee664f6d	Compromisso municipal anual financeiro	130.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	e7873d49-a38d-48bd-aa59-268d943625e3	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
-3172ed58-cf9d-4e43-a735-6784cc636de6	Compromisso estadual anual financeiro	110.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	c603a3c5-10ee-4b14-a122-b7473ece1fa5	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
-fb9e4c4c-ebd2-4ddd-a6d5-ed0e4a2a7664	Compromisso municipal anual nao financeiro	\N	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	4acf5849-2a62-4390-b7b8-b0a2920113f0	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
 85d5745d-6bdd-4bb5-8652-e3331306f4af	Compromisso estadual mensal nao financeiro	\N	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	5d3189ad-0395-490f-a929-b4f8675bad4e	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
 600bf149-b675-4563-9205-1f52a753dce8	Compromisso municipal mensal nao financeiro	\N	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	9a9af32b-a611-46ea-9acc-abce4ab662ec	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
 9b071171-9054-4ba6-8302-8a74a8235472	Compromisso estadual anual nao financeiro	\N	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	f3d85f25-31d0-4cdc-93f9-c9a9818e65c7	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
-47e8b8f6-7697-45af-86ab-66dc9f19ff1b	Compromisso estadual mensal financeiro	100.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	7a6e69c2-57e6-4beb-9ec1-e3424a7a2d8d	2026-03-31 15:26:11.410707-03	2026-03-31 15:26:11.410707-03	2026-04-01
+fb9e4c4c-ebd2-4ddd-a6d5-ed0e4a2a7664	Compromisso municipal anual nao financeiro	\N	2026-03-30 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	4acf5849-2a62-4390-b7b8-b0a2920113f0	2026-03-31 15:26:11.410707-03	2026-03-31 20:16:33.063276-03	2026-04-01
+beb2fae6-cdba-4b15-be1d-d70dee664f6d	Compromisso municipal anual financeiro	130.000	2026-04-06 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	e7873d49-a38d-48bd-aa59-268d943625e3	2026-03-31 15:26:11.410707-03	2026-03-31 20:16:34.462852-03	2026-04-01
+47e8b8f6-7697-45af-86ab-66dc9f19ff1b	Compromisso estadual mensal financeiro	100.000	2026-04-07 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	7a6e69c2-57e6-4beb-9ec1-e3424a7a2d8d	2026-03-31 15:26:11.410707-03	2026-03-31 20:16:44.354348-03	2026-04-01
+791407c9-e43b-4b65-a1cb-054e3bac3c5f	Teste de avulsos	220.000	2026-04-29 21:00:00-03		pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	52f9e9ad-2e2c-4a64-b779-8867db21479d	2026-04-01 08:28:06.164157-03	2026-04-01 08:28:06.164157-03	2026-04-01
 4968ce2f-479a-4dfa-acaf-b5df0ea08c22	Compromisso bairro mensal financeiro	200.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	pendente	5b2eacf9-5289-402d-85be-52f7233d20d2	e85d3da6-fac6-4f01-95af-0cbe67576089	2026-03-31 15:26:11.410707-03	2026-03-31 15:43:46.537795-03	2026-04-01
 88a5f0fa-3103-4347-b3ee-07ec9b5175eb	Compromisso bairro anual financeiro	200.500	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	concluido	5b2eacf9-5289-402d-85be-52f7233d20d2	bce1f085-fdc7-4054-a20f-09ad6f22e2a6	2026-03-31 15:26:11.410707-03	2026-03-31 15:44:04.49976-03	2026-04-01
+3172ed58-cf9d-4e43-a735-6784cc636de6	Compromisso estadual anual financeiro	110.000	2026-04-20 00:00:00-03	Seed automatico MEI - abrangencia local.	concluido	5b2eacf9-5289-402d-85be-52f7233d20d2	c603a3c5-10ee-4b14-a122-b7473ece1fa5	2026-03-31 15:26:11.410707-03	2026-03-31 20:15:45.427246-03	2026-04-01
 \.
 
 
 --
--- TOC entry 4771 (class 0 OID 17742)
+-- TOC entry 4775 (class 0 OID 17742)
 -- Dependencies: 225
 -- Data for Name: empresacnae; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1193,7 +1271,7 @@ COPY public.empresacnae (empresa, cnae) FROM stdin;
 
 
 --
--- TOC entry 4772 (class 0 OID 17749)
+-- TOC entry 4776 (class 0 OID 17749)
 -- Dependencies: 226
 -- Data for Name: empresadados; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1203,7 +1281,7 @@ COPY public.empresadados (id, razaosocial, fantasia, cnpj, ie, im, empresaid) FR
 
 
 --
--- TOC entry 4765 (class 0 OID 17665)
+-- TOC entry 4769 (class 0 OID 17665)
 -- Dependencies: 219
 -- Data for Name: estado; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1247,7 +1325,7 @@ c79b80a5-7877-40ba-9b01-408f411ac5bf	Rio Grande do Centro	RC	f
 
 
 --
--- TOC entry 4773 (class 0 OID 17757)
+-- TOC entry 4777 (class 0 OID 17757)
 -- Dependencies: 227
 -- Data for Name: feriado_estadual; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1259,7 +1337,7 @@ d9002885-b6e2-423d-a524-90be59cf1c94	0eacb915-f4a3-41dc-982e-e8c281a2a33c\n
 
 
 --
--- TOC entry 4774 (class 0 OID 17764)
+-- TOC entry 4778 (class 0 OID 17764)
 -- Dependencies: 228
 -- Data for Name: feriado_municipal; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1276,7 +1354,7 @@ c587121e-8c81-4a33-8d11-ea586c11d33e	5e6b9b79-66ce-4119-af61-1fdf141c085b
 
 
 --
--- TOC entry 4775 (class 0 OID 17771)
+-- TOC entry 4779 (class 0 OID 17771)
 -- Dependencies: 229
 -- Data for Name: feriados; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1300,7 +1378,7 @@ c587121e-8c81-4a33-8d11-ea586c11d33e	Aiversário Curitiba	29/03	t	MUNICIPAL
 
 
 --
--- TOC entry 4776 (class 0 OID 17783)
+-- TOC entry 4780 (class 0 OID 17783)
 -- Dependencies: 230
 -- Data for Name: grupopassos; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1315,7 +1393,7 @@ f18a4388-252e-41a7-a0da-14e4061539d9	Guarujá MEI	4a8647d1-06c8-4616-85be-3f6399
 
 
 --
--- TOC entry 4777 (class 0 OID 17799)
+-- TOC entry 4781 (class 0 OID 17799)
 -- Dependencies: 231
 -- Data for Name: itenspassos; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1327,7 +1405,7 @@ e592d7a5-7c8f-4115-828c-78aba53f8d20	8de1301f-ba9d-41d8-b391-db9e0b56ab9c	7b3594
 
 
 --
--- TOC entry 4778 (class 0 OID 17808)
+-- TOC entry 4782 (class 0 OID 17808)
 -- Dependencies: 232
 -- Data for Name: linkpassos; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1343,7 +1421,7 @@ d4ededcb-b5a2-402a-90e6-f4db735beb29	www.biguacu.sc.gov.br
 
 
 --
--- TOC entry 4779 (class 0 OID 17815)
+-- TOC entry 4783 (class 0 OID 17815)
 -- Dependencies: 233
 -- Data for Name: municipio; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1362,7 +1440,7 @@ f5531987-ec10-4099-b940-b9bde36c0b16	Antonio Carlos	654321456	502caf63-be95-472f
 
 
 --
--- TOC entry 4780 (class 0 OID 17826)
+-- TOC entry 4784 (class 0 OID 17826)
 -- Dependencies: 234
 -- Data for Name: passos; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1391,7 +1469,7 @@ a13f2be9-4098-4a46-991e-2979f6dfc280	Enviar email (a quem de direito)	1	2023-09-
 
 
 --
--- TOC entry 4781 (class 0 OID 17842)
+-- TOC entry 4785 (class 0 OID 17842)
 -- Dependencies: 235
 -- Data for Name: rotinaitemlink; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1403,7 +1481,7 @@ a5ee4f4e-9a78-4e4b-a02c-b379734699c3	www.jucesc.sc.gov.br
 
 
 --
--- TOC entry 4782 (class 0 OID 17848)
+-- TOC entry 4786 (class 0 OID 17848)
 -- Dependencies: 236
 -- Data for Name: rotinaitens; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1460,7 +1538,7 @@ ed925e14-d150-434f-b287-7154d67c1d0a	e58d4218-1fa0-4a8a-a80f-fdb5ef245bef	1
 
 
 --
--- TOC entry 4783 (class 0 OID 17855)
+-- TOC entry 4787 (class 0 OID 17855)
 -- Dependencies: 237
 -- Data for Name: rotinas; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1481,7 +1559,7 @@ e4fa2d00-bea7-4718-be6b-0c7608de7bb6	Teste pós Refactoring	f5531987-ec10-4099-b
 
 
 --
--- TOC entry 4784 (class 0 OID 17866)
+-- TOC entry 4788 (class 0 OID 17866)
 -- Dependencies: 238
 -- Data for Name: tenant; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1516,7 +1594,7 @@ b9fb9d4b-e9a4-45ed-86f0-b9262922437d	meire@bla.com	meire@bla.com	t	2026-03-31 09
 
 
 --
--- TOC entry 4785 (class 0 OID 17882)
+-- TOC entry 4789 (class 0 OID 17882)
 -- Dependencies: 239
 -- Data for Name: tipoempresa; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1532,7 +1610,7 @@ LTDA - Sociedade Empresária Limitada	\N	\N	t	190016eb-d7df-419c-a203-fbdec2e6f3
 
 
 --
--- TOC entry 4790 (class 0 OID 27527)
+-- TOC entry 4794 (class 0 OID 27527)
 -- Dependencies: 244
 -- Data for Name: tipoempresa_obriga_bairro; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1543,7 +1621,7 @@ COPY public.tipoempresa_obriga_bairro (tipoempresa_obrigacao_id, municipio_id, b
 
 
 --
--- TOC entry 4788 (class 0 OID 27489)
+-- TOC entry 4792 (class 0 OID 27489)
 -- Dependencies: 242
 -- Data for Name: tipoempresa_obriga_estado; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1557,7 +1635,7 @@ c603a3c5-10ee-4b14-a122-b7473ece1fa5	502caf63-be95-472f-9922-e8ba268fefa8
 
 
 --
--- TOC entry 4789 (class 0 OID 27508)
+-- TOC entry 4793 (class 0 OID 27508)
 -- Dependencies: 243
 -- Data for Name: tipoempresa_obriga_municipio; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1574,7 +1652,7 @@ bce1f085-fdc7-4054-a20f-09ad6f22e2a6	abfd20e5-d561-4c44-ba42-ae194ebb2c18
 
 
 --
--- TOC entry 4787 (class 0 OID 27358)
+-- TOC entry 4791 (class 0 OID 27358)
 -- Dependencies: 241
 -- Data for Name: tipoempresa_obrigacao; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1587,6 +1665,7 @@ e85d3da6-fac6-4f01-95af-0cbe67576089	Compromisso bairro mensal financeiro	MENSAL
 c603a3c5-10ee-4b14-a122-b7473ece1fa5	Compromisso estadual anual financeiro	ANUAL	ESTADUAL	110.00	Seed automatico MEI - abrangencia local.	t	2026-03-27 10:43:14.959813-03	2026-03-30 19:20:19.374854-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	TRIBUTARIA
 67698eea-67e1-44d5-8344-c872f6569668	Laudêmio	ANUAL	BAIRRO	150.00	O Laudêmio e o Foro, decorrentes de a região estar em cima de Terras da União (Geridas pela SPU - Secretaria do Patrimônio da União).	t	2026-03-31 09:36:38.160785-03	2026-03-31 09:36:38.160785-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	1	TRIBUTARIA
 bce1f085-fdc7-4054-a20f-09ad6f22e2a6	Compromisso bairro anual financeiro	ANUAL	MUNICIPAL	200.50	Seed automatico MEI - abrangencia local.	t	2026-03-27 10:43:14.959813-03	2026-03-31 09:36:51.584632-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	TRIBUTARIA
+52f9e9ad-2e2c-4a64-b779-8867db21479d	Documentação para IRPF	ANUAL	FEDERAL	\N	\N	t	2026-04-01 08:27:29.398222-03	2026-04-01 08:27:29.398222-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	INFORMATIVA
 4acf5849-2a62-4390-b7b8-b0a2920113f0	Compromisso municipal anual nao financeiro	ANUAL	MUNICIPAL	\N	Seed automatico MEI - abrangencia local.	t	2026-03-27 10:43:14.959813-03	2026-03-27 10:43:14.959813-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	INFORMATIVA
 5d3189ad-0395-490f-a929-b4f8675bad4e	Compromisso estadual mensal nao financeiro	MENSAL	ESTADUAL	\N	Seed automatico MEI - abrangencia local.	t	2026-03-27 10:43:14.959813-03	2026-03-27 10:43:14.959813-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	INFORMATIVA
 9a9af32b-a611-46ea-9acc-abce4ab662ec	Compromisso municipal mensal nao financeiro	MENSAL	MUNICIPAL	\N	Seed automatico MEI - abrangencia local.	t	2026-03-27 10:43:14.959813-03	2026-03-27 10:43:14.959813-03	21a4bf05-3100-41e2-a3b2-e59ff67fc897	20	4	INFORMATIVA
@@ -1597,7 +1676,7 @@ f3d85f25-31d0-4cdc-93f9-c9a9818e65c7	Compromisso estadual anual nao financeiro	A
 
 
 --
--- TOC entry 4791 (class 0 OID 28738)
+-- TOC entry 4795 (class 0 OID 28738)
 -- Dependencies: 245
 -- Data for Name: tipoempresa_obrigacao_old; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1612,7 +1691,7 @@ b9daccb1-f634-45df-8f4c-b14218512452	21a4bf05-3100-41e2-a3b2-e59ff67fc897	Nova O
 
 
 --
--- TOC entry 4786 (class 0 OID 17890)
+-- TOC entry 4790 (class 0 OID 17890)
 -- Dependencies: 240
 -- Data for Name: usuario; Type: TABLE DATA; Schema: public; Owner: -
 --
@@ -1635,7 +1714,7 @@ c3de8d80-0eb8-4d73-9e7b-79e5e28130e5	$2a$08$ybusijgpXC8A9vNQXEFB7OtNu8Eng/Ef.Elw
 
 
 --
--- TOC entry 4522 (class 2606 OID 17910)
+-- TOC entry 4526 (class 2606 OID 17910)
 -- Name: estado Estado_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1644,7 +1723,7 @@ ALTER TABLE ONLY public.estado
 
 
 --
--- TOC entry 4550 (class 2606 OID 17912)
+-- TOC entry 4554 (class 2606 OID 17912)
 -- Name: municipio Municipio_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1653,7 +1732,7 @@ ALTER TABLE ONLY public.municipio
 
 
 --
--- TOC entry 4524 (class 2606 OID 17914)
+-- TOC entry 4528 (class 2606 OID 17914)
 -- Name: agenda agenda_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1662,7 +1741,7 @@ ALTER TABLE ONLY public.agenda
 
 
 --
--- TOC entry 4526 (class 2606 OID 17916)
+-- TOC entry 4530 (class 2606 OID 17916)
 -- Name: agendaitens agendaitens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1671,7 +1750,7 @@ ALTER TABLE ONLY public.agendaitens
 
 
 --
--- TOC entry 4528 (class 2606 OID 17918)
+-- TOC entry 4532 (class 2606 OID 17918)
 -- Name: cnae cnae_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1680,7 +1759,7 @@ ALTER TABLE ONLY public.cnae
 
 
 --
--- TOC entry 4573 (class 2606 OID 27497)
+-- TOC entry 4577 (class 2606 OID 27497)
 -- Name: tipoempresa_obriga_estado compromisso_estado_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1689,7 +1768,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_estado
 
 
 --
--- TOC entry 4570 (class 2606 OID 27377)
+-- TOC entry 4574 (class 2606 OID 27377)
 -- Name: tipoempresa_obrigacao compromisso_financeiro_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1698,7 +1777,7 @@ ALTER TABLE ONLY public.tipoempresa_obrigacao
 
 
 --
--- TOC entry 4575 (class 2606 OID 27516)
+-- TOC entry 4579 (class 2606 OID 27516)
 -- Name: tipoempresa_obriga_municipio compromisso_municipio_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1707,7 +1786,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_municipio
 
 
 --
--- TOC entry 4582 (class 2606 OID 28784)
+-- TOC entry 4586 (class 2606 OID 28784)
 -- Name: empresa_agenda empresa_agenda_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1716,7 +1795,7 @@ ALTER TABLE ONLY public.empresa_agenda
 
 
 --
--- TOC entry 4587 (class 2606 OID 28870)
+-- TOC entry 4591 (class 2606 OID 28870)
 -- Name: empresa_compromissos empresa_compromissos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1725,7 +1804,7 @@ ALTER TABLE ONLY public.empresa_compromissos
 
 
 --
--- TOC entry 4530 (class 2606 OID 17920)
+-- TOC entry 4534 (class 2606 OID 17920)
 -- Name: empresa empresa_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1734,7 +1813,7 @@ ALTER TABLE ONLY public.empresa
 
 
 --
--- TOC entry 4532 (class 2606 OID 17922)
+-- TOC entry 4536 (class 2606 OID 17922)
 -- Name: empresadados empresas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1743,7 +1822,7 @@ ALTER TABLE ONLY public.empresadados
 
 
 --
--- TOC entry 4534 (class 2606 OID 17924)
+-- TOC entry 4538 (class 2606 OID 17924)
 -- Name: feriado_estadual feriado_estadual_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1752,7 +1831,7 @@ ALTER TABLE ONLY public.feriado_estadual
 
 
 --
--- TOC entry 4536 (class 2606 OID 17926)
+-- TOC entry 4540 (class 2606 OID 17926)
 -- Name: feriado_municipal feriado_municipal_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1761,7 +1840,7 @@ ALTER TABLE ONLY public.feriado_municipal
 
 
 --
--- TOC entry 4538 (class 2606 OID 17928)
+-- TOC entry 4542 (class 2606 OID 17928)
 -- Name: feriados feriados_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1770,7 +1849,7 @@ ALTER TABLE ONLY public.feriados
 
 
 --
--- TOC entry 4540 (class 2606 OID 17930)
+-- TOC entry 4544 (class 2606 OID 17930)
 -- Name: grupopassos grupopasso_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1779,7 +1858,7 @@ ALTER TABLE ONLY public.grupopassos
 
 
 --
--- TOC entry 4542 (class 2606 OID 17932)
+-- TOC entry 4546 (class 2606 OID 17932)
 -- Name: itenspassos itenspassos_id_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1788,7 +1867,7 @@ ALTER TABLE ONLY public.itenspassos
 
 
 --
--- TOC entry 4546 (class 2606 OID 17934)
+-- TOC entry 4550 (class 2606 OID 17934)
 -- Name: linkpassos linkpassos_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1797,7 +1876,7 @@ ALTER TABLE ONLY public.linkpassos
 
 
 --
--- TOC entry 4552 (class 2606 OID 17936)
+-- TOC entry 4556 (class 2606 OID 17936)
 -- Name: passos passo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1806,7 +1885,7 @@ ALTER TABLE ONLY public.passos
 
 
 --
--- TOC entry 4548 (class 2606 OID 17938)
+-- TOC entry 4552 (class 2606 OID 17938)
 -- Name: linkpassos passos_id_unq; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1815,7 +1894,7 @@ ALTER TABLE ONLY public.linkpassos
 
 
 --
--- TOC entry 4544 (class 2606 OID 17940)
+-- TOC entry 4548 (class 2606 OID 17940)
 -- Name: itenspassos passos_itens_unq; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1824,7 +1903,7 @@ ALTER TABLE ONLY public.itenspassos
 
 
 --
--- TOC entry 4554 (class 2606 OID 17942)
+-- TOC entry 4558 (class 2606 OID 17942)
 -- Name: rotinaitemlink rotinaitemlink_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1833,7 +1912,7 @@ ALTER TABLE ONLY public.rotinaitemlink
 
 
 --
--- TOC entry 4560 (class 2606 OID 17944)
+-- TOC entry 4564 (class 2606 OID 17944)
 -- Name: rotinas rotinas_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1842,7 +1921,7 @@ ALTER TABLE ONLY public.rotinas
 
 
 --
--- TOC entry 4557 (class 2606 OID 17946)
+-- TOC entry 4561 (class 2606 OID 17946)
 -- Name: rotinaitens rotinasitens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1851,7 +1930,7 @@ ALTER TABLE ONLY public.rotinaitens
 
 
 --
--- TOC entry 4563 (class 2606 OID 17948)
+-- TOC entry 4567 (class 2606 OID 17948)
 -- Name: tenant tenant_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1860,7 +1939,7 @@ ALTER TABLE ONLY public.tenant
 
 
 --
--- TOC entry 4565 (class 2606 OID 17950)
+-- TOC entry 4569 (class 2606 OID 17950)
 -- Name: tipoempresa tipoempresa_id_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1869,7 +1948,7 @@ ALTER TABLE ONLY public.tipoempresa
 
 
 --
--- TOC entry 4577 (class 2606 OID 27536)
+-- TOC entry 4581 (class 2606 OID 27536)
 -- Name: tipoempresa_obriga_bairro tipoempresa_obriga_bairro_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1878,7 +1957,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_bairro
 
 
 --
--- TOC entry 4580 (class 2606 OID 28760)
+-- TOC entry 4584 (class 2606 OID 28760)
 -- Name: tipoempresa_obrigacao_old tipoempresa_obrigacao_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1887,7 +1966,7 @@ ALTER TABLE ONLY public.tipoempresa_obrigacao_old
 
 
 --
--- TOC entry 4568 (class 2606 OID 17952)
+-- TOC entry 4572 (class 2606 OID 17952)
 -- Name: usuario usuario_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1896,7 +1975,7 @@ ALTER TABLE ONLY public.usuario
 
 
 --
--- TOC entry 4571 (class 1259 OID 28806)
+-- TOC entry 4575 (class 1259 OID 28806)
 -- Name: idx_compromisso_financeiro_tipoempresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1904,7 +1983,7 @@ CREATE INDEX idx_compromisso_financeiro_tipoempresa ON public.tipoempresa_obriga
 
 
 --
--- TOC entry 4583 (class 1259 OID 28796)
+-- TOC entry 4587 (class 1259 OID 28796)
 -- Name: idx_empresa_agenda_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1912,7 +1991,7 @@ CREATE INDEX idx_empresa_agenda_empresa ON public.empresa_agenda USING btree (em
 
 
 --
--- TOC entry 4584 (class 1259 OID 28797)
+-- TOC entry 4588 (class 1259 OID 28797)
 -- Name: idx_empresa_agenda_template; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1920,7 +1999,7 @@ CREATE INDEX idx_empresa_agenda_template ON public.empresa_agenda USING btree (t
 
 
 --
--- TOC entry 4585 (class 1259 OID 28798)
+-- TOC entry 4589 (class 1259 OID 28798)
 -- Name: idx_empresa_agenda_vencimento; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1928,7 +2007,7 @@ CREATE INDEX idx_empresa_agenda_vencimento ON public.empresa_agenda USING btree 
 
 
 --
--- TOC entry 4588 (class 1259 OID 28883)
+-- TOC entry 4592 (class 1259 OID 28883)
 -- Name: idx_empresa_compromissos_compromisso_fin; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1936,7 +2015,7 @@ CREATE INDEX idx_empresa_compromissos_compromisso_fin ON public.empresa_compromi
 
 
 --
--- TOC entry 4589 (class 1259 OID 28881)
+-- TOC entry 4593 (class 1259 OID 28881)
 -- Name: idx_empresa_compromissos_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1944,7 +2023,7 @@ CREATE INDEX idx_empresa_compromissos_empresa ON public.empresa_compromissos USI
 
 
 --
--- TOC entry 4590 (class 1259 OID 28898)
+-- TOC entry 4594 (class 1259 OID 28898)
 -- Name: idx_empresa_compromissos_tipo_obrigacao; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1952,7 +2031,7 @@ CREATE INDEX idx_empresa_compromissos_tipo_obrigacao ON public.empresa_compromis
 
 
 --
--- TOC entry 4591 (class 1259 OID 28882)
+-- TOC entry 4595 (class 1259 OID 28882)
 -- Name: idx_empresa_compromissos_vencimento; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1960,7 +2039,7 @@ CREATE INDEX idx_empresa_compromissos_vencimento ON public.empresa_compromissos 
 
 
 --
--- TOC entry 4555 (class 1259 OID 17953)
+-- TOC entry 4559 (class 1259 OID 17953)
 -- Name: idx_rotinaitens_ordem; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1968,7 +2047,7 @@ CREATE INDEX idx_rotinaitens_ordem ON public.rotinaitens USING btree (ordem);
 
 
 --
--- TOC entry 4558 (class 1259 OID 28850)
+-- TOC entry 4562 (class 1259 OID 28850)
 -- Name: idx_rotinas_tipo_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1976,7 +2055,7 @@ CREATE INDEX idx_rotinas_tipo_empresa ON public.rotinas USING btree (tipo_empres
 
 
 --
--- TOC entry 4578 (class 1259 OID 28795)
+-- TOC entry 4582 (class 1259 OID 28795)
 -- Name: idx_tipoempresa_obrigacao_tipo_empresa; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1984,7 +2063,7 @@ CREATE INDEX idx_tipoempresa_obrigacao_tipo_empresa ON public.tipoempresa_obriga
 
 
 --
--- TOC entry 4561 (class 1259 OID 17954)
+-- TOC entry 4565 (class 1259 OID 17954)
 -- Name: tenant_nome_unico; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1992,7 +2071,7 @@ CREATE UNIQUE INDEX tenant_nome_unico ON public.tenant USING btree (nome);
 
 
 --
--- TOC entry 4592 (class 1259 OID 28900)
+-- TOC entry 4596 (class 1259 OID 28900)
 -- Name: uq_empresa_compromissos_empresa_obrigacao_competencia; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2000,7 +2079,7 @@ CREATE UNIQUE INDEX uq_empresa_compromissos_empresa_obrigacao_competencia ON pub
 
 
 --
--- TOC entry 4566 (class 1259 OID 17955)
+-- TOC entry 4570 (class 1259 OID 17955)
 -- Name: usuario_email_key; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -2008,7 +2087,7 @@ CREATE UNIQUE INDEX usuario_email_key ON public.usuario USING btree (email);
 
 
 --
--- TOC entry 4617 (class 2620 OID 17956)
+-- TOC entry 4621 (class 2620 OID 17956)
 -- Name: empresa gerar_agenda; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2016,7 +2095,7 @@ CREATE TRIGGER gerar_agenda AFTER UPDATE ON public.empresa FOR EACH ROW EXECUTE 
 
 
 --
--- TOC entry 4599 (class 2606 OID 17957)
+-- TOC entry 4603 (class 2606 OID 17957)
 -- Name: municipio Municipio_ufId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2025,7 +2104,7 @@ ALTER TABLE ONLY public.municipio
 
 
 --
--- TOC entry 4606 (class 2606 OID 27498)
+-- TOC entry 4610 (class 2606 OID 27498)
 -- Name: tipoempresa_obriga_estado compromisso_estado_compromisso_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2034,7 +2113,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_estado
 
 
 --
--- TOC entry 4607 (class 2606 OID 27503)
+-- TOC entry 4611 (class 2606 OID 27503)
 -- Name: tipoempresa_obriga_estado compromisso_estado_estado_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2043,7 +2122,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_estado
 
 
 --
--- TOC entry 4608 (class 2606 OID 27517)
+-- TOC entry 4612 (class 2606 OID 27517)
 -- Name: tipoempresa_obriga_municipio compromisso_municipio_compromisso_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2052,7 +2131,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_municipio
 
 
 --
--- TOC entry 4609 (class 2606 OID 27522)
+-- TOC entry 4613 (class 2606 OID 27522)
 -- Name: tipoempresa_obriga_municipio compromisso_municipio_municipio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2061,7 +2140,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_municipio
 
 
 --
--- TOC entry 4593 (class 2606 OID 17962)
+-- TOC entry 4597 (class 2606 OID 17962)
 -- Name: dadoscomplementares dadoscomplementares_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2070,7 +2149,7 @@ ALTER TABLE ONLY public.dadoscomplementares
 
 
 --
--- TOC entry 4613 (class 2606 OID 28785)
+-- TOC entry 4617 (class 2606 OID 28785)
 -- Name: empresa_agenda empresa_agenda_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2079,7 +2158,7 @@ ALTER TABLE ONLY public.empresa_agenda
 
 
 --
--- TOC entry 4614 (class 2606 OID 28888)
+-- TOC entry 4618 (class 2606 OID 28888)
 -- Name: empresa_agenda empresa_agenda_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2088,7 +2167,7 @@ ALTER TABLE ONLY public.empresa_agenda
 
 
 --
--- TOC entry 4615 (class 2606 OID 28871)
+-- TOC entry 4619 (class 2606 OID 28871)
 -- Name: empresa_compromissos empresa_compromissos_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2097,7 +2176,7 @@ ALTER TABLE ONLY public.empresa_compromissos
 
 
 --
--- TOC entry 4616 (class 2606 OID 28893)
+-- TOC entry 4620 (class 2606 OID 28893)
 -- Name: empresa_compromissos empresa_compromissos_tipoempresa_obrigacao_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2106,7 +2185,7 @@ ALTER TABLE ONLY public.empresa_compromissos
 
 
 --
--- TOC entry 4605 (class 2606 OID 28801)
+-- TOC entry 4609 (class 2606 OID 28801)
 -- Name: tipoempresa_obrigacao fk_compromisso_tipoempresa; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2115,7 +2194,7 @@ ALTER TABLE ONLY public.tipoempresa_obrigacao
 
 
 --
--- TOC entry 4610 (class 2606 OID 27542)
+-- TOC entry 4614 (class 2606 OID 27542)
 -- Name: tipoempresa_obriga_bairro fk_obriga_bairro_municipio; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2124,7 +2203,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_bairro
 
 
 --
--- TOC entry 4611 (class 2606 OID 27537)
+-- TOC entry 4615 (class 2606 OID 27537)
 -- Name: tipoempresa_obriga_bairro fk_obriga_bairro_obrigacao; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2133,7 +2212,7 @@ ALTER TABLE ONLY public.tipoempresa_obriga_bairro
 
 
 --
--- TOC entry 4594 (class 2606 OID 17967)
+-- TOC entry 4598 (class 2606 OID 17967)
 -- Name: grupopassos grupo_municipio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2142,7 +2221,7 @@ ALTER TABLE ONLY public.grupopassos
 
 
 --
--- TOC entry 4595 (class 2606 OID 17972)
+-- TOC entry 4599 (class 2606 OID 17972)
 -- Name: grupopassos grupo_tipoempresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2151,7 +2230,7 @@ ALTER TABLE ONLY public.grupopassos
 
 
 --
--- TOC entry 4596 (class 2606 OID 17977)
+-- TOC entry 4600 (class 2606 OID 17977)
 -- Name: itenspassos grupopassos_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2160,7 +2239,7 @@ ALTER TABLE ONLY public.itenspassos
 
 
 --
--- TOC entry 4598 (class 2606 OID 17982)
+-- TOC entry 4602 (class 2606 OID 17982)
 -- Name: linkpassos linkpassos_passos_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2169,7 +2248,7 @@ ALTER TABLE ONLY public.linkpassos
 
 
 --
--- TOC entry 4602 (class 2606 OID 17987)
+-- TOC entry 4606 (class 2606 OID 17987)
 -- Name: rotinas municipio_cidade_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2178,7 +2257,7 @@ ALTER TABLE ONLY public.rotinas
 
 
 --
--- TOC entry 4597 (class 2606 OID 17992)
+-- TOC entry 4601 (class 2606 OID 17992)
 -- Name: itenspassos passos_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2187,7 +2266,7 @@ ALTER TABLE ONLY public.itenspassos
 
 
 --
--- TOC entry 4600 (class 2606 OID 17997)
+-- TOC entry 4604 (class 2606 OID 17997)
 -- Name: rotinaitens rotinas_passo_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2196,7 +2275,7 @@ ALTER TABLE ONLY public.rotinaitens
 
 
 --
--- TOC entry 4601 (class 2606 OID 18002)
+-- TOC entry 4605 (class 2606 OID 18002)
 -- Name: rotinaitens rotinas_rotina_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2205,7 +2284,7 @@ ALTER TABLE ONLY public.rotinaitens
 
 
 --
--- TOC entry 4603 (class 2606 OID 28845)
+-- TOC entry 4607 (class 2606 OID 28845)
 -- Name: rotinas rotinas_tipo_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2214,7 +2293,7 @@ ALTER TABLE ONLY public.rotinas
 
 
 --
--- TOC entry 4612 (class 2606 OID 28761)
+-- TOC entry 4616 (class 2606 OID 28761)
 -- Name: tipoempresa_obrigacao_old tipoempresa_obrigacao_tipo_empresa_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2223,7 +2302,7 @@ ALTER TABLE ONLY public.tipoempresa_obrigacao_old
 
 
 --
--- TOC entry 4604 (class 2606 OID 18007)
+-- TOC entry 4608 (class 2606 OID 18007)
 -- Name: usuario usuario_tenantid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2231,21 +2310,11 @@ ALTER TABLE ONLY public.usuario
     ADD CONSTRAINT usuario_tenantid_fkey FOREIGN KEY (tenantid) REFERENCES public.tenant(id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
---
--- TOC entry 4799 (class 0 OID 0)
--- Dependencies: 5
--- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
---
-
-REVOKE USAGE ON SCHEMA public FROM PUBLIC;
-GRANT ALL ON SCHEMA public TO PUBLIC;
-
-
--- Completed on 2026-03-31 20:14:25 -03
+-- Completed on 2026-04-01 10:40:25 -03
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 2Hz3z0zyJJAVxOT8nfhZGBobclhguvhORv0898ceuCmtnyYnufzWsIJvd7lKFSX
+\unrestrict PQSpTDlBkfoOuyhToNIVm4NCeIBLCzCmvrKBCJNklPFCApTIcwcK2M90KWlQC92
 
