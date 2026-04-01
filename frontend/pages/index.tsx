@@ -23,7 +23,7 @@ type ModuloCard = ModuloAtivo | ModuloFuturo;
 
 const MODULOS: ModuloCard[] = [
     {
-        titulo: 'Compromissos das Empresas',
+        titulo: 'Compromissos por Empresas',
         descricao: 'Acompanhe vencimentos e status dos compromissos legais gerados por empresa.',
         href: '/compromissos-empresas',
         icon: 'pi pi-list',
@@ -72,11 +72,11 @@ const MODULOS: ModuloCard[] = [
         tooltip: 'Implementação futura — integrações serão adicionadas gradualmente.',
     },
     {
-        future: true,
-        titulo: 'Compromissos por Empresa',
-        descricao: 'Compromissos as empresas para o dia atual.',
+        titulo: 'Compromissos (Visão Corrida)',
+        descricao: 'Acompanhamento sem separação por empresa, em lista única.',
+        href: '/compromissos-visao',
         icon: 'pi pi-building',
-        tooltip: 'Implementação futura — integrações serão adicionadas gradualmente.',
+        tooltip: 'Abre o acompanhamento de compromissos em visão corrida.',
     },
     {
         future: true,

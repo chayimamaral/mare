@@ -1,6 +1,12 @@
 import setupAPIClient from '../../components/api/api';
 //import { setupAPIClient } from '../api';
 
+function mutationList(data: { municipios?: unknown[]; cidades?: unknown[]; totalRecords?: number }) {
+    const municipios = data.municipios ?? data.cidades ?? [];
+    const totalRecords = data.totalRecords ?? 0;
+    return { municipios, totalRecords };
+}
+
 export default function MunicipioService() {
 
     const getMunicipios = async (params) => {
@@ -25,92 +31,46 @@ export default function MunicipioService() {
     }
 
     const createMunicipio = async (params) => {
-        try {
-            const apiClient = setupAPIClient(undefined);
+        const apiClient = setupAPIClient(undefined);
 
-            const response = await apiClient.post('/api/cidade', {
-                params: {
-                    ...params
-                }
-            })
-
-            const { municipios, totalRecords } = response.data
-
-            return {
-                data: {
-                    municipios,
-                    totalRecords
-                }
+        const response = await apiClient.post('/api/cidade', {
+            params: {
+                ...params
             }
+        });
 
-        } catch (err) {
-            return {
-                redirect: {
-                    destination: '/cidades',
-                    permanent: false
-
-                }
-            }
-        }
+        return {
+            data: mutationList(response.data)
+        };
     }
 
     const updateMunicipio = async (params) => {
-        try {
-            const apiClient = setupAPIClient(undefined);
+        const apiClient = setupAPIClient(undefined);
 
-            const response = await apiClient.put('/api/cidade', {
-                params: {
-                    ...params
-                }
-
-            })
-
-            const { municipios, totalRecords } = response.data
-
-            return {
-                data: {
-                    municipios,
-                    totalRecords,
-                }
+        const response = await apiClient.put('/api/cidade', {
+            params: {
+                ...params
             }
-        } catch (err) {
-            return {
-                redirect: {
-                    destination: '/cidades',
-                    permanent: false
 
-                }
-            }
-        }
+        });
+
+        return {
+            data: mutationList(response.data)
+        };
     }
 
     const deleteMunicipio = async (params) => {
-        try {
-            const apiClient = setupAPIClient(undefined);
-            const response = await apiClient.delete('/api/cidade', {
-                params: {
-                    ...params
-                }
-
-            })
-
-            const { municipios, totalRecords } = response.data
-
-            return {
-                props: {
-                    municipios,
-                    totalRecords,
-                }
+        const apiClient = setupAPIClient(undefined);
+        const response = await apiClient.delete('/api/cidade', {
+            params: {
+                ...params
             }
-        } catch (err) {
-            return {
-                redirect: {
-                    destination: '/cidades',
-                    permanent: false
 
-                }
-            }
-        }
+        });
+
+        return {
+            data: mutationList(response.data)
+        };
     }
 
     const getMunicipiosLite = async () => {

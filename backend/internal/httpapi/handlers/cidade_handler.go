@@ -53,8 +53,8 @@ func (h *CidadeHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if payload.Params.Nome == "" {
-		render.WriteError(w, http.StatusBadRequest, "Favor informar todos os dados!")
+	if payload.Params.Nome == "" || strings.TrimSpace(payload.Params.Codigo) == "" || strings.TrimSpace(payload.Params.Ufid) == "" {
+		render.WriteError(w, http.StatusBadRequest, "Favor informar nome, código e estado (UF)!")
 		return
 	}
 

@@ -16,9 +16,14 @@ const AppMenu = () => {
             items: [
                 { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
                 {
-                    label: 'Compromissos das Empresas',
+                    label: 'Compromissos por Empresas',
                     icon: 'pi pi-fw pi-list',
                     to: '/compromissos-empresas'
+                },
+                {
+                    label: 'Compromissos (Visão Corrida)',
+                    icon: 'pi pi-fw pi-table',
+                    to: '/compromissos-visao'
                 },
                 {
                     label: 'Agenda',

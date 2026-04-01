@@ -7,6 +7,7 @@ import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
+import { AxiosError } from 'axios';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 //import { setupAPIClient } from '../services/api';
@@ -78,10 +79,21 @@ const Municipios = () => {
 
     useEffect(() => {
         loadLazyEstados();
+    }, []);
+
+    useEffect(() => {
         loadLazyMunicipio();
     }, [lazyState]);
 
     const municipioService = MunicipioService();
+
+    const resolveEstadoFromCidade = (c: Vec.Cidade, lista: Vec.Estado[]) => {
+        const ufId = (c.ufid || c.uf?.id || '').trim();
+        if (!ufId || !lista?.length) {
+            return undefined;
+        }
+        return lista.find((e) => e.id === ufId);
+    };
 
     const loadLazyMunicipio = () => {
         setLoading(true);
@@ -95,8 +107,13 @@ const Municipios = () => {
 
     const loadLazyEstados = () => {
         const estadoService = EstadoService();
-        estadoService.getUFCidade().then(({ data }) => {
-            setEstados(data?.estados);
+        estadoService.getUFCidade().then((res) => {
+            if (res && typeof res === 'object' && 'redirect' in res) {
+                setEstados([]);
+                return;
+            }
+            const data = (res as { data?: { estados?: Vec.Estado[] } }).data;
+            setEstados(data?.estados ?? []);
         });
     }
 
@@ -115,8 +132,15 @@ const Municipios = () => {
         setCurrentPage(event.page + 1);
         setSortOrder(event.sortOrder);
         setSortField(event.sortField);
-        setLazyState({ ...lazyState, first: event.first, rows: event.rows, page: event.page + 1, sortField: event.sortField, sortOrder: event.sortOrder });
-        setLazyState(event)
+        setLazyState({
+            ...lazyState,
+            first: event.first,
+            rows: event.rows,
+            page: event.page + 1,
+            sortField: event.sortField ?? lazyState.sortField,
+            sortOrder: event.sortOrder ?? lazyState.sortOrder,
+            filters: event.filters ?? lazyState.filters,
+        });
     }
 
     const onPageInputKeyDown = (event, options) => {
@@ -201,6 +225,7 @@ const Municipios = () => {
 
     const openNew = () => {
         setMunicipio(emptyMunicipio);
+        setEstado(undefined);
         setSubmitted(false);
         setMunicipioDialog(true);
     };
@@ -226,51 +251,83 @@ const Municipios = () => {
         }
     }
 
+    const apiErr = (err: unknown) =>
+        (err as AxiosError<{ error?: string }>)?.response?.data?.error
+        || (err as Error)?.message
+        || 'Não foi possível salvar.';
+
     const saveMunicipio = (event) => {
-
-        municipio['ufid'] = estado?.id;
-
         setSubmitted(true);
 
-        if (municipio?.nome?.trim()) {
-            let _municipio = { ...municipio };
+        const nomeOk = Boolean(municipio?.nome?.trim());
+        const codigoOk = Boolean(municipio?.codigo?.trim());
+        const ufOk = Boolean(estado?.id?.trim());
 
-            if (municipio.id) {
-                municipioService.updateMunicipio(_municipio)
-                    .then(({ data }) => {
-                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Atualizado', life: 3000 });
-                    })
-                    .finally(() => {
-                        //setLoading(false);
-                        setMunicipioDialog(false);
-                        setMunicipio(emptyMunicipio);
-                        loadLazyMunicipio();
-                    });
-            } else {
-                municipioService.createMunicipio(_municipio)
-                    .then((data) => {
-                        if (data && data.data) {
-                            setMunicipios(data.data.municipios);
-                            setTotalRecords(data.data.totalRecords);
-                        }
-                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Criado', life: 3000 });
-                    })
-                    .finally(() => {
-                        //setLoading(false);
-                        setMunicipioDialog(false);
-                        setMunicipio(emptyMunicipio);
-                        loadLazyMunicipio();
-                    });
+        if (!nomeOk || !codigoOk || !ufOk) {
+            if (!ufOk) {
+                toast.current?.show({ severity: 'warn', summary: 'Estado obrigatório', detail: 'Selecione o estado (UF).', life: 4000 });
             }
+            return;
         }
-        setSubmitted(false);
+
+        const _municipio = {
+            ...municipio,
+            nome: municipio.nome.trim(),
+            codigo: municipio.codigo.trim().toUpperCase(),
+            ufid: estado.id!.trim(),
+        };
+
+        if (municipio.id) {
+            municipioService.updateMunicipio(_municipio)
+                .then(() => {
+                    toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Atualizado', life: 3000 });
+                    setSubmitted(false);
+                    setMunicipioDialog(false);
+                    setMunicipio(emptyMunicipio);
+                    setEstado(undefined);
+                    loadLazyMunicipio();
+                })
+                .catch((err) => {
+                    toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
+                });
+        } else {
+            municipioService.createMunicipio(_municipio)
+                .then((data) => {
+                    if (data?.data?.municipios) {
+                        setMunicipios(data.data.municipios);
+                        setTotalRecords(data.data.totalRecords);
+                    }
+                    toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Criado', life: 3000 });
+                    setSubmitted(false);
+                    setMunicipioDialog(false);
+                    setMunicipio(emptyMunicipio);
+                    setEstado(undefined);
+                    loadLazyMunicipio();
+                })
+                .catch((err) => {
+                    toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
+                });
+        }
     };
 
-    const editMunicipio = (municipio: Vec.Cidade) => {
-        setEstado(municipio.uf)
-        setMunicipio({ ...municipio });
+    const editMunicipio = (row: Vec.Cidade) => {
+        setMunicipio({ ...row });
+        setEstado(resolveEstadoFromCidade(row, estados));
         setMunicipioDialog(true);
     };
+
+    useEffect(() => {
+        if (!municipioDialog || !municipio?.id || !estados.length) {
+            return;
+        }
+        const matched = resolveEstadoFromCidade(municipio, estados);
+        if (!matched) {
+            return;
+        }
+        if (!estado?.id || estado.id !== matched.id) {
+            setEstado(matched);
+        }
+    }, [municipioDialog, municipio?.id, municipio?.ufid, municipio?.uf?.id, estados]);
 
     const confirmDeleteMunicipio = (municipio: Vec.Cidade) => {
         setMunicipio(municipio);
@@ -287,12 +344,14 @@ const Municipios = () => {
                 municipioService.deleteMunicipio(_municipio)
                     .then(() => {
                         toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Excluído', life: 3000 });
-                    })
-                    .finally(() => {
                         setDeleteMunicipioDialog(false);
                         setMunicipio(emptyMunicipio);
                         loadLazyMunicipio();
-                    });
+                    })
+                    .catch((err) => {
+                        toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
+                    })
+                    .finally(() => setSubmitted(false));
             }
         }
     };
@@ -445,7 +504,7 @@ const Municipios = () => {
                         <div className="field">
                             <label htmlFor="estado">Estado</label>
                             <span className="p-float-label">
-                                <Dropdown id="dropdown" options={estados} value={estado} onChange={(e) => setEstado(e.value)} optionLabel="nome"></Dropdown>
+                                <Dropdown id="dropdown" dataKey="id" options={estados ?? []} value={estado ?? null} onChange={(e) => setEstado(e.value ?? undefined)} optionLabel="nome" placeholder="Selecione a UF" className={classNames({ 'p-invalid': submitted && !estado?.id })} />
                                 {/* <label htmlFor="dropdown">Estado</label> */}
                             </span>
                         </div>
