@@ -33,6 +33,35 @@ func (h *EmpresaCompromissoHandler) Acompanhamento(w http.ResponseWriter, r *htt
 	render.WriteJSON(w, http.StatusOK, resp)
 }
 
+func (h *EmpresaCompromissoHandler) FormOptions(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.TenantID(r.Context())
+	if strings.TrimSpace(tenantID) == "" {
+		render.WriteError(w, http.StatusUnauthorized, "tenant nao identificado")
+		return
+	}
+	resp, err := h.service.FormOptionsByTenant(r.Context(), tenantID)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *EmpresaCompromissoHandler) ObrigacoesByEmpresa(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.TenantID(r.Context())
+	if strings.TrimSpace(tenantID) == "" {
+		render.WriteError(w, http.StatusUnauthorized, "tenant nao identificado")
+		return
+	}
+	empresaID := strings.TrimSpace(r.URL.Query().Get("empresa_id"))
+	resp, err := h.service.ObrigacoesByEmpresa(r.Context(), tenantID, empresaID)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, resp)
+}
+
 type gerarEmpresaCompromissoEnvelope struct {
 	Params struct {
 		EmpresaID  string `json:"empresa_id"`
@@ -52,6 +81,7 @@ func (h *EmpresaCompromissoHandler) Gerar(w http.ResponseWriter, r *http.Request
 		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
 		return
 	}
+
 	dataInicio := time.Now()
 	if payload.Params.DataInicio != "" {
 		parsed, err := time.Parse("2006-01-02", payload.Params.DataInicio)
@@ -107,6 +137,18 @@ type empresaCompromissoItemEnvelope struct {
 	} `json:"params"`
 }
 
+type empresaCompromissoCreateManualEnvelope struct {
+	Params struct {
+		EmpresaID              string   `json:"empresa_id"`
+		TipoempresaObrigacaoID string   `json:"tipoempresa_obrigacao_id"`
+		Descricao              string   `json:"descricao"`
+		DataVencimento         string   `json:"data_vencimento"`
+		Valor                  *float64 `json:"valor"`
+		Observacao             string   `json:"observacao"`
+		Status                 string   `json:"status"`
+	} `json:"params"`
+}
+
 func (h *EmpresaCompromissoHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.TenantID(r.Context())
 	if strings.TrimSpace(tenantID) == "" {
@@ -127,4 +169,36 @@ func (h *EmpresaCompromissoHandler) UpdateItem(w http.ResponseWriter, r *http.Re
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, map[string]string{"message": "item atualizado"})
+}
+
+func (h *EmpresaCompromissoHandler) CreateManual(w http.ResponseWriter, r *http.Request) {
+	tenantID := middleware.TenantID(r.Context())
+	if strings.TrimSpace(tenantID) == "" {
+		render.WriteError(w, http.StatusUnauthorized, "tenant nao identificado")
+		return
+	}
+	var payload empresaCompromissoCreateManualEnvelope
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	venc, err := time.Parse("2006-01-02", strings.TrimSpace(payload.Params.DataVencimento))
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, "data_vencimento invalida (use YYYY-MM-DD)")
+		return
+	}
+	id, err := h.service.CreateManual(r.Context(), tenantID, service.EmpresaCompromissoCreateManualInput{
+		EmpresaID:              payload.Params.EmpresaID,
+		TipoempresaObrigacaoID: payload.Params.TipoempresaObrigacaoID,
+		Descricao:              payload.Params.Descricao,
+		Vencimento:             venc,
+		Valor:                  payload.Params.Valor,
+		Observacao:             payload.Params.Observacao,
+		Status:                 payload.Params.Status,
+	})
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, map[string]string{"id": id, "message": "compromisso incluido"})
 }

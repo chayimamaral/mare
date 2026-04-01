@@ -3,24 +3,54 @@
 
 BEGIN;
 
--- Idempotência: empresa + obrigação + competência (mês/ano).
-ALTER TABLE IF EXISTS public.empresa_compromissos
-    ADD COLUMN IF NOT EXISTS competencia date;
+CREATE OR REPLACE FUNCTION public.postergar_para_proximo_dia_util(
+    in_data date,
+    in_municipio_id text DEFAULT NULL,
+    in_estado_id text DEFAULT NULL
+) RETURNS date
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_data date := in_data;
+BEGIN
+    IF v_data IS NULL THEN
+        RETURN NULL;
+    END IF;
 
-UPDATE public.empresa_compromissos
-SET competencia = date_trunc('month', vencimento::date)::date
-WHERE competencia IS NULL;
+    LOOP
+        -- Fim de semana.
+        IF EXTRACT(ISODOW FROM v_data) IN (6, 7) THEN
+            v_data := v_data + 1;
+            CONTINUE;
+        END IF;
 
-ALTER TABLE IF EXISTS public.empresa_compromissos
-    ALTER COLUMN competencia SET NOT NULL;
+        -- Feriado: FIXO / VARIAVEL / MUNICIPAL / ESTADUAL.
+        IF EXISTS (
+            SELECT 1
+            FROM public.feriados f
+            LEFT JOIN public.feriado_municipal fm ON fm.feriado_id = f.id
+            LEFT JOIN public.feriado_estadual fe ON fe.feriado_id = f.id
+            WHERE f.ativo = true
+              AND (
+                    f.feriado IN ('FIXO', 'VARIAVEL')
+                    OR (f.feriado = 'MUNICIPAL' AND fm.municipio_id = in_municipio_id)
+                    OR (f.feriado = 'ESTADUAL' AND fe.uf_id = in_estado_id)
+                  )
+              AND to_date(f.data || '/' || EXTRACT(YEAR FROM v_data)::int, 'DD/MM/YYYY') = v_data
+        ) THEN
+            v_data := v_data + 1;
+            CONTINUE;
+        END IF;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_empresa_compromissos_empresa_obrigacao_competencia
-    ON public.empresa_compromissos (empresa_id, tipoempresa_obrigacao_id, competencia);
+        RETURN v_data;
+    END LOOP;
+END;
+$$;
 
-CREATE OR REPLACE FUNCTION public.gerar_compromissos_mensais(
-    in_tenant_id text,
+CREATE OR REPLACE FUNCTION public.gerar_compromissos_core(
     in_data_referencia date DEFAULT CURRENT_DATE,
-    in_empresa_id text DEFAULT NULL
+    in_empresa_id text DEFAULT NULL,
+    in_tenant_id text DEFAULT NULL
 ) RETURNS integer
 LANGUAGE plpgsql
 AS $$
@@ -36,8 +66,8 @@ DECLARE
     v_valor numeric(12,3);
     v_status varchar(20) := 'pendente';
 BEGIN
-    IF trim(COALESCE(in_tenant_id, '')) = '' THEN
-        RAISE EXCEPTION 'tenant_id é obrigatório';
+    IF in_empresa_id IS NOT NULL AND trim(in_empresa_id) = '' THEN
+        RAISE EXCEPTION 'empresa_id inválido';
     END IF;
 
     FOR rec IN
@@ -63,7 +93,7 @@ BEGIN
         LEFT JOIN public.tipoempresa_obriga_municipio om ON om.obrigacao_id = o.id
         LEFT JOIN public.tipoempresa_obriga_bairro ob ON ob.tipoempresa_obrigacao_id = o.id
         WHERE e.ativo = true
-          AND e.tenant_id = in_tenant_id
+          AND (in_tenant_id IS NULL OR e.tenant_id = in_tenant_id)
           AND (in_empresa_id IS NULL OR e.id = in_empresa_id)
           AND (
             o.abrangencia = 'FEDERAL'
@@ -105,25 +135,8 @@ BEGIN
         v_dia := LEAST(GREATEST(rec.dia_base, 1), EXTRACT(DAY FROM (date_trunc('month', v_competencia) + interval '1 month - 1 day'))::int);
         v_data_venc := make_date(v_ref_ano, v_ref_mes, v_dia);
 
-        -- Ajuste inteligente: usa função existente (finais de semana + feriado fixo/variável).
-        v_data_venc := public.calcular_data_termino(v_data_venc, 0);
-
-        -- Complementa com escopo municipal/estadual.
-        WHILE EXISTS (
-            SELECT 1
-            FROM public.feriados f
-            LEFT JOIN public.feriado_municipal fm ON fm.feriado_id = f.id
-            LEFT JOIN public.feriado_estadual fe ON fe.feriado_id = f.id
-            WHERE f.ativo = true
-              AND (
-                (f.feriado = 'MUNICIPAL' AND fm.municipio_id = rec.municipio_id)
-                OR (f.feriado = 'ESTADUAL' AND fe.uf_id = rec.estado_id)
-              )
-              AND to_date(f.data || '/' || EXTRACT(YEAR FROM v_data_venc)::int, 'DD/MM/YYYY') = v_data_venc
-        ) LOOP
-            v_data_venc := v_data_venc + interval '1 day';
-            v_data_venc := public.calcular_data_termino(v_data_venc, 0);
-        END LOOP;
+        -- Posterga para próximo dia útil considerando finais de semana e todos os feriados aplicáveis.
+        v_data_venc := public.postergar_para_proximo_dia_util(v_data_venc, rec.municipio_id, rec.estado_id);
 
         IF upper(trim(COALESCE(rec.tipo_classificacao, ''))) IN ('TRIBUTARIA', 'TRIBUTO') THEN
             v_valor := rec.valor_raw;
@@ -146,6 +159,48 @@ BEGIN
     END LOOP;
 
     RETURN v_total_inserido;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.gerar_compromissos_empresa(
+    in_empresa_id text,
+    in_data_referencia date DEFAULT CURRENT_DATE
+) RETURNS integer
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF trim(COALESCE(in_empresa_id, '')) = '' THEN
+        RAISE EXCEPTION 'empresa_id é obrigatório';
+    END IF;
+
+    RETURN public.gerar_compromissos_core(in_data_referencia, in_empresa_id, NULL);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.gerar_compromissos_geral(
+    in_data_referencia date DEFAULT (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
+) RETURNS integer
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN public.gerar_compromissos_core(in_data_referencia, NULL, NULL);
+END;
+$$;
+
+-- Retrocompatibilidade (Issue #36): mantém assinatura antiga.
+CREATE OR REPLACE FUNCTION public.gerar_compromissos_mensais(
+    in_tenant_id text,
+    in_data_referencia date DEFAULT CURRENT_DATE,
+    in_empresa_id text DEFAULT NULL
+) RETURNS integer
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF trim(COALESCE(in_tenant_id, '')) = '' THEN
+        RAISE EXCEPTION 'tenant_id é obrigatório';
+    END IF;
+
+    RETURN public.gerar_compromissos_core(in_data_referencia, in_empresa_id, in_tenant_id);
 END;
 $$;
 

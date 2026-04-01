@@ -43,6 +43,16 @@ type UpdateItemParams = {
   valor?: number;
 };
 
+type ManualCreateParams = {
+  empresa_id: string;
+  tipoempresa_obrigacao_id: string;
+  descricao: string;
+  data_vencimento: string;
+  valor?: number;
+  observacao?: string;
+  status?: string;
+};
+
 export default function EmpresaCompromissoService() {
   return {
     getAcompanhamento: async () => {
@@ -76,6 +86,24 @@ export default function EmpresaCompromissoService() {
     updateItem: async (params: UpdateItemParams) => {
       const apiClient = setupAPIClient(undefined);
       const response = await apiClient.put('/api/empresacompromissos/item', { params });
+      return { data: response.data };
+    },
+
+    getFormOptions: async () => {
+      const apiClient = setupAPIClient(undefined);
+      const response = await apiClient.get('/api/empresacompromissos/form-options');
+      return { data: response.data };
+    },
+
+    getObrigacoesByEmpresa: async (empresa_id: string) => {
+      const apiClient = setupAPIClient(undefined);
+      const response = await apiClient.get('/api/empresacompromissos/obrigacoes', { params: { empresa_id } });
+      return { data: response.data };
+    },
+
+    createManual: async (params: ManualCreateParams) => {
+      const apiClient = setupAPIClient(undefined);
+      const response = await apiClient.post('/api/empresacompromissos/manual', { params });
       return { data: response.data };
     },
   };

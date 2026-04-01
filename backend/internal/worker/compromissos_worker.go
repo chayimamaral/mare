@@ -96,38 +96,19 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 		return nil
 	}
 
-	rows, err := tx.Query(ctx, `SELECT id FROM public.tenant WHERE active = true`)
-	if err != nil {
-		return fmt.Errorf("listar tenants ativos: %w", err)
-	}
-	defer rows.Close()
+	refDate := time.Now().AddDate(0, 1, 0)
+	refMonth := time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, refDate.Location())
 
-	totalTenants := 0
-	totalInseridos := 0
-
-	for rows.Next() {
-		var tenantID string
-		if err := rows.Scan(&tenantID); err != nil {
-			return fmt.Errorf("scan tenant: %w", err)
-		}
-		totalTenants++
-
-		var inseridos int
-		if err := tx.QueryRow(
-			ctx,
-			`SELECT public.gerar_compromissos_mensais($1, CURRENT_DATE, NULL)`,
-			tenantID,
-		).Scan(&inseridos); err != nil {
-			log.Printf("worker compromissos: tenant=%s erro=%v", tenantID, err)
-			continue
-		}
-		totalInseridos += inseridos
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterar tenants: %w", err)
+	var totalInseridos int
+	if err := tx.QueryRow(
+		ctx,
+		`SELECT public.gerar_compromissos_geral($1::date)`,
+		refMonth.Format("2006-01-02"),
+	).Scan(&totalInseridos); err != nil {
+		return fmt.Errorf("executar gerar_compromissos_geral: %w", err)
 	}
 
-	log.Printf("worker compromissos: tenants=%d inseridos=%d", totalTenants, totalInseridos)
+	log.Printf("worker compromissos: competencia=%s inseridos=%d", refMonth.Format("2006-01-02"), totalInseridos)
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx worker: %w", err)
 	}

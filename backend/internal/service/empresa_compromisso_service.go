@@ -25,6 +25,24 @@ type EmpresaCompromissoAcompanhamentoResponse struct {
 	Itens []repository.EmpresaCompromissoAcompanhamentoItem `json:"itens"`
 }
 
+type EmpresaCompromissoFormOptionsResponse struct {
+	Empresas []repository.EmpresaCompromissoEmpresaOption `json:"empresas"`
+}
+
+type EmpresaCompromissoObrigacoesResponse struct {
+	Obrigacoes []repository.EmpresaCompromissoObrigacaoOption `json:"obrigacoes"`
+}
+
+type EmpresaCompromissoCreateManualInput struct {
+	EmpresaID              string
+	TipoempresaObrigacaoID string
+	Descricao              string
+	Vencimento             time.Time
+	Valor                  *float64
+	Observacao             string
+	Status                 string
+}
+
 func NewEmpresaCompromissoService(
 	repo *repository.EmpresaCompromissoRepository,
 	feriadoRepo *repository.FeriadoRepository,
@@ -44,7 +62,7 @@ func (s *EmpresaCompromissoService) Gerar(ctx context.Context, empresaID, tenant
 		return EmpresaCompromissoGerarResponse{}, fmt.Errorf("tenant nao identificado")
 	}
 
-	total, err := s.repo.GerarCompromissosMensais(ctx, tid, dataInicio, eid)
+	total, err := s.repo.GerarCompromissosEmpresa(ctx, tid, dataInicio, eid)
 	if err != nil {
 		return EmpresaCompromissoGerarResponse{}, err
 	}
@@ -62,6 +80,62 @@ func (s *EmpresaCompromissoService) AcompanhamentoByTenant(ctx context.Context, 
 		return EmpresaCompromissoAcompanhamentoResponse{}, err
 	}
 	return EmpresaCompromissoAcompanhamentoResponse{Itens: items}, nil
+}
+
+func (s *EmpresaCompromissoService) FormOptionsByTenant(ctx context.Context, tenantID string) (EmpresaCompromissoFormOptionsResponse, error) {
+	empresas, err := s.repo.ListEmpresaOptionsByTenant(ctx, strings.TrimSpace(tenantID))
+	if err != nil {
+		return EmpresaCompromissoFormOptionsResponse{}, err
+	}
+	return EmpresaCompromissoFormOptionsResponse{Empresas: empresas}, nil
+}
+
+func (s *EmpresaCompromissoService) ObrigacoesByEmpresa(ctx context.Context, tenantID, empresaID string) (EmpresaCompromissoObrigacoesResponse, error) {
+	eid := strings.TrimSpace(empresaID)
+	if eid == "" {
+		return EmpresaCompromissoObrigacoesResponse{}, fmt.Errorf("empresa_id obrigatorio")
+	}
+	obrigacoes, err := s.repo.ListObrigacaoOptionsByEmpresa(ctx, strings.TrimSpace(tenantID), eid)
+	if err != nil {
+		return EmpresaCompromissoObrigacoesResponse{}, err
+	}
+	return EmpresaCompromissoObrigacoesResponse{Obrigacoes: obrigacoes}, nil
+}
+
+func (s *EmpresaCompromissoService) CreateManual(ctx context.Context, tenantID string, in EmpresaCompromissoCreateManualInput) (string, error) {
+	if strings.TrimSpace(in.EmpresaID) == "" {
+		return "", fmt.Errorf("empresa_id obrigatorio")
+	}
+	if strings.TrimSpace(in.TipoempresaObrigacaoID) == "" {
+		return "", fmt.Errorf("tipoempresa_obrigacao_id obrigatorio")
+	}
+	if strings.TrimSpace(in.Descricao) == "" {
+		return "", fmt.Errorf("descricao obrigatoria")
+	}
+	if in.Vencimento.IsZero() {
+		return "", fmt.Errorf("vencimento obrigatorio")
+	}
+	st := strings.ToLower(strings.TrimSpace(in.Status))
+	if st == "" {
+		st = "pendente"
+	}
+	if st != "pendente" && st != "concluido" {
+		return "", fmt.Errorf("status invalido (pendente|concluido)")
+	}
+
+	id, err := s.repo.CreateManualForTenant(ctx, tenantID, repository.EmpresaCompromissoCreateManualInput{
+		EmpresaID:              strings.TrimSpace(in.EmpresaID),
+		TipoempresaObrigacaoID: strings.TrimSpace(in.TipoempresaObrigacaoID),
+		Descricao:              strings.TrimSpace(in.Descricao),
+		Vencimento:             in.Vencimento,
+		Valor:                  in.Valor,
+		Observacao:             strings.TrimSpace(in.Observacao),
+		Status:                 st,
+	})
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (s *EmpresaCompromissoService) UpdateStatus(ctx context.Context, tenantID, id, status string) error {

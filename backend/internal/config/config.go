@@ -38,7 +38,7 @@ func Load() (Config, error) {
 		SSLRootCertPath:                getEnv("PG_SSL_ROOT_CERT", "/home/camaral/.postgres/ca.crt"),
 		SSLInsecure:                    getEnv("PG_SSL_INSECURE", "true") == "true",
 		CompromissosWorkerEnabled:      getEnv("COMPROMISSOS_WORKER_ENABLED", "false") == "true",
-		CompromissosWorkerCron:         getEnv("COMPROMISSOS_WORKER_CRON", "0 5 1 * *"),
+		CompromissosWorkerCron:         getEnv("COMPROMISSOS_WORKER_CRON", "0 5 25 * *"),
 		CompromissosWorkerRunOnStartup: getEnv("COMPROMISSOS_WORKER_RUN_ON_STARTUP", "false") == "true",
 		CompromissosWorkerTimezone:     getEnv("COMPROMISSOS_WORKER_TIMEZONE", "America/Sao_Paulo"),
 	}

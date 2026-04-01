@@ -36,6 +36,27 @@ type EmpresaCompromissoAcompanhamentoItem struct {
 	ValorEstimado  *float64 `json:"valor_estimado"`
 }
 
+type EmpresaCompromissoEmpresaOption struct {
+	ID   string `json:"id"`
+	Nome string `json:"nome"`
+}
+
+type EmpresaCompromissoObrigacaoOption struct {
+	ID            string `json:"id"`
+	Descricao     string `json:"descricao"`
+	Periodicidade string `json:"periodicidade"`
+}
+
+type EmpresaCompromissoCreateManualInput struct {
+	EmpresaID              string
+	TipoempresaObrigacaoID string
+	Descricao              string
+	Vencimento             time.Time
+	Valor                  *float64
+	Observacao             string
+	Status                 string
+}
+
 type empresaGeracaoContext struct {
 	EmpresaID     string
 	TenantID      string
@@ -62,28 +83,47 @@ func NewEmpresaCompromissoRepository(pool *pgxpool.Pool) *EmpresaCompromissoRepo
 	return &EmpresaCompromissoRepository{pool: pool}
 }
 
-// GerarCompromissosMensais executa a function SQL idempotente por tenant/competência.
-func (r *EmpresaCompromissoRepository) GerarCompromissosMensais(ctx context.Context, tenantID string, dataRef time.Time, empresaID string) (int, error) {
+// GerarCompromissosEmpresa executa a function SQL idempotente por empresa/competência.
+func (r *EmpresaCompromissoRepository) GerarCompromissosEmpresa(ctx context.Context, tenantID string, dataRef time.Time, empresaID string) (int, error) {
+	eid := strings.TrimSpace(empresaID)
 	tid := strings.TrimSpace(tenantID)
+	if eid == "" {
+		return 0, fmt.Errorf("empresa nao informada")
+	}
 	if tid == "" {
 		return 0, fmt.Errorf("tenant nao informado")
 	}
-	var eid any
-	if strings.TrimSpace(empresaID) == "" {
-		eid = nil
-	} else {
-		eid = strings.TrimSpace(empresaID)
-	}
+
 	var total int
 	err := r.pool.QueryRow(
 		ctx,
-		`SELECT public.gerar_compromissos_mensais($1, $2::date, $3)`,
-		tid,
-		dataRef.Format("2006-01-02"),
+		`SELECT public.gerar_compromissos_empresa($1, $2::date)
+		  WHERE EXISTS (
+			SELECT 1 FROM public.empresa e
+			WHERE e.id = $1 AND e.tenant_id = $3 AND e.ativo = true
+		  )`,
 		eid,
+		dataRef.Format("2006-01-02"),
+		tid,
 	).Scan(&total)
 	if err != nil {
-		return 0, fmt.Errorf("executar gerar_compromissos_mensais: %w", err)
+		if err == pgx.ErrNoRows {
+			return 0, fmt.Errorf("empresa nao encontrada neste tenant")
+		}
+		return 0, fmt.Errorf("executar gerar_compromissos_empresa: %w", err)
+	}
+	return total, nil
+}
+
+func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Context, dataRef time.Time) (int, error) {
+	var total int
+	err := r.pool.QueryRow(
+		ctx,
+		`SELECT public.gerar_compromissos_geral($1::date)`,
+		dataRef.Format("2006-01-02"),
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("executar gerar_compromissos_geral: %w", err)
 	}
 	return total, nil
 }
@@ -309,6 +349,113 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 		out = append(out, it)
 	}
 	return out, rows.Err()
+}
+
+func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]EmpresaCompromissoEmpresaOption, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT e.id, e.nome
+		FROM public.empresa e
+		WHERE e.ativo = true AND e.tenant_id = $1
+		ORDER BY e.nome ASC`, strings.TrimSpace(tenantID))
+	if err != nil {
+		return nil, fmt.Errorf("listar empresas para compromissos: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]EmpresaCompromissoEmpresaOption, 0)
+	for rows.Next() {
+		var it EmpresaCompromissoEmpresaOption
+		if err := rows.Scan(&it.ID, &it.Nome); err != nil {
+			return nil, fmt.Errorf("scan empresa option: %w", err)
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context.Context, tenantID, empresaID string) ([]EmpresaCompromissoObrigacaoOption, error) {
+	ctxEmp, err := r.loadGeracaoContext(ctx, strings.TrimSpace(empresaID), strings.TrimSpace(tenantID))
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.id::text, c.descricao, COALESCE(c.periodicidade, 'MENSAL')
+		FROM public.tipoempresa_obrigacao c
+		WHERE c.ativo = true
+		  AND c.tipo_empresa_id = $1
+		  AND (
+			c.abrangencia = 'FEDERAL'
+			OR (
+				c.abrangencia = 'ESTADUAL' AND EXISTS (
+					SELECT 1 FROM public.tipoempresa_obriga_estado ce
+					INNER JOIN public.municipio m ON m.ufid = ce.estado_id
+					WHERE ce.obrigacao_id = c.id AND m.id = $2
+				)
+			)
+			OR (
+				c.abrangencia = 'MUNICIPAL' AND EXISTS (
+					SELECT 1 FROM public.tipoempresa_obriga_municipio cm
+					WHERE cm.obrigacao_id = c.id AND cm.municipio_id = $2
+				)
+			)
+			OR (
+				c.abrangencia = 'BAIRRO' AND EXISTS (
+					SELECT 1 FROM public.tipoempresa_obriga_bairro cb
+					WHERE cb.tipoempresa_obrigacao_id = c.id AND cb.municipio_id = $2
+					  AND (
+						cb.bairro IS NULL OR TRIM(cb.bairro) = ''
+						OR LOWER(TRIM(cb.bairro)) = LOWER(TRIM(COALESCE($3::text, '')))
+					  )
+				)
+			)
+		  )
+		ORDER BY c.descricao ASC`,
+		ctxEmp.TipoEmpresaID, ctxEmp.MunicipioID, bairroArg(ctxEmp.Bairro),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listar obrigacoes para empresa: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]EmpresaCompromissoObrigacaoOption, 0)
+	for rows.Next() {
+		var it EmpresaCompromissoObrigacaoOption
+		if err := rows.Scan(&it.ID, &it.Descricao, &it.Periodicidade); err != nil {
+			return nil, fmt.Errorf("scan obrigacao option: %w", err)
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
+func (r *EmpresaCompromissoRepository) CreateManualForTenant(ctx context.Context, tenantID string, in EmpresaCompromissoCreateManualInput) (string, error) {
+	var id string
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO public.empresa_compromissos (
+			descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia
+		)
+		SELECT
+			$1, $2, $3::timestamptz, $4, $5, $6, $7::uuid, date_trunc('month', $3::date)::date
+		WHERE EXISTS (
+			SELECT 1
+			FROM public.empresa e
+			WHERE e.id = $6 AND e.tenant_id = $8 AND e.ativo = true
+		)
+		RETURNING id::text`,
+		in.Descricao,
+		in.Valor,
+		in.Vencimento.Format(time.RFC3339),
+		strings.TrimSpace(in.Observacao),
+		in.Status,
+		in.EmpresaID,
+		in.TipoempresaObrigacaoID,
+		strings.TrimSpace(tenantID),
+	).Scan(&id)
+	if err != nil {
+		return "", fmt.Errorf("incluir compromisso manual: %w", err)
+	}
+	return id, nil
 }
 
 func (r *EmpresaCompromissoRepository) UpdateStatusForTenant(ctx context.Context, tenantID, id, status string) error {

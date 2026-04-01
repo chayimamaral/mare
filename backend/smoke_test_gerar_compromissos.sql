@@ -1,4 +1,4 @@
--- Smoke test: geração de compromissos (issue #36)
+-- Smoke test: geração de compromissos (issue #40)
 -- Uso:
 --   1) Ajuste os parâmetros no bloco "params".
 --   2) Execute em homolog/dev.
@@ -14,9 +14,9 @@ BEGIN;
 -- =====================================================================
 WITH params AS (
     SELECT
-        'SEU_TENANT_ID_AQUI'::text  AS tenant_id,
-        NULL::text                  AS empresa_id,         -- opcional: informe ID para testar 1 empresa
-        CURRENT_DATE::date          AS data_referencia
+        '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text  AS tenant_id,
+        '00000000-0000-0000-0000-000000000000'::text AS empresa_id, -- obrigatório para teste por empresa
+        CURRENT_DATE::date                            AS data_referencia
 )
 SELECT * FROM params;
 
@@ -54,15 +54,13 @@ LIMIT 100;
 -- =====================================================================
 WITH params AS (
     SELECT
-        '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text  AS tenant_id,
-        NULL::text                  AS empresa_id,
-        CURRENT_DATE::date          AS data_referencia
+        '00000000-0000-0000-0000-000000000000'::text AS empresa_id,
+        CURRENT_DATE::date                           AS data_referencia
 )
-SELECT public.gerar_compromissos_mensais(
-    p.tenant_id,
-    p.data_referencia,
-    p.empresa_id
-) AS total_inserido
+SELECT public.gerar_compromissos_empresa(
+    p.empresa_id,
+    p.data_referencia
+) AS total_inserido_empresa
 FROM params p;
 
 -- =====================================================================
@@ -70,16 +68,21 @@ FROM params p;
 -- =====================================================================
 WITH params AS (
     SELECT
-        '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text  AS tenant_id,
-        NULL::text                  AS empresa_id,
-        CURRENT_DATE::date          AS data_referencia
+        '00000000-0000-0000-0000-000000000000'::text AS empresa_id,
+        CURRENT_DATE::date                           AS data_referencia
 )
-SELECT public.gerar_compromissos_mensais(
-    p.tenant_id,
-    p.data_referencia,
-    p.empresa_id
+SELECT public.gerar_compromissos_empresa(
+    p.empresa_id,
+    p.data_referencia
 ) AS total_inserido_segunda_execucao
 FROM params p;
+
+-- =====================================================================
+-- 3.1) Geração geral (todos os tenants/empresas)
+-- =====================================================================
+SELECT public.gerar_compromissos_geral(
+    (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
+) AS total_inserido_geral;
 
 -- =====================================================================
 -- 4) Validação de duplicidade por chave composta

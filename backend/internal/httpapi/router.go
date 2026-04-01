@@ -212,7 +212,10 @@ func registerRoutes(
 	r.With(requireAuth).Put("/empresaagenda/item", empresaAgendaHandler.UpdateItem)
 
 	r.With(requireAuth).Get("/empresacompromissos/acompanhamento", empresaCompromissoHandler.Acompanhamento)
+	r.With(requireAuth).Get("/empresacompromissos/form-options", empresaCompromissoHandler.FormOptions)
+	r.With(requireAuth).Get("/empresacompromissos/obrigacoes", empresaCompromissoHandler.ObrigacoesByEmpresa)
 	r.With(requireAuth, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
+	r.With(requireAuth).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
 	r.With(requireAuth).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)
 	r.With(requireAuth).Put("/empresacompromissos/item", empresaCompromissoHandler.UpdateItem)
 }

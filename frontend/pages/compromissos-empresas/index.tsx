@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import { TreeTable } from 'primereact/treetable';
 import type { TreeTableProps } from 'primereact/treetable';
@@ -10,6 +10,10 @@ import { Dialog } from 'primereact/dialog';
 import { Tag } from 'primereact/tag';
 import { Toast } from 'primereact/toast';
 import { TreeNode } from 'primereact/treenode';
+import { FilterMatchMode } from 'primereact/api';
+import { Calendar } from 'primereact/calendar';
+import { Dropdown } from 'primereact/dropdown';
+import { InputTextarea } from 'primereact/inputtextarea';
 import EmpresaCompromissoService from '../../services/cruds/EmpresaCompromissoService';
 import type { Vec } from '../../types/types';
 
@@ -28,16 +32,34 @@ type NodeData = {
 };
 
 type TableFilters = NonNullable<TreeTableProps['filters']>;
+type SelectOption = { label: string; value: string };
 
 const TABLE_STATE_STORAGE_KEY = 'vecontab.compromissos-empresas.treetable.v1';
 
+/** Verde bandeira (aprox.) para ação "Concluído" */
+const VERDE_BANDEIRA = '#009c3b';
+const VERDE_BANDEIRA_ESCURO = '#006b29';
+
+/** PrimeReact Dropdown não trata '' como opção válida; use null para “sem filtro”. */
 const INITIAL_FILTERS: TableFilters = {
-    nome: { value: '', matchMode: 'contains' },
-    categoria: { value: '', matchMode: 'contains' },
-    vencimento: { value: '', matchMode: 'contains' },
-    valor: { value: '', matchMode: 'contains' },
-    status: { value: '', matchMode: 'contains' },
+    nome: { value: '', matchMode: FilterMatchMode.CONTAINS },
+    categoria: { value: null, matchMode: FilterMatchMode.EQUALS },
+    vencimentoOrdem: { value: null, matchMode: FilterMatchMode.CUSTOM },
+    valorText: { value: '', matchMode: FilterMatchMode.CONTAINS },
+    status: { value: null, matchMode: FilterMatchMode.EQUALS },
 };
+
+const NATUREZA_FILTER_OPTIONS = [
+    { label: 'Todas', value: null },
+    { label: 'Tributária', value: 'Tributária' },
+    { label: 'Informativa', value: 'Informativa' },
+];
+
+const STATUS_FILTER_OPTIONS = [
+    { label: 'Todos', value: null },
+    { label: 'Pendente', value: 'pendente' },
+    { label: 'Concluído', value: 'concluído' },
+];
 
 const formatDate = (value?: string): string => {
     if (!value) {
@@ -86,6 +108,39 @@ const defaultExpandedKeys = (roots: TreeNode[]): Record<string, boolean> => {
 
 const statusNorm = (s: string) => s.trim().toLowerCase();
 
+function vencimentoOrdemFilter(value: unknown, filter: unknown): boolean {
+    if (filter == null || !(filter instanceof Date) || Number.isNaN(filter.getTime())) {
+        return true;
+    }
+    if (value == null || String(value).length < 10) {
+        return false;
+    }
+    const dv = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+    return dv.toDateString() === filter.toDateString();
+}
+
+type TreeTableFilterEvent =
+    | { filters: TableFilters }
+    | { value: unknown; field: string; matchMode?: string };
+
+function isWrappedFilters(e: TreeTableFilterEvent): e is { filters: TableFilters } {
+    return 'filters' in e && e.filters != null && typeof e.filters === 'object';
+}
+
+function emitFieldFilter(
+    setFilters: Dispatch<SetStateAction<TableFilters>>,
+    setFirst: Dispatch<SetStateAction<number>>,
+    field: string,
+    value: unknown,
+    matchMode: string,
+) {
+    setFirst(0);
+    setFilters((prev) => ({
+        ...prev,
+        [field]: { value, matchMode } as TableFilters[string],
+    }));
+}
+
 export default function CompromissosEmpresasPage() {
     const [nodes, setNodes] = useState<TreeNode[]>([]);
     const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
@@ -96,7 +151,7 @@ export default function CompromissosEmpresasPage() {
     const [sortOrder, setSortOrder] = useState<1 | -1>(1);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
     const [globalFilterDraft, setGlobalFilterDraft] = useState('');
-    const [filters, setFilters] = useState<TableFilters>(INITIAL_FILTERS);
+    const [filters, setFilters] = useState<TableFilters>(() => ({ ...INITIAL_FILTERS }));
     const toast = useRef<Toast>(null);
     const svc = useMemo(() => EmpresaCompromissoService(), []);
 
@@ -104,6 +159,36 @@ export default function CompromissosEmpresasPage() {
     const [editId, setEditId] = useState('');
     const [editVenc, setEditVenc] = useState('');
     const [editValor, setEditValor] = useState<number | null>(null);
+    const [createDialog, setCreateDialog] = useState(false);
+    const [empresaOptions, setEmpresaOptions] = useState<SelectOption[]>([]);
+    const [obrigacaoOptions, setObrigacaoOptions] = useState<SelectOption[]>([]);
+    const [createEmpresaID, setCreateEmpresaID] = useState('');
+    const [createObrigacaoID, setCreateObrigacaoID] = useState('');
+    const [createDescricao, setCreateDescricao] = useState('');
+    const [createVenc, setCreateVenc] = useState('');
+    const [createValor, setCreateValor] = useState<number | null>(null);
+    const [createObservacao, setCreateObservacao] = useState('');
+    const [createStatus, setCreateStatus] = useState<'pendente' | 'concluido'>('pendente');
+    const [createLoading, setCreateLoading] = useState(false);
+
+    const onTreeFilter = useCallback((event: unknown) => {
+        setFirst(0);
+        const e = event as TreeTableFilterEvent;
+        if (isWrappedFilters(e)) {
+            setFilters({ ...e.filters });
+            return;
+        }
+        if (e && typeof e === 'object' && 'field' in e) {
+            const { field, value, matchMode } = e as { field: string; value: unknown; matchMode?: string };
+            setFilters((prev) => ({
+                ...prev,
+                [field]: {
+                    value: value as never,
+                    matchMode: (matchMode || (prev[field] as { matchMode?: string } | undefined)?.matchMode || FilterMatchMode.CONTAINS) as never,
+                },
+            }));
+        }
+    }, []);
 
     const buildTree = (itens: Vec.EmpresaAgendaAcompanhamentoItem[]): TreeNode[] => {
         const byEmpresa = new Map<string, { nome: string; itens: Vec.EmpresaAgendaAcompanhamentoItem[] }>();
@@ -141,13 +226,14 @@ export default function CompromissosEmpresasPage() {
                 if (st === 'pendente' && vencIso.length >= 10) {
                     pendUrg = pendenteUrgenciaPorVencimento(vencIso);
                 }
-                const fin = (item.classificacao || '').toUpperCase() === 'FINANCEIRO';
+                const cls = (item.classificacao || '').toUpperCase();
+                const categoria = cls === 'FINANCEIRO' ? 'Tributária' : 'Informativa';
                 children.push({
                     key: `cmp-${aid}`,
                     data: {
                         nome: item.descricao || 'Compromisso sem descrição',
                         tipoNo: 'COMPROMISSO',
-                        categoria: fin ? 'Financeiro' : 'Não financeiro',
+                        categoria,
                         vencimento: formatDate(item.data_vencimento),
                         vencimentoOrdem: vencIso || '9999-12-31',
                         status: item.status || '',
@@ -199,6 +285,45 @@ export default function CompromissosEmpresasPage() {
             .finally(() => setLoading(false));
     };
 
+    const loadFormOptions = () => {
+        svc.getFormOptions()
+            .then(({ data }) => {
+                const empresas: Array<{ id?: string; nome?: string }> = Array.isArray(data?.empresas) ? data.empresas : [];
+                const opts: SelectOption[] = empresas
+                    .map((e: { id?: string; nome?: string }) => ({
+                        value: String(e.id || '').trim(),
+                        label: String(e.nome || '').trim() || 'Empresa sem nome',
+                    }))
+                    .filter((e: SelectOption) => e.value !== '');
+                setEmpresaOptions(opts);
+            })
+            .catch(() => {
+                setEmpresaOptions([]);
+            });
+    };
+
+    const loadObrigacoesByEmpresa = (empresaID: string) => {
+        if (!empresaID) {
+            setObrigacaoOptions([]);
+            setCreateObrigacaoID('');
+            return;
+        }
+        svc.getObrigacoesByEmpresa(empresaID)
+            .then(({ data }) => {
+                const obrigacoes: Array<{ id?: string; descricao?: string }> = Array.isArray(data?.obrigacoes) ? data.obrigacoes : [];
+                const opts: SelectOption[] = obrigacoes
+                    .map((o: { id?: string; descricao?: string }) => ({
+                        value: String(o.id || '').trim(),
+                        label: String(o.descricao || '').trim() || 'Obrigação sem descrição',
+                    }))
+                    .filter((o: SelectOption) => o.value !== '');
+                setObrigacaoOptions(opts);
+            })
+            .catch(() => {
+                setObrigacaoOptions([]);
+            });
+    };
+
     useEffect(() => {
         if (typeof window === 'undefined') {
             return;
@@ -221,7 +346,7 @@ export default function CompromissosEmpresasPage() {
                 setRows(parsed.rows);
             }
             if (typeof parsed.sortField === 'string' && parsed.sortField) {
-                setSortField(parsed.sortField);
+                setSortField(parsed.sortField === 'vencimento' ? 'vencimentoOrdem' : parsed.sortField);
             }
             if (parsed.sortOrder === 1 || parsed.sortOrder === -1) {
                 setSortOrder(parsed.sortOrder);
@@ -243,6 +368,7 @@ export default function CompromissosEmpresasPage() {
 
     useEffect(() => {
         load();
+        loadFormOptions();
     }, []);
 
     const onGlobalFilterChange = (value: string) => {
@@ -272,18 +398,40 @@ export default function CompromissosEmpresasPage() {
         }
     };
 
-    const onFilter: TreeTableProps['onFilter'] = (next) => {
-        setFirst(0);
-        if (next) {
-            setFilters(next as TableFilters);
-        }
-    };
-
     const clearFilters = () => {
         setFirst(0);
         setGlobalFilterValue('');
         setGlobalFilterDraft('');
-        setFilters(INITIAL_FILTERS);
+        setFilters({ ...INITIAL_FILTERS });
+    };
+
+    const pendenteCorUrgencia = (u: 'ok' | 'warn' | 'overdue' | undefined) => {
+        if (u === 'warn') {
+            return '#f9a825';
+        }
+        if (u === 'overdue') {
+            return '#c62828';
+        }
+        return undefined;
+    };
+
+    const nomeBodyTemplate = (node: TreeNode) => {
+        const d = node?.data as NodeData | undefined;
+        const base = d?.nome ?? '';
+        if (d?.tipoNo === 'EMPRESA') {
+            return <span className="font-semibold text-900">{base}</span>;
+        }
+        const st = statusNorm(d?.status || '');
+        const u = d?.pendenteUrgencia;
+        const color = st === 'pendente' ? pendenteCorUrgencia(u) : undefined;
+        return (
+            <span
+                className={`font-medium${st === 'concluido' ? ' vecontab-cell-concluido' : ''}`}
+                style={color ? { color } : undefined}
+            >
+                {base}
+            </span>
+        );
     };
 
     const statusBodyTemplate = (node: TreeNode) => {
@@ -293,7 +441,17 @@ export default function CompromissosEmpresasPage() {
             return null;
         }
         if (st === 'concluido') {
-            return <Tag value="Concluído" style={{ background: '#e0e0e0', color: '#424242' }} />;
+            return (
+                <Tag
+                    value="Concluído"
+                    style={{
+                        background: '#a5d6a7',
+                        color: '#0d260d',
+                        fontWeight: 700,
+                        border: '1px solid #2e7d32',
+                    }}
+                />
+            );
         }
         if (st === 'pendente') {
             const u = d?.pendenteUrgencia ?? 'ok';
@@ -315,7 +473,17 @@ export default function CompromissosEmpresasPage() {
             return null;
         }
         const t = d?.vencimento?.trim();
-        return <span>{t || '—'}</span>;
+        const st = statusNorm(d?.status || '');
+        const u = d?.pendenteUrgencia;
+        const color = st === 'pendente' ? pendenteCorUrgencia(u) : undefined;
+        return (
+            <span
+                className={st === 'concluido' ? 'vecontab-cell-concluido' : undefined}
+                style={color ? { color, fontWeight: 600 } : undefined}
+            >
+                {t || '—'}
+            </span>
+        );
     };
 
     const valorBodyTemplate = (node: TreeNode) => {
@@ -323,7 +491,10 @@ export default function CompromissosEmpresasPage() {
         if (d?.tipoNo !== 'COMPROMISSO') {
             return null;
         }
-        return <span>{d?.valorText ?? '—'}</span>;
+        const st = statusNorm(d?.status || '');
+        return (
+            <span className={st === 'concluido' ? 'vecontab-cell-concluido' : undefined}>{d?.valorText ?? '—'}</span>
+        );
     };
 
     const openEdit = (node: TreeNode) => {
@@ -358,6 +529,61 @@ export default function CompromissosEmpresasPage() {
             });
     };
 
+    const abrirInclusaoManual = () => {
+        setCreateEmpresaID('');
+        setCreateObrigacaoID('');
+        setCreateDescricao('');
+        setCreateVenc('');
+        setCreateValor(null);
+        setCreateObservacao('');
+        setCreateStatus('pendente');
+        setObrigacaoOptions([]);
+        setCreateDialog(true);
+    };
+
+    const salvarInclusaoManual = () => {
+        if (!createEmpresaID) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Selecione a empresa.', life: 3000 });
+            return;
+        }
+        if (!createObrigacaoID) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Selecione a obrigação.', life: 3000 });
+            return;
+        }
+        if (!createDescricao.trim()) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe a descrição.', life: 3000 });
+            return;
+        }
+        if (!createVenc.trim()) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe o vencimento.', life: 3000 });
+            return;
+        }
+        setCreateLoading(true);
+        svc.createManual({
+            empresa_id: createEmpresaID,
+            tipoempresa_obrigacao_id: createObrigacaoID,
+            descricao: createDescricao.trim(),
+            data_vencimento: createVenc.trim(),
+            valor: createValor ?? undefined,
+            observacao: createObservacao.trim() || undefined,
+            status: createStatus,
+        })
+            .then(() => {
+                toast.current?.show({ severity: 'success', summary: 'Incluído', detail: 'Compromisso incluído manualmente.', life: 2500 });
+                setCreateDialog(false);
+                load();
+            })
+            .catch((error: unknown) => {
+                toast.current?.show({
+                    severity: 'error',
+                    summary: 'Erro',
+                    detail: error instanceof Error ? error.message : 'Não foi possível incluir compromisso.',
+                    life: 3500,
+                });
+            })
+            .finally(() => setCreateLoading(false));
+    };
+
     const toggleConcluido = (node: TreeNode) => {
         const d = node.data as NodeData | undefined;
         const id = d?.agendaItemId;
@@ -380,25 +606,26 @@ export default function CompromissosEmpresasPage() {
         }
         const st = statusNorm(d?.status || '');
         return (
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex gap-1 flex-wrap align-items-center vecontab-acoes-comp">
                 <Button
                     type="button"
                     icon="pi pi-pencil"
                     rounded
-                    text
+                    outlined
                     severity="secondary"
                     onClick={() => openEdit(node)}
                     tooltip="Editar valor e vencimento"
                     tooltipOptions={{ position: 'left' }}
+                    className="text-sm vecontab-comp-editar"
                 />
                 <Button
                     type="button"
                     label={st === 'concluido' ? 'Reabrir' : 'Concluído'}
                     rounded
-                    text
-                    severity={st === 'concluido' ? 'secondary' : 'success'}
+                    outlined
+                    severity="secondary"
                     onClick={() => toggleConcluido(node)}
-                    className="text-sm"
+                    className={`text-sm ${st === 'concluido' ? 'vecontab-comp-reabrir' : 'vecontab-comp-concluir'}`}
                 />
             </div>
         );
@@ -412,10 +639,51 @@ export default function CompromissosEmpresasPage() {
         return {};
     };
 
+    const naturezaFilterEl = (
+        <Dropdown
+            value={filters.categoria?.value as string | null | undefined}
+            options={NATUREZA_FILTER_OPTIONS}
+            onChange={(e) =>
+                emitFieldFilter(setFilters, setFirst, 'categoria', e.value ?? null, FilterMatchMode.EQUALS)
+            }
+            placeholder="Natureza"
+            showClear
+            className="p-column-filter w-full"
+            style={{ minWidth: '10rem' }}
+        />
+    );
+
+    const statusFilterEl = (
+        <Dropdown
+            value={filters.status?.value as string | null | undefined}
+            options={STATUS_FILTER_OPTIONS}
+            onChange={(e) => emitFieldFilter(setFilters, setFirst, 'status', e.value ?? null, FilterMatchMode.EQUALS)}
+            placeholder="Status"
+            showClear
+            className="p-column-filter w-full"
+            style={{ minWidth: '10rem' }}
+        />
+    );
+
+    const vencFilterVal = filters.vencimentoOrdem?.value instanceof Date ? filters.vencimentoOrdem.value : null;
+
+    const vencimentoFilterEl = (
+        <Calendar
+            value={vencFilterVal}
+            onChange={(e) =>
+                emitFieldFilter(setFilters, setFirst, 'vencimentoOrdem', e.value ?? null, FilterMatchMode.CUSTOM)
+            }
+            dateFormat="dd/mm/yy"
+            showIcon
+            showButtonBar
+            className="p-column-filter w-full"
+            inputClassName="w-full"
+        />
+    );
+
     const tableHeader = (
-        <div className="flex align-items-center justify-content-between gap-3">
-            <span className="text-900 font-semibold">Empresa → Compromissos legais gerados</span>
-            <div className="flex align-items-center gap-2 tree-global-filter">
+        <div className="flex align-items-center justify-content-end gap-2 tree-global-filter">
+            <div className="flex align-items-center gap-2 w-full">
                 <span className="p-input-icon-left w-full">
                     <i className="pi pi-search" />
                     <InputText
@@ -440,9 +708,15 @@ export default function CompromissosEmpresasPage() {
         <div className="card">
             <Toast ref={toast} />
 
-            <div className="flex align-items-center justify-content-between mb-3">
-                <h2 className="m-0">Compromissos das Empresas</h2>
-                <Button icon="pi pi-refresh" label="Atualizar" onClick={load} loading={loading} />
+            <div className="flex align-items-center justify-content-start mb-3">
+                <Button
+                    icon="pi pi-plus"
+                    label="Incluir"
+                    severity="success"
+                    outlined
+                    onClick={abrirInclusaoManual}
+                    tooltip="Inclusão Manual de Compromisso"
+                />
             </div>
 
             <TreeTable
@@ -460,22 +734,47 @@ export default function CompromissosEmpresasPage() {
                 sortField={sortField}
                 sortOrder={sortOrder}
                 onSort={onSort}
+                removableSort
                 filters={filters}
-                onFilter={onFilter}
+                onFilter={onTreeFilter}
                 globalFilter={globalFilterValue}
+                globalFilterMatchMode={FilterMatchMode.CONTAINS}
                 filterMode="lenient"
                 header={tableHeader}
                 tableStyle={{ minWidth: '55rem' }}
                 emptyMessage="Nenhum compromisso gerado para empresas deste tenant"
             >
-                <Column field="nome" header="Empresa / Compromisso" expander sortable filter filterPlaceholder="Filtrar" style={{ width: '34%' }} />
-                <Column field="categoria" header="Natureza" sortable filter filterPlaceholder="Filtrar" style={{ width: '14%' }} />
                 <Column
-                    field="vencimento"
+                    field="nome"
+                    header="Empresa / Compromisso"
+                    expander
+                    sortable
+                    filter
+                    filterMatchMode={FilterMatchMode.CONTAINS}
+                    showFilterMenu={false}
+                    filterPlaceholder="Nome da empresa ou descrição"
+                    body={nomeBodyTemplate}
+                    style={{ width: '34%' }}
+                />
+                <Column
+                    field="categoria"
+                    header="Natureza"
+                    sortable
+                    filter
+                    showFilterMenu={false}
+                    filterMatchMode={FilterMatchMode.EQUALS}
+                    filterElement={naturezaFilterEl}
+                    style={{ width: '14%' }}
+                />
+                <Column
+                    field="vencimentoOrdem"
                     header="Vencimento"
                     sortable
                     filter
-                    filterPlaceholder="Filtrar"
+                    showFilterMenu={false}
+                    filterMatchMode={FilterMatchMode.CUSTOM}
+                    filterFunction={vencimentoOrdemFilter}
+                    filterElement={vencimentoFilterEl}
                     body={vencimentoBodyTemplate}
                     style={{ width: '12%' }}
                 />
@@ -524,12 +823,154 @@ export default function CompromissosEmpresasPage() {
                 </div>
             </Dialog>
 
+            <Dialog
+                header="Inclusão Manual de Compromisso"
+                visible={createDialog}
+                style={{ width: '640px' }}
+                onHide={() => setCreateDialog(false)}
+                footer={
+                    <>
+                        <Button label="Cancelar" icon="pi pi-times" text onClick={() => setCreateDialog(false)} disabled={createLoading} />
+                        <Button label="Salvar" icon="pi pi-check" text onClick={salvarInclusaoManual} loading={createLoading} />
+                    </>
+                }
+            >
+                <div className="formgrid grid">
+                    <div className="field col-12 md:col-6">
+                        <label className="block mb-1">Empresa</label>
+                        <Dropdown
+                            value={createEmpresaID}
+                            options={empresaOptions}
+                            onChange={(e) => {
+                                const next = String(e.value || '');
+                                setCreateEmpresaID(next);
+                                setCreateObrigacaoID('');
+                                loadObrigacoesByEmpresa(next);
+                            }}
+                            filter
+                            showClear
+                            placeholder="Selecione a empresa"
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="field col-12 md:col-6">
+                        <label className="block mb-1">Obrigação</label>
+                        <Dropdown
+                            value={createObrigacaoID}
+                            options={obrigacaoOptions}
+                            onChange={(e) => setCreateObrigacaoID(String(e.value || ''))}
+                            filter
+                            showClear
+                            placeholder="Selecione a obrigação"
+                            className="w-full"
+                            disabled={!createEmpresaID}
+                        />
+                    </div>
+                    <div className="field col-12 md:col-8">
+                        <label className="block mb-1">Descrição</label>
+                        <InputText value={createDescricao} onChange={(e) => setCreateDescricao(e.target.value)} className="w-full" />
+                    </div>
+                    <div className="field col-12 md:col-4">
+                        <label className="block mb-1">Status</label>
+                        <Dropdown
+                            value={createStatus}
+                            options={[
+                                { label: 'Pendente', value: 'pendente' },
+                                { label: 'Concluído', value: 'concluido' },
+                            ]}
+                            onChange={(e) => setCreateStatus((e.value as 'pendente' | 'concluido') || 'pendente')}
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="field col-12 md:col-6">
+                        <label className="block mb-1">Vencimento</label>
+                        <input
+                            type="date"
+                            className="p-inputtext p-component w-full"
+                            value={createVenc}
+                            onChange={(e) => setCreateVenc(e.target.value)}
+                        />
+                    </div>
+                    <div className="field col-12 md:col-6">
+                        <label className="block mb-1">Valor (R$)</label>
+                        <InputNumber
+                            value={createValor ?? undefined}
+                            onChange={(e) => setCreateValor(e.value ?? null)}
+                            mode="currency"
+                            currency="BRL"
+                            locale="pt-BR"
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="field col-12">
+                        <label className="block mb-1">Observação</label>
+                        <InputTextarea
+                            value={createObservacao}
+                            onChange={(e) => setCreateObservacao(e.target.value)}
+                            rows={3}
+                            className="w-full"
+                        />
+                    </div>
+                </div>
+            </Dialog>
+
+            <div className="flex align-items-center justify-content-start mt-3">
+                <Button icon="pi pi-refresh" className="p-button-text" tooltip="Atualizar" onClick={load} loading={loading} />
+            </div>
+
             <style jsx>{`
                 .tree-global-filter {
                     min-width: 20rem;
                 }
-                :global(.vecontab-dash-concluido) {
-                    background-color: #f0f0f0 !important;
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-dash-concluido > td) {
+                    background-color: #d5e0d6 !important;
+                    color: #0d1f0d !important;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-dash-concluido .vecontab-cell-concluido) {
+                    color: #0d1f0d !important;
+                    font-weight: 600;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-dash-concluido .vecontab-acoes-comp .p-button) {
+                    color: #1b5e20 !important;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-dash-concluido .vecontab-comp-editar.p-button-outlined) {
+                    color: #1b3d24 !important;
+                    border-color: #2e7d32 !important;
+                }
+                :global(
+                        .p-treetable
+                            .p-treetable-tbody
+                            > tr.vecontab-dash-concluido
+                            .vecontab-comp-editar.p-button-outlined:not(:disabled):hover
+                    ) {
+                    background: rgba(27, 94, 32, 0.12) !important;
+                    color: #0d260d !important;
+                }
+                :global(.vecontab-comp-concluir.p-button.p-button-outlined) {
+                    color: ${VERDE_BANDEIRA} !important;
+                    border-color: ${VERDE_BANDEIRA} !important;
+                }
+                :global(.vecontab-comp-concluir.p-button.p-button-outlined:not(:disabled):hover) {
+                    background: rgba(0, 156, 59, 0.12) !important;
+                    color: ${VERDE_BANDEIRA_ESCURO} !important;
+                    border-color: ${VERDE_BANDEIRA_ESCURO} !important;
+                }
+                :global(tr:not(.vecontab-dash-concluido) .vecontab-comp-reabrir.p-button.p-button-outlined) {
+                    color: #37474f !important;
+                    border-color: #78909c !important;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-dash-concluido .vecontab-comp-reabrir.p-button-outlined) {
+                    color: #0d260d !important;
+                    border-color: #1b5e20 !important;
+                    font-weight: 600;
+                }
+                :global(
+                    .p-treetable
+                        .p-treetable-tbody
+                        > tr.vecontab-dash-concluido
+                        .vecontab-comp-reabrir.p-button-outlined:not(:disabled):hover
+                ) {
+                    background: rgba(13, 38, 13, 0.08) !important;
                 }
             `}</style>
         </div>
