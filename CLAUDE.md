@@ -43,3 +43,6 @@ Backend: go run cmd/api/main.go
 Frontend: npm run dev
 
 Banco: psql -h localhost -U [camaral] -d vecontab
+
+Layout: botão "Atualizar" será sempre um ícone no canto inferior da página, nunca botão na parte superior.
+  Exemplo: const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazy_Rotina_Tal}

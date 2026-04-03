@@ -5,11 +5,13 @@ import { Button } from 'primereact/button';
 import { Toast } from 'primereact/toast';
 import { TreeNode } from 'primereact/treenode';
 import { Tag } from 'primereact/tag';
-import { Toolbar } from 'primereact/toolbar';
 import { Dropdown } from 'primereact/dropdown';
+import { InputText } from 'primereact/inputtext';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import AgendaService from '../../services/cruds/AgendaService';
+
+type TreeTableExpandEventArg = Parameters<NonNullable<TreeTableProps['onExpand']>>[0];
 
 type AgendaEventDTO = {
     id: string;
@@ -71,6 +73,54 @@ function filtrarNosPorCor(nodes: TreeNode[], filtro: FiltroCorAgenda): TreeNode[
     return out;
 }
 
+/** Título da API: "Empresa => Rotina" */
+function parseTituloListaAgenda(title: string): { empresaNome: string; rotinaNome: string } {
+    const idx = title.indexOf('=>');
+    if (idx === -1) {
+        return { empresaNome: title.trim(), rotinaNome: '' };
+    }
+    return {
+        empresaNome: title.slice(0, idx).trim(),
+        rotinaNome: title.slice(idx + 2).trim(),
+    };
+}
+
+function normalizarTextoBusca(s: string): string {
+    return s
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+function filtrarNosPorEmpresaRotina(
+    nosRaiz: TreeNode[],
+    textoEmpresa: string,
+    rotinaSelecionada: string | null,
+): TreeNode[] {
+    const t = normalizarTextoBusca(textoEmpresa);
+    const rotSel = rotinaSelecionada?.trim() || null;
+    if (!t && !rotSel) {
+        return nosRaiz;
+    }
+    return nosRaiz.filter((n) => {
+        const d = n.data as NoData | undefined;
+        if (!d || d.tipo !== 'rotina') {
+            return true;
+        }
+        if (rotSel && (d.rotinaNome || '').trim() !== rotSel) {
+            return false;
+        }
+        if (t) {
+            const emp = normalizarTextoBusca(d.empresaNome || '');
+            if (!emp.includes(t)) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
 function coletarChavesExpandidas(ns: TreeNode[]): Record<string, boolean> {
     const keys: Record<string, boolean> = {};
     const walk = (lista: TreeNode[]) => {
@@ -98,6 +148,9 @@ type NoData = {
     agendaId: string;
     /** item de passo, quando tipo === 'passo' */
     itemId?: string;
+    /** Só nível rotina (e replicado nos passos para contexto); vêm do título "Empresa => Rotina". */
+    empresaNome?: string;
+    rotinaNome?: string;
 };
 
 const formatDate = (value?: string): string => {
@@ -170,25 +223,35 @@ function rowClassForCor(backgroundColor: string): string {
 }
 
 function mapListToRoots(eventos: AgendaEventDTO[]): TreeNode[] {
-    return eventos.map((ev) => ({
-        key: ev.id,
-        leaf: false,
-        data: {
-            tipo: 'rotina',
-            titulo: ev.title,
-            inicio: ev.start,
-            fim: ev.end,
-            backgroundColor: ev.backgroundColor,
-            textColor: ev.textColor,
-            borderColor: ev.borderColor,
-            childrenLoaded: false,
-            agendaId: ev.id,
-        } satisfies NoData,
-        children: [],
-    }));
+    return eventos.map((ev) => {
+        const { empresaNome, rotinaNome } = parseTituloListaAgenda(ev.title);
+        return {
+            key: ev.id,
+            leaf: false,
+            data: {
+                tipo: 'rotina',
+                titulo: ev.title,
+                inicio: ev.start,
+                fim: ev.end,
+                backgroundColor: ev.backgroundColor,
+                textColor: ev.textColor,
+                borderColor: ev.borderColor,
+                childrenLoaded: false,
+                agendaId: ev.id,
+                empresaNome,
+                rotinaNome,
+            } satisfies NoData,
+            children: [],
+        };
+    });
 }
 
-function mapDetailToChildren(agendaId: string, eventos: AgendaEventDTO[]): TreeNode[] {
+function mapDetailToChildren(
+    agendaId: string,
+    eventos: AgendaEventDTO[],
+    empresaNome: string,
+    rotinaNome: string,
+): TreeNode[] {
     return eventos.map((ev) => ({
         key: `${agendaId}:${ev.id}`,
         leaf: true,
@@ -203,6 +266,8 @@ function mapDetailToChildren(agendaId: string, eventos: AgendaEventDTO[]): TreeN
             childrenLoaded: true,
             agendaId,
             itemId: ev.id,
+            empresaNome,
+            rotinaNome,
         } satisfies NoData,
     }));
 }
@@ -233,6 +298,7 @@ function mergeRootFromList(tree: TreeNode[], ev: AgendaEventDTO): TreeNode[] {
             return n;
         }
         const prev = n.data as NoData;
+        const { empresaNome, rotinaNome } = parseTituloListaAgenda(ev.title);
         return {
             ...n,
             data: {
@@ -244,6 +310,8 @@ function mergeRootFromList(tree: TreeNode[], ev: AgendaEventDTO): TreeNode[] {
                 textColor: ev.textColor,
                 borderColor: ev.borderColor,
                 agendaId: ev.id,
+                empresaNome,
+                rotinaNome,
             },
         };
     });
@@ -257,6 +325,8 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
     const tenantid = dados;
     const [nodes, setNodes] = useState<TreeNode[]>([]);
     const [filtroCor, setFiltroCor] = useState<FiltroCorAgenda>('TODOS');
+    const [rotinaFiltro, setRotinaFiltro] = useState<string | null>(null);
+    const [textoEmpresaFiltro, setTextoEmpresaFiltro] = useState('');
     const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
     const [loadingExpand, setLoadingExpand] = useState<string | null>(null);
@@ -266,7 +336,28 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
 
     nodesRef.current = nodes;
 
-    const nosVisiveis = useMemo(() => filtrarNosPorCor(nodes, filtroCor), [nodes, filtroCor]);
+    const nosAposCor = useMemo(() => filtrarNosPorCor(nodes, filtroCor), [nodes, filtroCor]);
+    const nosExibicao = useMemo(
+        () => filtrarNosPorEmpresaRotina(nosAposCor, textoEmpresaFiltro, rotinaFiltro),
+        [nosAposCor, textoEmpresaFiltro, rotinaFiltro],
+    );
+
+    const opcoesRotinaDropdown = useMemo(() => {
+        const set = new Set<string>();
+        for (const n of nodes) {
+            const d = n.data as NoData | undefined;
+            if (d?.tipo === 'rotina' && d.rotinaNome) {
+                set.add(d.rotinaNome.trim());
+            }
+        }
+        const ordenadas = Array.from(set).sort((a, b) =>
+            a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }),
+        );
+        return [
+            { label: 'Todas as rotinas', value: null as string | null },
+            ...ordenadas.map((r) => ({ label: r, value: r as string | null })),
+        ];
+    }, [nodes]);
 
     const filtroAnteriorRef = useRef<FiltroCorAgenda>(filtroCor);
     useEffect(() => {
@@ -278,8 +369,8 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
             return;
         }
         filtroAnteriorRef.current = filtroCor;
-        setExpandedKeys(coletarChavesExpandidas(nosVisiveis));
-    }, [filtroCor, nosVisiveis]);
+        setExpandedKeys(coletarChavesExpandidas(nosExibicao));
+    }, [filtroCor, nosExibicao]);
 
     useEffect(() => {
         if (filtroCor === 'TODOS') {
@@ -300,8 +391,17 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                 const pairs = await Promise.all(
                     unloaded.map(async (n) => {
                         const id = String(n.key);
+                        const d = n.data as NoData;
                         const raw = await agendaSvc.getDetalhes({ agenda_id: id });
-                        return { id, children: mapDetailToChildren(id, normalizeDetailEvents(raw)) };
+                        return {
+                            id,
+                            children: mapDetailToChildren(
+                                id,
+                                normalizeDetailEvents(raw),
+                                d.empresaNome ?? '',
+                                d.rotinaNome ?? '',
+                            ),
+                        };
                     }),
                 );
                 if (cancelled) {
@@ -348,12 +448,12 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
     }, [carregarRaizes]);
 
     const carregarPassos = useCallback(
-        async (agendaId: string) => {
+        async (agendaId: string, empresaNome: string, rotinaNome: string) => {
             setLoadingExpand(agendaId);
             try {
                 const raw = await agendaSvc.getDetalhes({ agenda_id: agendaId });
                 const eventos = normalizeDetailEvents(raw);
-                const children = mapDetailToChildren(agendaId, eventos);
+                const children = mapDetailToChildren(agendaId, eventos, empresaNome, rotinaNome);
                 setNodes((prev) => setChildrenOnNode(prev, agendaId, children));
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : 'Erro ao carregar passos';
@@ -366,7 +466,7 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
     );
 
     const onExpand: TreeTableProps['onExpand'] = useCallback(
-        async (e) => {
+        async (e: TreeTableExpandEventArg) => {
             const node = e.node as TreeNode;
             const data = node.data as NoData | undefined;
             if (!data || data.tipo !== 'rotina') {
@@ -376,7 +476,7 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
             if (data.childrenLoaded) {
                 return;
             }
-            await carregarPassos(agendaId);
+            await carregarPassos(agendaId, data.empresaNome ?? '', data.rotinaNome ?? '');
         },
         [carregarPassos],
     );
@@ -390,9 +490,12 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                 if (ev) {
                     setNodes((prev) => mergeRootFromList(prev, ev));
                 }
+                const { empresaNome, rotinaNome } = ev
+                    ? parseTituloListaAgenda(ev.title)
+                    : { empresaNome: '', rotinaNome: '' };
                 const raw = await agendaSvc.getDetalhes({ agenda_id: agendaId });
                 const eventos = normalizeDetailEvents(raw);
-                const children = mapDetailToChildren(agendaId, eventos);
+                const children = mapDetailToChildren(agendaId, eventos, empresaNome, rotinaNome);
                 setNodes((prev) => setChildrenOnNode(prev, agendaId, children));
             } catch {
                 /* toast já em carregarRaizes se necessário */
@@ -544,56 +647,80 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
 
     const onToggleArvore: TreeTableProps['onToggle'] = (e) => setExpandedKeys(e.value);
 
-    const toolbarStart = (
-        <div className="flex align-items-center gap-2 flex-wrap">
-            <span className="p-float-label" style={{ minWidth: '16rem' }}>
-                <Dropdown
-                    inputId="agenda-arvore-filtro-cor"
-                    value={filtroCor}
-                    options={OPCOES_FILTRO_COR}
-                    onChange={(e) => setFiltroCor(e.value as FiltroCorAgenda)}
-                    optionLabel="label"
-                    optionValue="value"
-                    className="w-full"
-                />
-                <label htmlFor="agenda-arvore-filtro-cor">Situação</label>
-            </span>
-            <Button
-                type="button"
-                icon="pi pi-refresh"
-                label="Atualizar"
-                onClick={() => void carregarRaizes()}
-                loading={loading}
-                outlined
-            />
-        </div>
-    );
-
-    const toolbarEnd = (
-        <div className="flex align-items-center gap-3 flex-wrap text-sm text-600">
-            <span className="flex align-items-center gap-2">
-                <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-atrasado" />
-                Atrasado
-            </span>
-            <span className="flex align-items-center gap-2">
-                <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-vencendo" />
-                No período / vencendo
-            </span>
-            <span className="flex align-items-center gap-2">
-                <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-futuro" />
-                Futuro
-            </span>
-            <span className="flex align-items-center gap-2">
-                <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-concluido" />
-                Concluído
-            </span>
+    const painelFiltros = (
+        <div className="p-toolbar mb-3 w-full">
+            <div className="flex align-items-start justify-content-between gap-4 w-full flex-wrap lg:flex-nowrap">
+                <div className="flex flex-wrap align-items-end gap-3 md:gap-4 flex-1 min-w-0">
+                    <div className="flex flex-column gap-1" style={{ minWidth: '12rem', maxWidth: '18rem', flex: '0 1 16rem' }}>
+                        <label htmlFor="agenda-arvore-filtro-cor" className="text-sm font-semibold text-900 m-0">
+                            Situação
+                        </label>
+                        <Dropdown
+                            inputId="agenda-arvore-filtro-cor"
+                            value={filtroCor}
+                            options={OPCOES_FILTRO_COR}
+                            onChange={(e) => setFiltroCor(e.value as FiltroCorAgenda)}
+                            optionLabel="label"
+                            optionValue="value"
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="flex flex-column gap-1" style={{ minWidth: '12rem', maxWidth: '18rem', flex: '0 1 16rem' }}>
+                        <label htmlFor="agenda-arvore-filtro-rotina" className="text-sm font-semibold text-900 m-0">
+                            Rotina
+                        </label>
+                        <Dropdown
+                            inputId="agenda-arvore-filtro-rotina"
+                            value={rotinaFiltro}
+                            options={opcoesRotinaDropdown}
+                            onChange={(e) => setRotinaFiltro((e.value as string | null) ?? null)}
+                            optionLabel="label"
+                            optionValue="value"
+                            showClear
+                            className="w-full"
+                        />
+                    </div>
+                    <div className="flex flex-column gap-1" style={{ minWidth: '12rem', maxWidth: '22rem', flex: '0 1 20rem' }}>
+                        <label htmlFor="agenda-arvore-busca-empresa" className="text-sm font-semibold text-900 m-0">
+                            Empresa (nome)
+                        </label>
+                        <InputText
+                            id="agenda-arvore-busca-empresa"
+                            value={textoEmpresaFiltro}
+                            onChange={(e) => setTextoEmpresaFiltro(e.target.value)}
+                            className="w-full"
+                        />
+                    </div>
+                </div>
+                <div className="flex flex-column gap-2 align-items-end text-right vecontab-agenda-arvore-legenda flex-shrink-0 ms-auto lg:ms-0">
+                    <span className="text-sm font-semibold text-900">Legenda (situação)</span>
+                    <div className="flex align-items-center gap-3 flex-wrap text-sm text-600">
+                        <span className="flex align-items-center gap-2">
+                            <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-atrasado" />
+                            Atrasado
+                        </span>
+                        <span className="flex align-items-center gap-2">
+                            <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-vencendo" />
+                            No período / vencendo
+                        </span>
+                        <span className="flex align-items-center gap-2">
+                            <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-futuro" />
+                            Futuro
+                        </span>
+                        <span className="flex align-items-center gap-2">
+                            <span className="inline-block border-circle w-1rem h-1rem vecontab-leg-concluido" />
+                            Concluído
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 
     return (
         <div className="grid">
             <div className="col-12">
-                <div className="card">
+                <div className="card vecontab-agenda-arvore-card">
                     <Toast ref={toast} />
                     <h1 className="text-2xl font-bold text-900 m-0 mb-3">Agenda em Árvore</h1>
                     <p className="text-600 mt-0 mb-4 line-height-3">
@@ -601,15 +728,15 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                         de cada um e concluir manualmente — mesma regra de cores da agenda (atrasado, período atual,
                         futuro, concluído).
                     </p>
-                    <Toolbar className="mb-3" start={toolbarStart} end={toolbarEnd} />
+                    {painelFiltros}
                     <TreeTable
-                        value={nosVisiveis}
+                        value={nosExibicao}
                         loading={loading}
                         expandedKeys={expandedKeys}
                         onToggle={onToggleArvore}
                         onExpand={onExpand}
                         tableStyle={{ minWidth: '50rem' }}
-                        rowClassName={rowClassName}
+                        rowClassName={rowClassName as unknown as TreeTableProps['rowClassName']}
                         stripedRows
                     >
                         <Column
@@ -627,6 +754,18 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                         <Column header="Período (início — fim)" body={periodoTemplate} style={{ minWidth: '220px' }} />
                         <Column header="Ações" body={acoesTemplate} style={{ width: '180px' }} />
                     </TreeTable>
+                    <div className="vecontab-agenda-arvore-fab-wrap">
+                        <Button
+                            type="button"
+                            icon="pi pi-refresh"
+                            className="p-button-rounded p-button-text vecontab-agenda-arvore-btn-atualizar"
+                            tooltip="Atualizar"
+                            tooltipOptions={{ position: 'left' }}
+                            loading={loading}
+                            onClick={() => void carregarRaizes()}
+                            aria-label="Atualizar lista da agenda"
+                        />
+                    </div>
                 </div>
             </div>
             <style jsx global>{`
@@ -736,6 +875,32 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                 }
                 :global(.vecontab-agenda-acao-passo.p-button-outlined:disabled .p-button-icon) {
                     color: #64748b !important;
+                }
+                .vecontab-agenda-arvore-legenda {
+                    border-left: 1px solid var(--surface-200, #e5e7eb);
+                    padding-left: 1.25rem;
+                    margin-left: 0.75rem;
+                }
+                @media screen and (max-width: 991px) {
+                    .vecontab-agenda-arvore-legenda {
+                        border-left: none;
+                        padding-left: 0;
+                        margin-left: 0;
+                    }
+                }
+                .vecontab-agenda-arvore-card {
+                    position: relative;
+                    padding-bottom: 3rem;
+                }
+                .vecontab-agenda-arvore-fab-wrap {
+                    position: absolute;
+                    right: 1rem;
+                    bottom: 0.75rem;
+                    z-index: 2;
+                }
+                :global(.vecontab-agenda-arvore-btn-atualizar.p-button.p-button-text) {
+                    width: 2.5rem;
+                    height: 2.5rem;
                 }
             `}</style>
         </div>

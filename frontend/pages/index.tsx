@@ -23,25 +23,32 @@ type ModuloCard = ModuloAtivo | ModuloFuturo;
 
 const MODULOS: ModuloCard[] = [
     {
-        titulo: 'Compromissos por Empresas',
-        descricao: 'Acompanhe vencimentos e status dos compromissos legais gerados por empresa.',
-        href: '/compromissos-empresas',
-        icon: 'pi pi-list',
-        tooltip: 'Abre o acompanhamento em árvore (empresa → compromissos).',
-    },
-    {
-        titulo: 'Agenda',
-        descricao: 'Visualize e gerencie a agenda de passos e prazos operacionais.',
-        href: '/agenda',
-        icon: 'pi pi-calendar',
-        tooltip: 'Calendário e detalhes da agenda do tenant.',
-    },
-    {
         titulo: 'Manutenção de Empresas',
         descricao: 'Cadastro de empresas, rotinas e geração de compromissos após conclusão dos passos.',
         href: '/empresas',
         icon: 'pi pi-building',
         tooltip: 'CRUD de empresas e fluxo de abertura.',
+    },
+    {
+        future: true,
+        titulo: 'Relatórios gerenciais',
+        descricao: 'Indicadores e exportações para gestão contábil e fiscal.',
+        icon: 'pi pi-chart-bar',
+        tooltip: 'Implementação futura — painéis e relatórios em desenvolvimento.',
+    },
+    {
+        future: true,
+        titulo: 'Integrações fiscais',
+        descricao: 'Conexões com APIs governamentais e troca de arquivos.',
+        icon: 'pi pi-cloud-download',
+        tooltip: 'Implementação futura — integrações serão adicionadas gradualmente.',
+    },
+    {
+        titulo: 'Compromissos por Empresas',
+        descricao: 'Acompanhe vencimentos e status dos compromissos legais gerados por empresa.',
+        href: '/compromissos-empresas',
+        icon: 'pi pi-list',
+        tooltip: 'Abre o acompanhamento em árvore (empresa → compromissos).',
     },
     {
         titulo: 'Compromissos (Visão Corrida)',
@@ -54,15 +61,22 @@ const MODULOS: ModuloCard[] = [
         titulo: 'Compromissos por Natureza',
         descricao: 'Árvore com Tributária e Informativa no primeiro nível; em seguida empresas e compromissos, com as mesmas edições da visão por empresa.',
         href: '/compromissos-por-natureza',
-        icon: 'pi pi-sitemap',
+        icon: 'pi pi-list',
         tooltip: 'Visão natureza → empresa → compromisso (issue #48).',
     },
     {
-        future: true,
-        titulo: 'Relatórios gerenciais',
-        descricao: 'Indicadores e exportações para gestão contábil e fiscal.',
-        icon: 'pi pi-chart-bar',
-        tooltip: 'Implementação futura — painéis e relatórios em desenvolvimento.',
+        titulo: 'Agenda',
+        descricao: 'Visualize e gerencie a agenda de passos e prazos operacionais.',
+        href: '/agenda',
+        icon: 'pi pi-calendar',
+        tooltip: 'Calendário e detalhes da agenda do tenant.',
+    },
+    {
+        titulo: 'Agenda em Árvore',
+        descricao: 'Empresa e rotina no primeiro nível; expanda para ver passos, prazos e concluir itens como na agenda.',
+        href: '/agenda-arvore',
+        icon: 'pi pi-list-check',
+        tooltip: 'Árvore PrimeReact: mesmas cores e endpoints da agenda em calendário.',
     },
     {
         future: true,
@@ -71,20 +85,7 @@ const MODULOS: ModuloCard[] = [
         icon: 'pi pi-bell',
         tooltip: 'Implementação futura — módulo de monitoramento centralizado.',
     },
-    {
-        future: true,
-        titulo: 'Integrações fiscais',
-        descricao: 'Conexões com APIs governamentais e troca de arquivos.',
-        icon: 'pi pi-cloud-download',
-        tooltip: 'Implementação futura — integrações serão adicionadas gradualmente.',
-    },
-    {
-        titulo: 'Agenda em Árvore',
-        descricao: 'Empresa e rotina no primeiro nível; expanda para ver passos, prazos e concluir itens como na agenda.',
-        href: '/agenda-arvore',
-        icon: 'pi pi-sitemap',
-        tooltip: 'Árvore PrimeReact: mesmas cores e endpoints da agenda em calendário.',
-    },
+
 
 ];
 
