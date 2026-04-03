@@ -137,19 +137,20 @@ function corTextoParaCelula(d: NoData): string | undefined {
     return d.textColor || undefined;
 }
 
-function classeIndicadorPasso(backgroundColor: string): string {
+/** Classes do círculo na coluna de situação (apenas passos). */
+function classeIndicadorCorCelula(backgroundColor: string): string {
     const k = (backgroundColor || '').trim().toUpperCase();
     switch (k) {
         case '#22C55E':
-            return 'vecontab-ind-passo-concluido';
+            return 'vecontab-ag-ind-concluido';
         case '#FDE2E0':
-            return 'vecontab-ind-passo-atrasado';
+            return 'vecontab-ag-ind-atrasado';
         case '#FFDAB9':
-            return 'vecontab-ind-passo-vencendo';
+            return 'vecontab-ag-ind-vencendo';
         case '#A0D6B4':
-            return 'vecontab-ind-passo-futuro';
+            return 'vecontab-ag-ind-futuro';
         default:
-            return 'vecontab-ind-passo-neutro';
+            return 'vecontab-ag-ind-neutro';
     }
 }
 
@@ -457,6 +458,22 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
         [agendaSvc, atualizarRamificacao],
     );
 
+    const indicadorSituacaoTemplate = (row: TreeNode) => {
+        const d = row.data as NoData;
+        if (d.tipo !== 'passo') {
+            return null;
+        }
+        return (
+            <div className="flex justify-content-center align-items-center w-full">
+                <span
+                    className={`vecontab-ag-ind border-circle inline-block ${classeIndicadorCorCelula(d.backgroundColor)}`}
+                    title="Situação do passo"
+                    aria-hidden
+                />
+            </div>
+        );
+    };
+
     const nomeTemplate = (row: TreeNode) => {
         const d = row.data as NoData;
         return (
@@ -520,7 +537,7 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
     const rowClassName = (row: TreeNode) => {
         const d = row.data as NoData;
         if (d?.tipo === 'passo') {
-            return `vecontab-agenda-arvore-row vecontab-agenda-arvore-passo ${classeIndicadorPasso(d?.backgroundColor || '')}`;
+            return 'vecontab-agenda-arvore-row vecontab-agenda-arvore-passo';
         }
         return rowClassForCor(d?.backgroundColor || '');
     };
@@ -599,7 +616,13 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                             header="Empresa / rotina ou passo"
                             body={nomeTemplate}
                             expander
-                            style={{ minWidth: '280px' }}
+                            style={{ minWidth: '260px' }}
+                        />
+                        <Column
+                            header=""
+                            body={indicadorSituacaoTemplate}
+                            headerStyle={{ width: '2.25rem', maxWidth: '2.25rem' }}
+                            style={{ width: '2.25rem', maxWidth: '2.25rem', textAlign: 'center', verticalAlign: 'middle' }}
                         />
                         <Column header="Período (início — fim)" body={periodoTemplate} style={{ minWidth: '220px' }} />
                         <Column header="Ações" body={acoesTemplate} style={{ width: '180px' }} />
@@ -607,14 +630,22 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                 </div>
             </div>
             <style jsx global>{`
-                /* Passos: fundo neutro, recuo; situação no círculo à esquerda (primeira coluna). */
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:first-child) {
-                    position: relative;
-                    padding-left: 3.15rem !important;
+                /* Passos: fundo neutro + recuo; coluna 2 = círculo (sem título). */
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:nth-child(1)) {
+                    padding-left: 2.5rem !important;
                     background: var(--surface-0, #ffffff) !important;
                     border-left: none !important;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:not(:first-child)) {
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:nth-child(2)) {
+                    padding: 0.35rem 0.25rem !important;
+                    width: 2.25rem !important;
+                    max-width: 2.25rem !important;
+                    background: var(--surface-0, #ffffff) !important;
+                    border-left: none !important;
+                    vertical-align: middle !important;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:nth-child(3)),
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-agenda-arvore-passo > td:nth-child(4)) {
                     padding-left: 2.5rem !important;
                     background: var(--surface-0, #ffffff) !important;
                     border-left: none !important;
@@ -624,39 +655,29 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
                     ) {
                     background: var(--surface-50, #fafafa) !important;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-atrasado > td:first-child::after),
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-vencendo > td:first-child::after),
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-futuro > td:first-child::after),
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-concluido > td:first-child::after),
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-neutro > td:first-child::after) {
-                    content: '';
-                    position: absolute;
-                    top: 0.35rem;
-                    left: 0.45rem;
+                .vecontab-ag-ind {
                     width: 0.7rem;
                     height: 0.7rem;
-                    border-radius: 50%;
                     box-sizing: border-box;
-                    pointer-events: none;
-                    z-index: 1;
+                    flex-shrink: 0;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-atrasado > td:first-child::after) {
+                .vecontab-ag-ind-atrasado {
                     background: #fde2e0;
                     border: 1px solid #f8c9c4;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-vencendo > td:first-child::after) {
+                .vecontab-ag-ind-vencendo {
                     background: #ffdab9;
                     border: 1px solid #e8c09a;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-futuro > td:first-child::after) {
+                .vecontab-ag-ind-futuro {
                     background: #a0d6b4;
                     border: 1px solid #7fb89a;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-concluido > td:first-child::after) {
+                .vecontab-ag-ind-concluido {
                     background: #22c55e;
                     border: 1px solid #16a34a;
                 }
-                :global(.p-treetable .p-treetable-tbody > tr.vecontab-ind-passo-neutro > td:first-child::after) {
+                .vecontab-ag-ind-neutro {
                     background: #e2e8f0;
                     border: 1px solid #cbd5e1;
                 }

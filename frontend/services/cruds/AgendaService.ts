@@ -75,7 +75,7 @@ export default function AgendaService() {
     reabrirPasso: async (payload: { agenda_id: string; agenda_item_id: string }) => {
       try {
         const apiClient = setupAPIClient(undefined);
-        const response = await apiClient.post('/api/agenda/reabrir-passo', payload);
+        const response = await apiClient.post('/api/agendareabrirpasso', payload);
 
         return {
           data: response.data
