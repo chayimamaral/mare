@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict lXlIztUtigNpfTzEKI4XEKsJU89980CClofONytDviwldNFGecgF8KYB5ivB4jG
+\restrict kV3hnapqBzCz020bRzRB62Wark8ZBBd5qDRtcpxmgbgwlHSQCZgSYA9Yjmhw3SO
 
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
 
--- Started on 2026-04-02 10:20:59 -03
+-- Started on 2026-04-03 19:33:08 -03
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -124,7 +124,7 @@ $$;
 
 
 --
--- TOC entry 277 (class 1255 OID 17658)
+-- TOC entry 289 (class 1255 OID 17658)
 -- Name: gerar_agenda(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -134,54 +134,50 @@ CREATE FUNCTION public.gerar_agenda(in_empresa_id text, in_tenant_id text, in_ro
 DECLARE
     agenda_id text;
     agenda_termino date;
-	tempo_estimado_passo integer;
-	maior_data_termino date := CURRENT_DATE; -- Inicialize com a data atual
-	passo_record RECORD; -- Declare um cursor do tipo RECORD
+    tempo_estimado_passo integer;
+    maior_data_termino date := CURRENT_DATE;
+    passo_record RECORD;
 BEGIN
-    -- Inserir a nova empresa na tabela agenda
-    INSERT INTO agenda (empresa_id, tenant_id, rotina_id, inicio)
+    INSERT INTO public.agenda (empresa_id, tenant_id, rotina_id, inicio)
     VALUES (in_empresa_id, in_tenant_id, in_rotina_id, CURRENT_DATE)
     RETURNING id INTO agenda_id;
 
-	agenda_termino := calcular_data_termino(CURRENT_DATE, 0);
+    agenda_termino := public.calcular_data_termino(CURRENT_DATE, 0);
 
--- Iterar sobre os passos da rotina	
-	FOR passo_record IN
-		SELECT ri.passo_id, p.tempoestimado
-		FROM rotinaitens ri
-		LEFT JOIN passos p ON p.id = ri.passo_id
-		WHERE rotina_id = in_rotina_id
-		ORDER BY ordem
-	LOOP
-		-- Obter o tempo estimado do passo atual
-		tempo_estimado_passo := passo_record.tempoestimado;
-		-- Calcular a data de término para este passo
-		agenda_termino := calcular_data_termino(CURRENT_DATE, tempo_estimado_passo);
-		
-		-- Inserir na tabela "agendaitens" com as datas calculadas
-		INSERT INTO agendaitens(agenda_id, passo_id, inicio, termino) 
-		VALUES (agenda_id, passo_record.passo_id, CURRENT_DATE, agenda_termino);
-	
-	-- Atualizar a maior data de término, se necessário
+    FOR passo_record IN
+        SELECT ri.passo_id, p.tempoestimado, p.descricao
+        FROM public.rotinaitens ri
+        LEFT JOIN public.passos p ON p.id = ri.passo_id
+        WHERE ri.rotina_id = in_rotina_id
+        ORDER BY ri.ordem
+    LOOP
+        CONTINUE WHEN passo_record.passo_id IS NULL;
+        tempo_estimado_passo := COALESCE(passo_record.tempoestimado, 0);
+        agenda_termino := public.calcular_data_termino(CURRENT_DATE, tempo_estimado_passo);
+
+        INSERT INTO public.agendaitens (agenda_id, passo_id, inicio, termino, descricao)
+        VALUES (
+            agenda_id,
+            passo_record.passo_id,
+            CURRENT_DATE,
+            agenda_termino,
+            COALESCE(passo_record.descricao, '')
+        );
+
         IF agenda_termino > maior_data_termino THEN
             maior_data_termino := agenda_termino;
         END IF;
-	
     END LOOP;
 
-    -- Atualizar a data de término na tabela agenda
-    UPDATE agenda
+    UPDATE public.agenda
     SET termino = maior_data_termino
     WHERE id = agenda_id;
-
-    -- Comitar a transação
-    --COMMIT;
 END;
 $$;
 
 
 --
--- TOC entry 278 (class 1255 OID 17659)
+-- TOC entry 277 (class 1255 OID 17659)
 -- Name: gerar_agenda_trigger(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -199,7 +195,7 @@ $$;
 
 
 --
--- TOC entry 286 (class 1255 OID 28904)
+-- TOC entry 285 (class 1255 OID 28904)
 -- Name: gerar_compromissos_core(date, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -316,7 +312,7 @@ $$;
 
 
 --
--- TOC entry 287 (class 1255 OID 28906)
+-- TOC entry 286 (class 1255 OID 28906)
 -- Name: gerar_compromissos_empresa(text, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -334,7 +330,7 @@ $$;
 
 
 --
--- TOC entry 288 (class 1255 OID 28907)
+-- TOC entry 287 (class 1255 OID 28907)
 -- Name: gerar_compromissos_geral(date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -348,7 +344,7 @@ $$;
 
 
 --
--- TOC entry 289 (class 1255 OID 28901)
+-- TOC entry 288 (class 1255 OID 28901)
 -- Name: gerar_compromissos_mensais(text, date, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -366,7 +362,7 @@ $$;
 
 
 --
--- TOC entry 279 (class 1255 OID 17660)
+-- TOC entry 278 (class 1255 OID 17660)
 -- Name: get_cidades_with_ufs(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -395,7 +391,7 @@ $$;
 
 
 --
--- TOC entry 280 (class 1255 OID 17661)
+-- TOC entry 279 (class 1255 OID 17661)
 -- Name: get_cidades_with_ufs2(character varying, integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -425,7 +421,7 @@ $$;
 
 
 --
--- TOC entry 281 (class 1255 OID 17662)
+-- TOC entry 280 (class 1255 OID 17662)
 -- Name: get_passos_nested(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -450,7 +446,7 @@ $$;
 
 
 --
--- TOC entry 282 (class 1255 OID 17663)
+-- TOC entry 281 (class 1255 OID 17663)
 -- Name: get_passos_nested_children(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -477,7 +473,7 @@ $$;
 
 
 --
--- TOC entry 283 (class 1255 OID 17664)
+-- TOC entry 282 (class 1255 OID 17664)
 -- Name: get_passos_recur(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -524,7 +520,7 @@ CREATE TABLE public.estado (
 
 
 --
--- TOC entry 284 (class 1255 OID 17675)
+-- TOC entry 283 (class 1255 OID 17675)
 -- Name: getfoo(character varying); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -585,7 +581,7 @@ $$;
 
 
 --
--- TOC entry 285 (class 1255 OID 28903)
+-- TOC entry 284 (class 1255 OID 28903)
 -- Name: postergar_para_proximo_dia_util(date, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -735,10 +731,11 @@ CREATE TABLE public.agenda (
 CREATE TABLE public.agendaitens (
     id text DEFAULT gen_random_uuid() NOT NULL,
     agenda_id text NOT NULL,
-    passo_id text NOT NULL,
+    passo_id text,
     inicio date,
     termino date,
-    concluido boolean DEFAULT false NOT NULL
+    concluido boolean DEFAULT false NOT NULL,
+    descricao text
 );
 
 
@@ -1437,12 +1434,13 @@ ALTER TABLE ONLY public.ibge_cnae_subclasse ALTER COLUMN id SET DEFAULT nextval(
 --
 
 COPY public.agenda (id, inicio, descricao, status, tenant_id, createdat, updatedat, empresa_id, rotina_id, termino) FROM stdin;
-5f251afd-3951-4e58-8fb2-0303bbc3bdad	2023-09-22	\N	\N	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-22 15:24:35.639	2023-09-22 15:24:35.639	67207fad-07aa-4daf-b667-f3b926a120ad	005a21fd-3aaa-43ee-a2e8-647a4d8845ab	2023-10-02
 a90b8b23-50d5-4ffd-9ffd-08a3eb578ce1	2023-09-26	\N	\N	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-26 09:18:20.972	2023-09-26 09:18:20.972	32c99043-ae5e-47a6-b3db-e02f13b5aff9	ed925e14-d150-434f-b287-7154d67c1d0a	2023-09-26
 e046dbb2-bfc7-49af-be92-924810821ab3	2023-09-22	\N	passos_concluidos	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-22 16:34:51.735	2023-09-22 16:34:51.735	56fab307-b775-40f6-87ef-51daa7509698	595ac1c0-fe5e-4a87-8871-9d9cce8fce04	2023-09-27
 4455250a-562b-4382-b41e-55bc39fe4792	2023-09-26	\N	passos_concluidos	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-26 09:30:25.016	2023-09-26 09:30:25.016	3bd699c9-15dc-4a79-8ee8-0a098073203b	ed925e14-d150-434f-b287-7154d67c1d0a	2023-10-02
 94decc02-dcbb-4d26-be3e-4a22d7a59851	2023-09-25	\N	passos_concluidos	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-25 09:29:18.882	2023-09-25 09:29:18.882	2d969b03-f302-437a-8cfe-7b85da6e28fb	595ac1c0-fe5e-4a87-8871-9d9cce8fce04	2023-10-02
 1ea777c7-574e-4b84-82b0-e0db28344ffc	2026-03-27	\N	passos_concluidos	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2026-03-27 16:17:37.572	2026-03-27 16:17:37.572	5b2eacf9-5289-402d-85be-52f7233d20d2	1cd6c238-d805-4c94-829e-bad7a9b62cfb	2026-03-30
+5f251afd-3951-4e58-8fb2-0303bbc3bdad	2023-09-22	\N	pendente	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2023-09-22 15:24:35.639	2023-09-22 15:24:35.639	67207fad-07aa-4daf-b667-f3b926a120ad	005a21fd-3aaa-43ee-a2e8-647a4d8845ab	2023-10-02
+2b7e4e14-3e5e-4cb8-9659-e37b68caaa36	2026-04-03	\N	\N	5bf1a2bc-b39e-4af6-97df-bb70326373ab	2026-04-03 17:58:13.91	2026-04-03 17:58:13.91	a0ef2dad-5f65-4821-bbf2-034477183f44	1cd6c238-d805-4c94-829e-bad7a9b62cfb	2026-04-06
 \.
 
 
@@ -1452,31 +1450,35 @@ e046dbb2-bfc7-49af-be92-924810821ab3	2023-09-22	\N	passos_concluidos	5bf1a2bc-b3
 -- Data for Name: agendaitens; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.agendaitens (id, agenda_id, passo_id, inicio, termino, concluido) FROM stdin;
-6dbc422d-495a-41f7-86e0-a0e2d0bef38a	5f251afd-3951-4e58-8fb2-0303bbc3bdad	136e1f3e-1705-485f-9927-3074cc416e43	2023-09-22	2023-09-25	f
-a0977c38-0dd4-4dfb-b269-c061cc098a05	5f251afd-3951-4e58-8fb2-0303bbc3bdad	7b35949c-3740-4da9-99c0-a15bdf3ff6d5	2023-09-22	2023-09-25	f
-52c45622-b6c0-4452-a80e-922c400e8ed3	5f251afd-3951-4e58-8fb2-0303bbc3bdad	31445cac-91dc-4c21-bec2-adc240905b2e	2023-09-22	2023-09-25	f
-da03147e-6e7c-470e-b4e6-44eba97e9c29	5f251afd-3951-4e58-8fb2-0303bbc3bdad	1236690c-828f-4459-895b-cc53a27ba9f4	2023-09-22	2023-09-25	f
-016cceac-191c-4fe5-8ae9-55066c6c13cc	5f251afd-3951-4e58-8fb2-0303bbc3bdad	e62ddd44-7581-4a91-8e9a-9200b92aba45	2023-09-22	2023-09-25	f
-246ecd16-5222-43a0-bb29-9fa64d4eb4f9	5f251afd-3951-4e58-8fb2-0303bbc3bdad	5047a655-d6b3-431f-96fd-c7e4cbcb7ee0	2023-09-22	2023-09-25	f
-1dd6cf0c-525e-452c-ad12-f8a735de8e38	5f251afd-3951-4e58-8fb2-0303bbc3bdad	3fe622f0-96c4-4457-8c90-ae6ebcaf19b3	2023-09-22	2023-09-25	f
-5ebd0ab2-564e-4f09-8bf8-23cba9c61716	e046dbb2-bfc7-49af-be92-924810821ab3	78417170-c0d7-4ca6-bbf4-4c69d994ccd8	2023-09-22	2023-09-27	t
-bc0ff9bf-8398-4f90-8f34-8bc832199282	e046dbb2-bfc7-49af-be92-924810821ab3	b9206898-3ecd-4bd5-b83a-9249d5dd1bc2	2023-09-22	2023-09-25	t
-d84bb762-8363-4602-b7fa-795a1aa5946c	e046dbb2-bfc7-49af-be92-924810821ab3	d4ededcb-b5a2-402a-90e6-f4db735beb29	2023-09-22	2023-09-25	t
-9c335e83-3e65-4464-ad23-120b161d4d75	e046dbb2-bfc7-49af-be92-924810821ab3	f45dc0a4-0a3e-4984-9a9d-a3ff706b3402	2023-09-22	2023-09-25	t
-ce2b0c2a-fafb-4391-96f6-c013bc7a6569	5f251afd-3951-4e58-8fb2-0303bbc3bdad	1d64ff79-3192-4b28-a4b8-7654daea77f4	2023-09-22	2023-10-02	t
-6ce47c34-780b-4c25-8f22-cbc42445326f	5f251afd-3951-4e58-8fb2-0303bbc3bdad	91168e21-df97-4ab2-b1f5-ec35e9103efc	2023-09-22	2023-10-02	t
-1fae3841-8df0-4b2f-a0e4-a40d63591032	5f251afd-3951-4e58-8fb2-0303bbc3bdad	023b4bb7-6054-4e14-b93b-7354d5e95eb8	2023-09-22	2023-09-26	t
-df374bf0-9433-40e0-aa55-ca8456224462	4455250a-562b-4382-b41e-55bc39fe4792	e58d4218-1fa0-4a8a-a80f-fdb5ef245bef	2023-09-26	2023-10-02	t
-0348d7ce-fa9c-4f06-9894-ca6dbdd1bee6	4455250a-562b-4382-b41e-55bc39fe4792	264e9bfa-aac4-4524-be04-9e569feb1d30	2023-09-26	2023-10-02	t
-3be13a6f-0056-4995-8573-721a1d1daa67	5f251afd-3951-4e58-8fb2-0303bbc3bdad	9e705234-9d64-4b41-bca3-d71d94d2c323	2023-09-22	2023-09-26	t
-e02dca63-6171-482c-846d-01da41e39788	94decc02-dcbb-4d26-be3e-4a22d7a59851	78417170-c0d7-4ca6-bbf4-4c69d994ccd8	2023-09-25	2023-10-02	t
-17b5a28d-e75a-4aa0-9545-75038624d647	94decc02-dcbb-4d26-be3e-4a22d7a59851	b9206898-3ecd-4bd5-b83a-9249d5dd1bc2	2023-09-25	2023-09-28	t
-53dc7c5c-9d97-42b6-a858-7a30f45673d1	94decc02-dcbb-4d26-be3e-4a22d7a59851	d4ededcb-b5a2-402a-90e6-f4db735beb29	2023-09-25	2023-09-28	t
-704980ff-1118-4994-9953-e8fa36be2dad	94decc02-dcbb-4d26-be3e-4a22d7a59851	f45dc0a4-0a3e-4984-9a9d-a3ff706b3402	2023-09-25	2023-09-28	t
-ef3f73f9-34d1-4d83-8eba-ff1941ea2ada	1ea777c7-574e-4b84-82b0-e0db28344ffc	5047a655-d6b3-431f-96fd-c7e4cbcb7ee0	2026-03-27	2026-03-30	t
-6f2df927-5605-4e86-af65-24d7f1b35b36	1ea777c7-574e-4b84-82b0-e0db28344ffc	7b35949c-3740-4da9-99c0-a15bdf3ff6d5	2026-03-27	2026-03-30	t
-7e581fba-717f-4f50-b4c8-69806a5706e0	1ea777c7-574e-4b84-82b0-e0db28344ffc	31445cac-91dc-4c21-bec2-adc240905b2e	2026-03-27	2026-03-30	t
+COPY public.agendaitens (id, agenda_id, passo_id, inicio, termino, concluido, descricao) FROM stdin;
+1fae3841-8df0-4b2f-a0e4-a40d63591032	5f251afd-3951-4e58-8fb2-0303bbc3bdad	023b4bb7-6054-4e14-b93b-7354d5e95eb8	2023-09-22	2023-09-26	t	Checklist de Documentos e Informações Necessárias
+7e581fba-717f-4f50-b4c8-69806a5706e0	1ea777c7-574e-4b84-82b0-e0db28344ffc	31445cac-91dc-4c21-bec2-adc240905b2e	2026-03-27	2026-03-30	t	Viabilidade JUCESC
+52c45622-b6c0-4452-a80e-922c400e8ed3	5f251afd-3951-4e58-8fb2-0303bbc3bdad	31445cac-91dc-4c21-bec2-adc240905b2e	2023-09-22	2023-09-25	f	Viabilidade JUCESC
+1dd6cf0c-525e-452c-ad12-f8a735de8e38	5f251afd-3951-4e58-8fb2-0303bbc3bdad	3fe622f0-96c4-4457-8c90-ae6ebcaf19b3	2023-09-22	2023-09-25	f	Viabilidade Instalação Prefeitura (caso aplicável)
+6ce47c34-780b-4c25-8f22-cbc42445326f	5f251afd-3951-4e58-8fb2-0303bbc3bdad	91168e21-df97-4ab2-b1f5-ec35e9103efc	2023-09-22	2023-10-02	t	Implantar Processo na Junta
+da03147e-6e7c-470e-b4e6-44eba97e9c29	5f251afd-3951-4e58-8fb2-0303bbc3bdad	1236690c-828f-4459-895b-cc53a27ba9f4	2023-09-22	2023-09-25	f	Enviar Contrato Cliente e DARE
+6dbc422d-495a-41f7-86e0-a0e2d0bef38a	5f251afd-3951-4e58-8fb2-0303bbc3bdad	136e1f3e-1705-485f-9927-3074cc416e43	2023-09-22	2023-09-25	t	Assinar Contrato
+016cceac-191c-4fe5-8ae9-55066c6c13cc	5f251afd-3951-4e58-8fb2-0303bbc3bdad	e62ddd44-7581-4a91-8e9a-9200b92aba45	2023-09-22	2023-09-25	f	Enviar email interno
+6f2df927-5605-4e86-af65-24d7f1b35b36	1ea777c7-574e-4b84-82b0-e0db28344ffc	7b35949c-3740-4da9-99c0-a15bdf3ff6d5	2026-03-27	2026-03-30	t	Enviar email para Cliente
+a0977c38-0dd4-4dfb-b269-c061cc098a05	5f251afd-3951-4e58-8fb2-0303bbc3bdad	7b35949c-3740-4da9-99c0-a15bdf3ff6d5	2023-09-22	2023-09-25	f	Enviar email para Cliente
+ce2b0c2a-fafb-4391-96f6-c013bc7a6569	5f251afd-3951-4e58-8fb2-0303bbc3bdad	1d64ff79-3192-4b28-a4b8-7654daea77f4	2023-09-22	2023-10-02	t	Solicitar acesso Sistema Prefeitura 
+3be13a6f-0056-4995-8573-721a1d1daa67	5f251afd-3951-4e58-8fb2-0303bbc3bdad	9e705234-9d64-4b41-bca3-d71d94d2c323	2023-09-22	2023-09-26	t	Sistema Único  Cadastro
+ef3f73f9-34d1-4d83-8eba-ff1941ea2ada	1ea777c7-574e-4b84-82b0-e0db28344ffc	5047a655-d6b3-431f-96fd-c7e4cbcb7ee0	2026-03-27	2026-03-30	t	DBE
+246ecd16-5222-43a0-bb29-9fa64d4eb4f9	5f251afd-3951-4e58-8fb2-0303bbc3bdad	5047a655-d6b3-431f-96fd-c7e4cbcb7ee0	2023-09-22	2023-09-25	f	DBE
+e02dca63-6171-482c-846d-01da41e39788	94decc02-dcbb-4d26-be3e-4a22d7a59851	78417170-c0d7-4ca6-bbf4-4c69d994ccd8	2023-09-25	2023-10-02	t	Vínculo  Contador Prefeitura
+5ebd0ab2-564e-4f09-8bf8-23cba9c61716	e046dbb2-bfc7-49af-be92-924810821ab3	78417170-c0d7-4ca6-bbf4-4c69d994ccd8	2023-09-22	2023-09-27	t	Vínculo  Contador Prefeitura
+17b5a28d-e75a-4aa0-9545-75038624d647	94decc02-dcbb-4d26-be3e-4a22d7a59851	b9206898-3ecd-4bd5-b83a-9249d5dd1bc2	2023-09-25	2023-09-28	t	Abrir processo na Prefeitura
+bc0ff9bf-8398-4f90-8f34-8bc832199282	e046dbb2-bfc7-49af-be92-924810821ab3	b9206898-3ecd-4bd5-b83a-9249d5dd1bc2	2023-09-22	2023-09-25	t	Abrir processo na Prefeitura
+704980ff-1118-4994-9953-e8fa36be2dad	94decc02-dcbb-4d26-be3e-4a22d7a59851	f45dc0a4-0a3e-4984-9a9d-a3ff706b3402	2023-09-25	2023-09-28	t	Abrir Processo na Secretaria do Estado
+9c335e83-3e65-4464-ad23-120b161d4d75	e046dbb2-bfc7-49af-be92-924810821ab3	f45dc0a4-0a3e-4984-9a9d-a3ff706b3402	2023-09-22	2023-09-25	t	Abrir Processo na Secretaria do Estado
+53dc7c5c-9d97-42b6-a858-7a30f45673d1	94decc02-dcbb-4d26-be3e-4a22d7a59851	d4ededcb-b5a2-402a-90e6-f4db735beb29	2023-09-25	2023-09-28	t	Abrir Processo na Prefeitura  de Biguaçu
+d84bb762-8363-4602-b7fa-795a1aa5946c	e046dbb2-bfc7-49af-be92-924810821ab3	d4ededcb-b5a2-402a-90e6-f4db735beb29	2023-09-22	2023-09-25	t	Abrir Processo na Prefeitura  de Biguaçu
+df374bf0-9433-40e0-aa55-ca8456224462	4455250a-562b-4382-b41e-55bc39fe4792	e58d4218-1fa0-4a8a-a80f-fdb5ef245bef	2023-09-26	2023-10-02	t	Abrir Processo na Prefeitura de Guarujá
+0348d7ce-fa9c-4f06-9894-ca6dbdd1bee6	4455250a-562b-4382-b41e-55bc39fe4792	264e9bfa-aac4-4524-be04-9e569feb1d30	2023-09-26	2023-10-02	t	Passo demonstrativo para abertura de empresa no Guarujá
+f482b7c3-8d32-41ca-8026-ba77e1426569	2b7e4e14-3e5e-4cb8-9659-e37b68caaa36	\N	2026-04-03	2026-04-03	f	Teste de AGenda
+a8fae744-d409-40f9-a946-f71312ade795	2b7e4e14-3e5e-4cb8-9659-e37b68caaa36	31445cac-91dc-4c21-bec2-adc240905b2e	2026-04-03	2026-04-06	f	Viabilidade JUCESC
+da53bbf6-0892-49ac-8db4-63dffcc59040	2b7e4e14-3e5e-4cb8-9659-e37b68caaa36	7b35949c-3740-4da9-99c0-a15bdf3ff6d5	2026-04-03	2026-04-06	f	Enviar email para Cliente
+6fa8c786-9776-4b5f-8d7d-31801184a748	2b7e4e14-3e5e-4cb8-9659-e37b68caaa36	5047a655-d6b3-431f-96fd-c7e4cbcb7ee0	2026-04-03	2026-04-06	f	DBE
 \.
 
 
@@ -4195,8 +4197,8 @@ COPY public.empresa (id, nome, municipio_id, dataabertura, datafechamento, ativo
 030adbb7-7d9d-408f-bf90-786f0dca48d2	T2R Play Book - alteraçao	abfd20e5-d561-4c44-ba42-ae194ebb2c18	\N	\N	f	5bf1a2bc-b39e-4af6-97df-bb70326373ab	49241e34-99f6-4af3-98a2-cb39f251818a	{1234567,2356789,5231513}	f	\N
 65ea4cdb-3bd1-48a3-8534-fd78190710ce	Nova Empresa TExte	abfd20e5-d561-4c44-ba42-ae194ebb2c18	\N	\N	t	5bf1a2bc-b39e-4af6-97df-bb70326373ab	005a21fd-3aaa-43ee-a2e8-647a4d8845ab	{}	f	\N
 5b2eacf9-5289-402d-85be-52f7233d20d2	Carlos Amaral Consultoria	abfd20e5-d561-4c44-ba42-ae194ebb2c18	\N	\N	t	5bf1a2bc-b39e-4af6-97df-bb70326373ab	1cd6c238-d805-4c94-829e-bad7a9b62cfb	{}	t	\N
-a0ef2dad-5f65-4821-bbf2-034477183f44	Empresa Teste	abfd20e5-d561-4c44-ba42-ae194ebb2c18	\N	\N	t	5bf1a2bc-b39e-4af6-97df-bb70326373ab	1cd6c238-d805-4c94-829e-bad7a9b62cfb	{}	f	\N
 2d969b03-f302-437a-8cfe-7b85da6e28fb	Nova empresa teste de tags	6a69c90c-8475-4d97-9e9a-8647305346f1	\N	\N	t	5bf1a2bc-b39e-4af6-97df-bb70326373ab	595ac1c0-fe5e-4a87-8871-9d9cce8fce04	{}	t	\N
+a0ef2dad-5f65-4821-bbf2-034477183f44	Empresa Teste	abfd20e5-d561-4c44-ba42-ae194ebb2c18	\N	\N	t	5bf1a2bc-b39e-4af6-97df-bb70326373ab	1cd6c238-d805-4c94-829e-bad7a9b62cfb	{}	t	\N
 \.
 
 
@@ -6864,6 +6866,7 @@ f5531987-ec10-4099-b940-b9bde36c0b16	Antonio Carlos	654321456	502caf63-be95-472f
 6ac92e36-0526-4a84-9364-c3a1d317b2f3	Palhoça	456456	502caf63-be95-472f-9922-e8ba268fefa8	t
 371b1906-9454-4421-a6cf-a09e9909bf5a	Barueri	343412	59e0036a-4269-4297-a30a-d86a54dc4b7c	t
 90b1ed2c-6a45-4977-9948-239a7335deac	São José	342423421	502caf63-be95-472f-9922-e8ba268fefa8	t
+3a56e1c9-8202-4fee-a526-97ab80a479fc	São José do Rio Preto	323423423	59e0036a-4269-4297-a30a-d86a54dc4b7c	t
 \.
 
 
@@ -7944,11 +7947,11 @@ ALTER TABLE ONLY public.usuario
     ADD CONSTRAINT usuario_tenantid_fkey FOREIGN KEY (tenantid) REFERENCES public.tenant(id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
--- Completed on 2026-04-02 10:20:59 -03
+-- Completed on 2026-04-03 19:33:09 -03
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict lXlIztUtigNpfTzEKI4XEKsJU89980CClofONytDviwldNFGecgF8KYB5ivB4jG
+\unrestrict kV3hnapqBzCz020bRzRB62Wark8ZBBd5qDRtcpxmgbgwlHSQCZgSYA9Yjmhw3SO
 

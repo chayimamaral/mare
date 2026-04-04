@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e  # <--- CRÍTICO: Para o script se qualquer comando falhar
+
 # Configurações
 PROJECT_ID="vecontab"
 REGION="us-central1"

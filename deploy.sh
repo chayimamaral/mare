@@ -1,41 +1,52 @@
 #!/bin/bash
 
-# Removemos o 'set -e' para que o script não pare no meio em caso de erro
+# Não usamos set -e aqui para podermos fazer o resumo final mesmo com falhas
+
+if ! systemctl is-active --quiet docker; then
+    echo "❌ ERRO: O serviço Docker não está rodando no Fedora."
+    echo "Execute: sudo systemctl start docker"
+    exit 1
+fi
+
 set +e
 
 START_TIME=$(date +%s)
 START_DATE=$(date +"%H:%M:%S")
 
-# Arquivos temporários para capturar apenas os erros (stderr)
+# Arquivos para log completo (ajuda a diagnosticar depois no Fedora)
 BACKEND_LOG=$(mktemp)
 FRONTEND_LOG=$(mktemp)
 
 echo ""
 echo "--- Iniciando Deploy Global [Início: $START_DATE] ---"
+echo "Log detalhado em: $BACKEND_LOG e $FRONTEND_LOG"
 echo ""
 
 # --- Executa backend ---
 echo "📦 Processando Backend..."
-# Redireciona apenas o erro (2>) para o log, mas mantém a saída no terminal (tee)
-if (cd backend && ./deploy-backend.sh 2> "$BACKEND_LOG"); then
+# Rodamos o script e capturamos toda a saída (stdout + stderr)
+if (cd backend && ./deploy-backend.sh > "$BACKEND_LOG" 2>&1); then
     BACKEND_STATUS="✅ Sucesso"
 else
     BACKEND_STATUS="❌ FALHOU"
 fi
+# Mostra o status imediato no terminal para você não ficar no escuro
+echo "Status: $BACKEND_STATUS"
 
 echo ""
 
 # --- Executa frontend ---
 echo "🎨 Processando Frontend..."
-if (cd frontend && ./deploy-frontend.sh 2> "$FRONTEND_LOG"); then
+if (cd frontend && ./deploy-frontend.sh > "$FRONTEND_LOG" 2>&1); then
     FRONTEND_STATUS="✅ Sucesso"
 else
     FRONTEND_STATUS="❌ FALHOU"
 fi
+echo "Status: $FRONTEND_STATUS"
 
 echo ""
 
-# Captura o horário de fim
+# Cálculos de tempo...
 END_TIME=$(date +%s)
 END_DATE=$(date +"%H:%M:%S")
 ELAPSED=$(( END_TIME - START_TIME ))
@@ -50,18 +61,23 @@ echo "Início:       $START_DATE"
 echo "Fim:          $END_DATE"
 echo "Tempo Total:  ${MINUTES}m ${SECONDS}s"
 echo ""
+
 echo "Status Backend:  $BACKEND_STATUS"
 if [ "$BACKEND_STATUS" == "❌ FALHOU" ]; then
-    echo "  L Erro detectado: $(cat "$BACKEND_LOG" | tail -n 2)"
+    # Pega as últimas 5 linhas para garantir que veremos o erro do Docker ou GCloud
+    echo "  L Últimas mensagens do log:"
+    tail -n 5 "$BACKEND_LOG" | sed 's/^/    /'
 fi
 
+echo ""
 echo "Status Frontend: $FRONTEND_STATUS"
 if [ "$FRONTEND_STATUS" == "❌ FALHOU" ]; then
-    echo "  L Erro detectado: $(cat "$FRONTEND_LOG" | tail -n 2)"
+    echo "  L Últimas mensagens do log:"
+    tail -n 5 "$FRONTEND_LOG" | sed 's/^/    /'
 fi
 echo "-------------------------------------------"
 
-# Limpeza dos arquivos temporários
-rm -f "$BACKEND_LOG" "$FRONTEND_LOG"
+# Opcional: Apagar logs apenas se deram sucesso, manter se falharam
+# rm -f "$BACKEND_LOG" "$FRONTEND_LOG"
 
 echo ""
