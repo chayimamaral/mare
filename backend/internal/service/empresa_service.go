@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -11,12 +12,12 @@ type EmpresaService struct {
 }
 
 type EmpresaListResponse struct {
-	Empresas     []repository.EmpresaListItem `json:"empresas"`
+	Empresas     []domain.EmpresaListItem `json:"empresas"`
 	TotalRecords int64                        `json:"totalRecords"`
 }
 
 type EmpresaMutationResponse struct {
-	Empresas     []repository.EmpresaMutationItem `json:"empresas"`
+	Empresas     []domain.EmpresaMutationItem `json:"empresas"`
 	TotalRecords int64                            `json:"totalRecords"`
 }
 

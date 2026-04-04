@@ -5,60 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Passo struct {
-	ID          string `json:"id"`
-	Descricao   string `json:"descricao"`
-	Tempo       int    `json:"tempoestimado"`
-	TipoPasso   string `json:"tipopasso"`
-	MunicipioID string `json:"municipio_id"`
-	Link        string `json:"link,omitempty"`
-}
-
-type PassoMunicipioRef struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type PassoListItem struct {
-	ID          string            `json:"id"`
-	Descricao   string            `json:"descricao"`
-	Tempo       int               `json:"tempoestimado"`
-	TipoPasso   string            `json:"tipopasso"`
-	Link        string            `json:"link"`
-	MunicipioID string            `json:"municipio_id"`
-	Municipio   PassoMunicipioRef `json:"municipio"`
-}
-
-type PassoMutationItem struct {
-	ID          string `json:"id"`
-	Descricao   string `json:"descricao"`
-	Tempo       int    `json:"tempoestimado"`
-	TipoPasso   string `json:"tipopasso"`
-	MunicipioID string `json:"municipio_id"`
-	Active      bool   `json:"active"`
-}
-
-type PassoDetailItem struct {
-	ID          string `json:"id"`
-	Descricao   string `json:"descricao"`
-	Tempo       int    `json:"tempoestimado"`
-	TipoPasso   string `json:"tipopasso"`
-	MunicipioID string `json:"municipio_id"`
-	Link        string `json:"link"`
-}
-
-type PassoCidadeItem struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-	Tempo     int    `json:"tempoestimado"`
-	TipoPasso string `json:"tipopasso"`
-	RotinaID  string `json:"rotina_id"`
-	Ordem     any    `json:"ordem"`
-	Link      string `json:"link"`
-}
 
 type PassoListParams struct {
 	First       int
@@ -82,7 +31,7 @@ func NewPassoRepository(pool *pgxpool.Pool) *PassoRepository {
 	return &PassoRepository{pool: pool}
 }
 
-func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]PassoListItem, int64, error) {
+func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]domain.PassoListItem, int64, error) {
 	whereParts := []string{"p.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -139,7 +88,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]P
 	}
 	defer rows.Close()
 
-	passos := make([]PassoListItem, 0)
+	passos := make([]domain.PassoListItem, 0)
 	for rows.Next() {
 		var id, descricao, tipoPasso, municipioID, link, mid, mnome, sigla string
 		var tempo int
@@ -147,14 +96,14 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]P
 			return nil, 0, fmt.Errorf("scan passo: %w", err)
 		}
 
-		passos = append(passos, PassoListItem{
+		passos = append(passos, domain.PassoListItem{
 			ID:          id,
 			Descricao:   descricao,
 			Tempo:       tempo,
 			TipoPasso:   tipoPasso,
 			Link:        link,
 			MunicipioID: municipioID,
-			Municipio:   PassoMunicipioRef{ID: mid, Nome: mnome + " / " + sigla},
+			Municipio:   domain.PassoMunicipioRef{ID: mid, Nome: mnome + " / " + sigla},
 		})
 	}
 
@@ -167,7 +116,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]P
 	return passos, total, nil
 }
 
-func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo int, tipoPasso, municipioID, link string) ([]PassoMutationItem, int64, error) {
+func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo int, tipoPasso, municipioID, link string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
 		INSERT INTO public.passos (descricao, tempoestimado, tipopasso, municipio_id)
 		VALUES ($1, $2, $3, $4)
@@ -179,7 +128,7 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 	}
 	defer rows.Close()
 
-	passos := make([]PassoMutationItem, 0)
+	passos := make([]domain.PassoMutationItem, 0)
 	var createdID string
 	for rows.Next() {
 		var id, d, t, m string
@@ -189,7 +138,7 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 			return nil, 0, fmt.Errorf("scan created passo: %w", err)
 		}
 		createdID = id
-		passos = append(passos, PassoMutationItem{ID: id, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
+		passos = append(passos, domain.PassoMutationItem{ID: id, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
 	}
 
 	if strings.TrimSpace(link) != "" && createdID != "" {
@@ -204,7 +153,7 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 	return passos, total, nil
 }
 
-func (r *PassoRepository) Update(ctx context.Context, id, descricao string, tempo int, tipoPasso, municipioID, link string) ([]PassoMutationItem, int64, error) {
+func (r *PassoRepository) Update(ctx context.Context, id, descricao string, tempo int, tipoPasso, municipioID, link string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
 		UPDATE public.passos
 		SET descricao = $1, tempoestimado = $2, tipopasso = $3, municipio_id = $4
@@ -217,7 +166,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 	}
 	defer rows.Close()
 
-	passos := make([]PassoMutationItem, 0)
+	passos := make([]domain.PassoMutationItem, 0)
 	for rows.Next() {
 		var pid, d, t, m string
 		var te int
@@ -225,7 +174,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 		if err := rows.Scan(&pid, &d, &te, &t, &m, &active); err != nil {
 			return nil, 0, fmt.Errorf("scan updated passo: %w", err)
 		}
-		passos = append(passos, PassoMutationItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
+		passos = append(passos, domain.PassoMutationItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
 	}
 
 	if strings.TrimSpace(link) != "" {
@@ -244,7 +193,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 	return passos, total, nil
 }
 
-func (r *PassoRepository) Delete(ctx context.Context, id string) ([]PassoMutationItem, int64, error) {
+func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
 		UPDATE public.passos
 		SET ativo = false
@@ -257,7 +206,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]PassoMutatio
 	}
 	defer rows.Close()
 
-	passos := make([]PassoMutationItem, 0)
+	passos := make([]domain.PassoMutationItem, 0)
 	for rows.Next() {
 		var pid, d, t, m string
 		var te int
@@ -265,7 +214,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]PassoMutatio
 		if err := rows.Scan(&pid, &d, &te, &t, &m, &active); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted passo: %w", err)
 		}
-		passos = append(passos, PassoMutationItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
+		passos = append(passos, domain.PassoMutationItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Active: active})
 	}
 
 	var total int64
@@ -276,7 +225,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]PassoMutatio
 	return passos, total, nil
 }
 
-func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]PassoDetailItem, int64, error) {
+func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]domain.PassoDetailItem, int64, error) {
 	const query = `
 		SELECT p.id, p.descricao, p.tempoestimado, p.tipopasso, p.municipio_id, COALESCE(l.link, '')
 		FROM public.passos p
@@ -289,14 +238,14 @@ func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]PassoDetail
 	}
 	defer rows.Close()
 
-	passos := make([]PassoDetailItem, 0)
+	passos := make([]domain.PassoDetailItem, 0)
 	for rows.Next() {
 		var pid, d, t, m, link string
 		var te int
 		if err := rows.Scan(&pid, &d, &te, &t, &m, &link); err != nil {
 			return nil, 0, fmt.Errorf("scan passo by id: %w", err)
 		}
-		passos = append(passos, PassoDetailItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Link: link})
+		passos = append(passos, domain.PassoDetailItem{ID: pid, Descricao: d, Tempo: te, TipoPasso: t, MunicipioID: m, Link: link})
 	}
 
 	var total int64
@@ -307,7 +256,7 @@ func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]PassoDetail
 	return passos, total, nil
 }
 
-func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadeParams) ([]PassoCidadeItem, int64, error) {
+func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadeParams) ([]domain.PassoCidadeItem, int64, error) {
 	const query = `
 		SELECT DISTINCT ON (p.id)
 			p.id,
@@ -336,7 +285,7 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 	}
 	defer rows.Close()
 
-	passos := make([]PassoCidadeItem, 0)
+	passos := make([]domain.PassoCidadeItem, 0)
 	for rows.Next() {
 		var id, descricao, tipoPasso, rotinaID, link string
 		var tempo int
@@ -344,7 +293,7 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 		if err := rows.Scan(&id, &descricao, &tempo, &tipoPasso, &rotinaID, &ordem, &link); err != nil {
 			return nil, 0, fmt.Errorf("scan passos por cidade: %w", err)
 		}
-		passos = append(passos, PassoCidadeItem{ID: id, Descricao: descricao, Tempo: tempo, TipoPasso: tipoPasso, RotinaID: rotinaID, Ordem: ordem, Link: link})
+		passos = append(passos, domain.PassoCidadeItem{ID: id, Descricao: descricao, Tempo: tempo, TipoPasso: tipoPasso, RotinaID: rotinaID, Ordem: ordem, Link: link})
 	}
 
 	var total int64

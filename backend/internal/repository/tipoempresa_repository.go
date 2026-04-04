@@ -5,21 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type TipoEmpresa struct {
-	ID        string  `json:"id"`
-	Descricao string  `json:"descricao"`
-	Capital   float64 `json:"capital"`
-	Anual     float64 `json:"anual"`
-	Ativo     bool    `json:"ativo,omitempty"`
-}
-
-type TipoEmpresaLiteItem struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-}
 
 type TipoEmpresaListParams struct {
 	First     int
@@ -37,7 +25,7 @@ func NewTipoEmpresaRepository(pool *pgxpool.Pool) *TipoEmpresaRepository {
 	return &TipoEmpresaRepository{pool: pool}
 }
 
-func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaListParams) ([]TipoEmpresa, int64, error) {
+func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaListParams) ([]domain.TipoEmpresa, int64, error) {
 	orderBy := "descricao ASC"
 	allowed := map[string]string{
 		"descricao": "descricao",
@@ -80,9 +68,9 @@ func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaList
 	}
 	defer rows.Close()
 
-	tipos := make([]TipoEmpresa, 0)
+	tipos := make([]domain.TipoEmpresa, 0)
 	for rows.Next() {
-		var t TipoEmpresa
+		var t domain.TipoEmpresa
 		if err := rows.Scan(&t.ID, &t.Descricao, &t.Capital, &t.Anual, &t.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan tipoempresa: %w", err)
 		}
@@ -99,7 +87,7 @@ func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaList
 	return tipos, total, nil
 }
 
-func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, capital, anual float64) ([]TipoEmpresa, int64, error) {
+func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, capital, anual float64) ([]domain.TipoEmpresa, int64, error) {
 	const query = `
 		INSERT INTO public.tipoempresa (descricao, capital, anual)
 		VALUES ($1, $2, $3)
@@ -111,9 +99,9 @@ func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, ca
 	}
 	defer rows.Close()
 
-	tipos := make([]TipoEmpresa, 0)
+	tipos := make([]domain.TipoEmpresa, 0)
 	for rows.Next() {
-		var t TipoEmpresa
+		var t domain.TipoEmpresa
 		if err := rows.Scan(&t.ID, &t.Descricao, &t.Capital, &t.Anual, &t.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created tipoempresa: %w", err)
 		}
@@ -128,7 +116,7 @@ func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, ca
 	return tipos, total, nil
 }
 
-func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string, capital, anual float64) ([]TipoEmpresa, int64, error) {
+func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string, capital, anual float64) ([]domain.TipoEmpresa, int64, error) {
 	const query = `
 		UPDATE public.tipoempresa
 		SET descricao = $1, capital = $2, anual = $3
@@ -141,9 +129,9 @@ func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string
 	}
 	defer rows.Close()
 
-	tipos := make([]TipoEmpresa, 0)
+	tipos := make([]domain.TipoEmpresa, 0)
 	for rows.Next() {
-		var t TipoEmpresa
+		var t domain.TipoEmpresa
 		if err := rows.Scan(&t.ID, &t.Descricao, &t.Capital, &t.Anual, &t.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated tipoempresa: %w", err)
 		}
@@ -158,7 +146,7 @@ func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string
 	return tipos, total, nil
 }
 
-func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]TipoEmpresa, int64, error) {
+func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]domain.TipoEmpresa, int64, error) {
 	const query = `
 		UPDATE public.tipoempresa
 		SET ativo = false
@@ -171,9 +159,9 @@ func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]TipoEm
 	}
 	defer rows.Close()
 
-	tipos := make([]TipoEmpresa, 0)
+	tipos := make([]domain.TipoEmpresa, 0)
 	for rows.Next() {
-		var t TipoEmpresa
+		var t domain.TipoEmpresa
 		if err := rows.Scan(&t.ID, &t.Descricao, &t.Capital, &t.Anual, &t.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted tipoempresa: %w", err)
 		}
@@ -188,7 +176,7 @@ func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]TipoEm
 	return tipos, total, nil
 }
 
-func (r *TipoEmpresaRepository) Lite(ctx context.Context) ([]TipoEmpresaLiteItem, error) {
+func (r *TipoEmpresaRepository) Lite(ctx context.Context) ([]domain.TipoEmpresaLiteItem, error) {
 	const query = `SELECT id, descricao FROM public.tipoempresa WHERE ativo = true ORDER BY descricao ASC`
 
 	rows, err := r.pool.Query(ctx, query)
@@ -197,14 +185,14 @@ func (r *TipoEmpresaRepository) Lite(ctx context.Context) ([]TipoEmpresaLiteItem
 	}
 	defer rows.Close()
 
-	tipos := make([]TipoEmpresaLiteItem, 0)
+	tipos := make([]domain.TipoEmpresaLiteItem, 0)
 	for rows.Next() {
 		var id, descricao string
 		if err := rows.Scan(&id, &descricao); err != nil {
 			return nil, fmt.Errorf("scan lite tipoempresa: %w", err)
 		}
 
-		tipos = append(tipos, TipoEmpresaLiteItem{ID: id, Descricao: descricao})
+		tipos = append(tipos, domain.TipoEmpresaLiteItem{ID: id, Descricao: descricao})
 	}
 
 	return tipos, nil

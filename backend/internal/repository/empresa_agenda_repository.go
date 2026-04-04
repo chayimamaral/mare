@@ -9,35 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type EmpresaAgendaItem struct {
-	ID             string   `json:"id"`
-	EmpresaID      string   `json:"empresa_id"`
-	TemplateID     string   `json:"template_id"`
-	Descricao      string   `json:"descricao"`
-	DataVencimento string   `json:"data_vencimento"`
-	Status         string   `json:"status"`
-	ValorEstimado  *float64 `json:"valor_estimado"`
-}
-
-type EmpresaAgendaAcompanhamentoItem struct {
-	EmpresaID      string   `json:"empresa_id"`
-	EmpresaNome    string   `json:"empresa_nome"`
-	CompromissoID  string   `json:"compromisso_id"`
-	Descricao      string   `json:"descricao"`
-	DataVencimento string   `json:"data_vencimento"`
-	Status         string   `json:"status"`
-	Tipo           string   `json:"tipo"`           // TRIBUTARIA | INFORMATIVA (template; TRIBUTO legado)
-	Classificacao  string   `json:"classificacao"`  // FINANCEIRO | NAO_FINANCEIRO | vazio se sem instância
-	AgendaItemID   string   `json:"agenda_item_id"` // UUID em empresa_agenda; vazio = só catálogo (não editável)
-	ValorEstimado  *float64 `json:"valor_estimado"` // nil se sem valor
-}
 
 type EmpresaAgendaRepository struct {
 	pool *pgxpool.Pool
@@ -49,7 +27,7 @@ func NewEmpresaAgendaRepository(pool *pgxpool.Pool) *EmpresaAgendaRepository {
 
 // ── Listar agenda de uma empresa ─────────────────────────────────────────────
 
-func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID string) ([]EmpresaAgendaItem, error) {
+func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID string) ([]domain.EmpresaAgendaItem, error) {
 	const query = `
 		SELECT id, empresa_id, template_id, descricao, data_vencimento::text, status, valor_estimado
 		FROM public.empresa_agenda
@@ -62,9 +40,9 @@ func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID s
 	}
 	defer rows.Close()
 
-	items := make([]EmpresaAgendaItem, 0)
+	items := make([]domain.EmpresaAgendaItem, 0)
 	for rows.Next() {
-		var a EmpresaAgendaItem
+		var a domain.EmpresaAgendaItem
 		if err := rows.Scan(&a.ID, &a.EmpresaID, &a.TemplateID, &a.Descricao, &a.DataVencimento, &a.Status, &a.ValorEstimado); err != nil {
 			return nil, fmt.Errorf("scan empresa_agenda: %w", err)
 		}
@@ -149,7 +127,7 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 	return nil
 }
 
-func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context, tenantID string) ([]EmpresaAgendaAcompanhamentoItem, error) {
+func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaAgendaAcompanhamentoItem, error) {
 	const queryAgenda = `
 		SELECT
 			e.id,
@@ -222,16 +200,16 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 	return append(items, catalog...), nil
 }
 
-func scanAcompanhamentoRows(ctx context.Context, pool *pgxpool.Pool, query string, tenantID string) ([]EmpresaAgendaAcompanhamentoItem, error) {
+func scanAcompanhamentoRows(ctx context.Context, pool *pgxpool.Pool, query string, tenantID string) ([]domain.EmpresaAgendaAcompanhamentoItem, error) {
 	rows, err := pool.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list acompanhamento: %w", err)
 	}
 	defer rows.Close()
 
-	items := make([]EmpresaAgendaAcompanhamentoItem, 0)
+	items := make([]domain.EmpresaAgendaAcompanhamentoItem, 0)
 	for rows.Next() {
-		var item EmpresaAgendaAcompanhamentoItem
+		var item domain.EmpresaAgendaAcompanhamentoItem
 		var nf sql.NullFloat64
 		if err := rows.Scan(
 			&item.EmpresaID,
@@ -263,7 +241,7 @@ func scanAcompanhamentoRows(ctx context.Context, pool *pgxpool.Pool, query strin
 // Busca os templates de obrigação do tipo_empresa, gera 12 meses (mensal)
 // ou 1 instância (anual) para a empresa, ajustando feriados e fins de semana.
 
-func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, tipoEmpresaID string, dataInicio time.Time, feriados map[string]bool) ([]EmpresaAgendaItem, error) {
+func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, tipoEmpresaID string, dataInicio time.Time, feriados map[string]bool) ([]domain.EmpresaAgendaItem, error) {
 	// 1) Buscar templates de obrigação
 	const tmplQuery = `
 		SELECT id, descricao, COALESCE(dia_base::int, 20), mes_base, periodicidade
@@ -359,9 +337,9 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 	}
 
 	br := tx.SendBatch(ctx, batch)
-	items := make([]EmpresaAgendaItem, 0, batch.Len())
+	items := make([]domain.EmpresaAgendaItem, 0, batch.Len())
 	for i := 0; i < batch.Len(); i++ {
-		var a EmpresaAgendaItem
+		var a domain.EmpresaAgendaItem
 		if err := br.QueryRow().Scan(&a.ID, &a.EmpresaID, &a.TemplateID, &a.Descricao, &a.DataVencimento, &a.Status, &a.ValorEstimado); err != nil {
 			br.Close()
 			return nil, fmt.Errorf("scan batch item %d: %w", i, err)

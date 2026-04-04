@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,28 +25,6 @@ type FeriadoUpsertInput struct {
 	EstadoID    string
 }
 
-type FeriadoRef struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type FeriadoListItem struct {
-	ID        string      `json:"id"`
-	Descricao string      `json:"descricao"`
-	Data      string      `json:"data"`
-	Feriado   string      `json:"feriado"`
-	Municipio *FeriadoRef `json:"municipio,omitempty"`
-	Estado    *FeriadoRef `json:"estado,omitempty"`
-}
-
-type FeriadoMutationItem struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-	Data      string `json:"data"`
-	Feriado   string `json:"feriado"`
-	Ativo     bool   `json:"ativo"`
-}
-
 type FeriadoRepository struct {
 	pool *pgxpool.Pool
 }
@@ -54,7 +33,7 @@ func NewFeriadoRepository(pool *pgxpool.Pool) *FeriadoRepository {
 	return &FeriadoRepository{pool: pool}
 }
 
-func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) ([]FeriadoListItem, int64, error) {
+func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) ([]domain.FeriadoListItem, int64, error) {
 	holiday := strings.TrimSpace(params.HolidayCode)
 	if holiday == "" {
 		holiday = "VARIAVEL"
@@ -100,19 +79,19 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 	}
 	defer rows.Close()
 
-	feriados := make([]FeriadoListItem, 0)
+	feriados := make([]domain.FeriadoListItem, 0)
 	for rows.Next() {
 		if holiday == "MUNICIPAL" {
 			var id, descricao, data, tipo, mid, mnome string
 			if err := rows.Scan(&id, &descricao, &data, &tipo, &mid, &mnome); err != nil {
 				return nil, 0, fmt.Errorf("scan feriado municipal: %w", err)
 			}
-			feriados = append(feriados, FeriadoListItem{
+			feriados = append(feriados, domain.FeriadoListItem{
 				ID:        id,
 				Descricao: descricao,
 				Data:      data,
 				Feriado:   tipo,
-				Municipio: &FeriadoRef{ID: mid, Nome: mnome},
+				Municipio: &domain.FeriadoRef{ID: mid, Nome: mnome},
 			})
 			continue
 		}
@@ -122,12 +101,12 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 			if err := rows.Scan(&id, &descricao, &data, &tipo, &eid, &enome); err != nil {
 				return nil, 0, fmt.Errorf("scan feriado estadual: %w", err)
 			}
-			feriados = append(feriados, FeriadoListItem{
+			feriados = append(feriados, domain.FeriadoListItem{
 				ID:        id,
 				Descricao: descricao,
 				Data:      data,
 				Feriado:   tipo,
-				Estado:    &FeriadoRef{ID: eid, Nome: enome},
+				Estado:    &domain.FeriadoRef{ID: eid, Nome: enome},
 			})
 			continue
 		}
@@ -136,7 +115,7 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 		if err := rows.Scan(&id, &descricao, &data, &tipo); err != nil {
 			return nil, 0, fmt.Errorf("scan feriado: %w", err)
 		}
-		feriados = append(feriados, FeriadoListItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo})
+		feriados = append(feriados, domain.FeriadoListItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo})
 	}
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.feriados f WHERE %s", strings.Join(whereParts, " AND "))
@@ -148,7 +127,7 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 	return feriados, total, nil
 }
 
-func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput) ([]FeriadoMutationItem, int64, error) {
+func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput) ([]domain.FeriadoMutationItem, int64, error) {
 	const existsQuery = `SELECT count(*) FROM public.feriados WHERE descricao = $1`
 	var count int64
 	if err := r.pool.QueryRow(ctx, existsQuery, input.Descricao).Scan(&count); err != nil {
@@ -169,7 +148,7 @@ func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput
 	}
 	defer rows.Close()
 
-	feriados := make([]FeriadoMutationItem, 0)
+	feriados := make([]domain.FeriadoMutationItem, 0)
 	var createdID string
 	for rows.Next() {
 		var id, descricao, data, tipo string
@@ -178,7 +157,7 @@ func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput
 			return nil, 0, fmt.Errorf("scan created feriado: %w", err)
 		}
 		createdID = id
-		feriados = append(feriados, FeriadoMutationItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
+		feriados = append(feriados, domain.FeriadoMutationItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
 	}
 
 	if input.HolidayCode == "MUNICIPAL" && strings.TrimSpace(input.MunicipioID) != "" {
@@ -191,7 +170,7 @@ func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput
 	return feriados, int64(len(feriados)), nil
 }
 
-func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput) ([]FeriadoMutationItem, int64, error) {
+func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput) ([]domain.FeriadoMutationItem, int64, error) {
 	const query = `
 		UPDATE public.feriados
 		SET descricao = $1, data = $2
@@ -204,14 +183,14 @@ func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput
 	}
 	defer rows.Close()
 
-	feriados := make([]FeriadoMutationItem, 0)
+	feriados := make([]domain.FeriadoMutationItem, 0)
 	for rows.Next() {
 		var id, descricao, data, tipo string
 		var ativo bool
 		if err := rows.Scan(&id, &descricao, &data, &tipo, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated feriado: %w", err)
 		}
-		feriados = append(feriados, FeriadoMutationItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
+		feriados = append(feriados, domain.FeriadoMutationItem{ID: id, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
 	}
 
 	if strings.TrimSpace(input.MunicipioID) != "" {
@@ -224,7 +203,7 @@ func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput
 	return feriados, int64(len(feriados)), nil
 }
 
-func (r *FeriadoRepository) Delete(ctx context.Context, id string) ([]FeriadoMutationItem, int64, error) {
+func (r *FeriadoRepository) Delete(ctx context.Context, id string) ([]domain.FeriadoMutationItem, int64, error) {
 	const query = `
 		UPDATE public.feriados
 		SET ativo = false
@@ -237,14 +216,14 @@ func (r *FeriadoRepository) Delete(ctx context.Context, id string) ([]FeriadoMut
 	}
 	defer rows.Close()
 
-	feriados := make([]FeriadoMutationItem, 0)
+	feriados := make([]domain.FeriadoMutationItem, 0)
 	for rows.Next() {
 		var fid, descricao, data, tipo string
 		var ativo bool
 		if err := rows.Scan(&fid, &descricao, &data, &tipo, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted feriado: %w", err)
 		}
-		feriados = append(feriados, FeriadoMutationItem{ID: fid, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
+		feriados = append(feriados, domain.FeriadoMutationItem{ID: fid, Descricao: descricao, Data: data, Feriado: tipo, Ativo: ativo})
 	}
 
 	return feriados, int64(len(feriados)), nil

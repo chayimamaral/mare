@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -30,41 +31,6 @@ type EmpresaUpsertInput struct {
 
 type EmpresaRepository struct {
 	pool *pgxpool.Pool
-}
-
-type EmpresaRef struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type EmpresaListItem struct {
-	ID        string     `json:"id"`
-	Nome      string     `json:"nome"`
-	Municipio EmpresaRef `json:"municipio"`
-	Rotina    struct {
-		ID        string `json:"id"`
-		Descricao string `json:"descricao"`
-	} `json:"rotina"`
-	TipoEmpresa struct {
-		ID        string `json:"id"`
-		Descricao string `json:"descricao"`
-	} `json:"tipo_empresa"`
-	Cnaes               any    `json:"cnaes"`
-	Bairro              string `json:"bairro"`
-	Iniciado            bool   `json:"iniciado"`
-	PassosConcluidos    bool   `json:"passos_concluidos"`
-	CompromissosGerados bool   `json:"compromissos_gerados"`
-}
-
-type EmpresaMutationItem struct {
-	ID          string `json:"id"`
-	Nome        string `json:"nome"`
-	MunicipioID string `json:"municipio_id"`
-	TenantID    string `json:"tenant_id"`
-	RotinaID    string `json:"rotina_id"`
-	Cnaes       any    `json:"cnaes"`
-	Iniciado    bool   `json:"iniciado"`
-	Ativo       bool   `json:"ativo"`
 }
 
 func NewEmpresaRepository(pool *pgxpool.Pool) *EmpresaRepository {
@@ -118,7 +84,7 @@ func normalizeCnaesParaTextArray(v any) []string {
 	}
 }
 
-func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) ([]EmpresaListItem, int64, error) {
+func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) ([]domain.EmpresaListItem, int64, error) {
 	whereParts := []string{"e.ativo = true", "e.tenant_id = $1"}
 	args := []any{params.TenantID}
 	argIndex := 2
@@ -188,7 +154,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 	}
 	defer rows.Close()
 
-	empresas := make([]EmpresaListItem, 0)
+	empresas := make([]domain.EmpresaListItem, 0)
 	for rows.Next() {
 		var id, nome, mid, mnome, rid, rdesc, teid, tedesc, ebairro string
 		var iniciado, passosConcluidos, compromissosGerados bool
@@ -197,10 +163,10 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			return nil, 0, fmt.Errorf("scan empresa: %w", err)
 		}
 
-		item := EmpresaListItem{
+		item := domain.EmpresaListItem{
 			ID:   id,
 			Nome: nome,
-			Municipio: EmpresaRef{
+			Municipio: domain.EmpresaRef{
 				ID:   mid,
 				Nome: mnome,
 			},
@@ -226,7 +192,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 	return empresas, total, nil
 }
 
-func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput) ([]EmpresaMutationItem, int64, error) {
+func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput) ([]domain.EmpresaMutationItem, int64, error) {
 	const existsQuery = `SELECT count(*) FROM public.empresa WHERE nome = $1`
 	var count int64
 	if err := r.pool.QueryRow(ctx, existsQuery, input.Nome).Scan(&count); err != nil {
@@ -251,7 +217,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	}
 	defer rows.Close()
 
-	empresas := make([]EmpresaMutationItem, 0)
+	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, municipioID, tenantID, rotinaID string
 		var cnaes any
@@ -259,7 +225,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created empresa: %w", err)
 		}
-		empresas = append(empresas, EmpresaMutationItem{
+		empresas = append(empresas, domain.EmpresaMutationItem{
 			ID:          id,
 			Nome:        nome,
 			MunicipioID: municipioID,
@@ -274,7 +240,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	return empresas, int64(len(empresas)), nil
 }
 
-func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput) ([]EmpresaMutationItem, int64, error) {
+func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput) ([]domain.EmpresaMutationItem, int64, error) {
 	const query = `
 		UPDATE public.empresa
 		SET nome = $1, municipio_id = $2, tenant_id = $3, rotina_id = $4, cnaes = $5, bairro = NULLIF(TRIM($8), '')
@@ -291,7 +257,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	}
 	defer rows.Close()
 
-	empresas := make([]EmpresaMutationItem, 0)
+	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, municipioID, tenantID, rotinaID string
 		var cnaes any
@@ -299,7 +265,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated empresa: %w", err)
 		}
-		empresas = append(empresas, EmpresaMutationItem{
+		empresas = append(empresas, domain.EmpresaMutationItem{
 			ID:          id,
 			Nome:        nome,
 			MunicipioID: municipioID,
@@ -314,7 +280,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	return empresas, int64(len(empresas)), nil
 }
 
-func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID string) ([]EmpresaMutationItem, int64, error) {
+func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
 	const query = `
 		UPDATE public.empresa
 		SET iniciado = true
@@ -327,7 +293,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 	}
 	defer rows.Close()
 
-	empresas := make([]EmpresaMutationItem, 0)
+	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, municipioID, tenantID, rotinaID string
 		var cnaes any
@@ -335,7 +301,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan iniciar processo empresa: %w", err)
 		}
-		empresas = append(empresas, EmpresaMutationItem{
+		empresas = append(empresas, domain.EmpresaMutationItem{
 			ID:          eid,
 			Nome:        nome,
 			MunicipioID: municipioID,
@@ -350,7 +316,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 	return empresas, int64(len(empresas)), nil
 }
 
-func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]EmpresaMutationItem, int64, error) {
+func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
 	const query = `
 		UPDATE public.empresa
 		SET ativo = false
@@ -363,7 +329,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 	}
 	defer rows.Close()
 
-	empresas := make([]EmpresaMutationItem, 0)
+	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, municipioID, tenantID, rotinaID string
 		var cnaes any
@@ -371,7 +337,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted empresa: %w", err)
 		}
-		empresas = append(empresas, EmpresaMutationItem{
+		empresas = append(empresas, domain.EmpresaMutationItem{
 			ID:          eid,
 			Nome:        nome,
 			MunicipioID: municipioID,

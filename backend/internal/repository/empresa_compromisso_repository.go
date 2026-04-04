@@ -7,45 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type EmpresaCompromissoItem struct {
-	ID                     string   `json:"id"`
-	Descricao              string   `json:"descricao"`
-	Valor                  *float64 `json:"valor,omitempty"`
-	Vencimento             string   `json:"vencimento"`
-	Observacao             string   `json:"observacao,omitempty"`
-	Status                 string   `json:"status"`
-	EmpresaID              string   `json:"empresa_id"`
-	TipoempresaObrigacaoID string   `json:"tipoempresa_obrigacao_id"`
-}
-
-// EmpresaCompromissoAcompanhamentoItem alinha com o dashboard (mesmos nomes JSON).
-type EmpresaCompromissoAcompanhamentoItem struct {
-	EmpresaID      string   `json:"empresa_id"`
-	EmpresaNome    string   `json:"empresa_nome"`
-	CompromissoID  string   `json:"compromisso_id"`
-	Descricao      string   `json:"descricao"`
-	DataVencimento string   `json:"data_vencimento"`
-	Status         string   `json:"status"`
-	Tipo           string   `json:"tipo"`
-	Classificacao  string   `json:"classificacao"`
-	AgendaItemID   string   `json:"agenda_item_id"`
-	ValorEstimado  *float64 `json:"valor_estimado"`
-}
-
-type EmpresaCompromissoEmpresaOption struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type EmpresaCompromissoObrigacaoOption struct {
-	ID            string `json:"id"`
-	Descricao     string `json:"descricao"`
-	Periodicidade string `json:"periodicidade"`
-}
 
 type EmpresaCompromissoCreateManualInput struct {
 	EmpresaID              string
@@ -212,7 +177,7 @@ func bairroArg(s string) any {
 }
 
 // GerarCompromissos cria linhas em empresa_compromissos (idempotente: falha se já existir).
-func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, empresaID, tenantID string, dataInicio time.Time, feriados map[string]bool) ([]EmpresaCompromissoItem, error) {
+func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, empresaID, tenantID string, dataInicio time.Time, feriados map[string]bool) ([]domain.EmpresaCompromissoItem, error) {
 	ctxEmp, err := r.loadGeracaoContext(ctx, empresaID, tenantID)
 	if err != nil {
 		return nil, err
@@ -242,7 +207,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 		VALUES ($1, $2, $3::timestamptz, $4, 'pendente', $5, $6::uuid)
 		RETURNING id, descricao, valor, vencimento::text, COALESCE(observacao, ''), status, empresa_id, tipoempresa_obrigacao_id::text`
 
-	items := make([]EmpresaCompromissoItem, 0)
+	items := make([]domain.EmpresaCompromissoItem, 0)
 
 	for _, t := range templates {
 		per := strings.ToUpper(strings.TrimSpace(t.Periodicidade))
@@ -263,7 +228,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 			for i := 0; i < 12; i++ {
 				dt := addMonthsSameDay(dataInicio, i)
 				dt = ajustarVencimento(dt, feriados)
-				var row EmpresaCompromissoItem
+				var row domain.EmpresaCompromissoItem
 				err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID).Scan(
 					&row.ID, &row.Descricao, &row.Valor, &row.Vencimento, &row.Observacao, &row.Status, &row.EmpresaID, &row.TipoempresaObrigacaoID,
 				)
@@ -275,7 +240,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 		case "ANUAL":
 			dt := dataInicio.AddDate(1, 0, 0)
 			dt = ajustarVencimento(dt, feriados)
-			var row EmpresaCompromissoItem
+			var row domain.EmpresaCompromissoItem
 			err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID).Scan(
 				&row.ID, &row.Descricao, &row.Valor, &row.Vencimento, &row.Observacao, &row.Status, &row.EmpresaID, &row.TipoempresaObrigacaoID,
 			)
@@ -307,7 +272,7 @@ func addMonthsSameDay(t time.Time, months int) time.Time {
 	return time.Date(first.Year(), first.Month(), d, 0, 0, 0, 0, loc)
 }
 
-func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Context, tenantID string) ([]EmpresaCompromissoAcompanhamentoItem, error) {
+func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoAcompanhamentoItem, error) {
 	const q = `
 		SELECT
 			e.id,
@@ -335,9 +300,9 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 	}
 	defer rows.Close()
 
-	out := make([]EmpresaCompromissoAcompanhamentoItem, 0)
+	out := make([]domain.EmpresaCompromissoAcompanhamentoItem, 0)
 	for rows.Next() {
-		var it EmpresaCompromissoAcompanhamentoItem
+		var it domain.EmpresaCompromissoAcompanhamentoItem
 		var nf sql.NullFloat64
 		if err := rows.Scan(&it.EmpresaID, &it.EmpresaNome, &it.CompromissoID, &it.Descricao, &it.DataVencimento, &it.Status, &it.Tipo, &it.Classificacao, &it.AgendaItemID, &nf); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
@@ -351,7 +316,7 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 	return out, rows.Err()
 }
 
-func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]EmpresaCompromissoEmpresaOption, error) {
+func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoEmpresaOption, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT e.id, e.nome
 		FROM public.empresa e
@@ -362,9 +327,9 @@ func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Co
 	}
 	defer rows.Close()
 
-	out := make([]EmpresaCompromissoEmpresaOption, 0)
+	out := make([]domain.EmpresaCompromissoEmpresaOption, 0)
 	for rows.Next() {
-		var it EmpresaCompromissoEmpresaOption
+		var it domain.EmpresaCompromissoEmpresaOption
 		if err := rows.Scan(&it.ID, &it.Nome); err != nil {
 			return nil, fmt.Errorf("scan empresa option: %w", err)
 		}
@@ -373,7 +338,7 @@ func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Co
 	return out, rows.Err()
 }
 
-func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context.Context, tenantID, empresaID string) ([]EmpresaCompromissoObrigacaoOption, error) {
+func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context.Context, tenantID, empresaID string) ([]domain.EmpresaCompromissoObrigacaoOption, error) {
 	ctxEmp, err := r.loadGeracaoContext(ctx, strings.TrimSpace(empresaID), strings.TrimSpace(tenantID))
 	if err != nil {
 		return nil, err
@@ -418,9 +383,9 @@ func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context
 	}
 	defer rows.Close()
 
-	out := make([]EmpresaCompromissoObrigacaoOption, 0)
+	out := make([]domain.EmpresaCompromissoObrigacaoOption, 0)
 	for rows.Next() {
-		var it EmpresaCompromissoObrigacaoOption
+		var it domain.EmpresaCompromissoObrigacaoOption
 		if err := rows.Scan(&it.ID, &it.Descricao, &it.Periodicidade); err != nil {
 			return nil, fmt.Errorf("scan obrigacao option: %w", err)
 		}

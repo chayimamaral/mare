@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -50,7 +51,7 @@ func (s *NodeService) Recurso(ctx context.Context) (NodeResponse, error) {
 }
 
 // buildNestedPassos mirrors the TypeScript buildNestedObjects function.
-func buildNestedPassos(all []repository.NodePasso, parentID *string) []NodeTreeNode {
+func buildNestedPassos(all []domain.NodePasso, parentID *string) []NodeTreeNode {
 	result := make([]NodeTreeNode, 0)
 	for _, p := range all {
 		if strPtrEq(p.ParentID, parentID) {

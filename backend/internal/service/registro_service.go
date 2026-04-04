@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
-	"database/sql"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -85,10 +85,10 @@ func (s *RegistroService) Update(ctx context.Context, userID string, input Regis
 	return mapDadosComplementares(record), nil
 }
 
-func (s *RegistroService) Create(ctx context.Context, input RegistroCreateInput) (repository.RegistroUserRecord, error) {
+func (s *RegistroService) Create(ctx context.Context, input RegistroCreateInput) (domain.RegistroUserRecord, error) {
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), 8)
 	if err != nil {
-		return repository.RegistroUserRecord{}, err
+		return domain.RegistroUserRecord{}, err
 	}
 
 	return s.repo.Create(ctx, repository.RegistroCreateInput{
@@ -98,27 +98,27 @@ func (s *RegistroService) Create(ctx context.Context, input RegistroCreateInput)
 	})
 }
 
-func mapDadosComplementares(r repository.DadosComplementaresRecord) DadosComplementaresResponse {
-	nullToStr := func(s sql.NullString) string {
-		if !s.Valid {
+func mapDadosComplementares(r domain.DadosComplementaresRecord) DadosComplementaresResponse {
+	ptrToStr := func(p *string) string {
+		if p == nil {
 			return ""
 		}
-		return s.String
+		return *p
 	}
 	return DadosComplementaresResponse{
 		Tenantid:    r.Tenantid,
-		CNPJ:        nullToStr(r.CNPJ),
-		CEP:         nullToStr(r.CEP),
-		Endereco:    nullToStr(r.Endereco),
-		Bairro:      nullToStr(r.Bairro),
-		Cidade:      nullToStr(r.Cidade),
-		Estado:      nullToStr(r.Estado),
-		Telefone:    nullToStr(r.Telefone),
-		Email:       nullToStr(r.Email),
-		IE:          nullToStr(r.IE),
-		IM:          nullToStr(r.IM),
-		RazaoSocial: nullToStr(r.RazaoSocial),
-		Fantasia:    nullToStr(r.Fantasia),
-		Observacoes: nullToStr(r.Observacoes),
+		CNPJ:        ptrToStr(r.CNPJ),
+		CEP:         ptrToStr(r.CEP),
+		Endereco:    ptrToStr(r.Endereco),
+		Bairro:      ptrToStr(r.Bairro),
+		Cidade:      ptrToStr(r.Cidade),
+		Estado:      ptrToStr(r.Estado),
+		Telefone:    ptrToStr(r.Telefone),
+		Email:       ptrToStr(r.Email),
+		IE:          ptrToStr(r.IE),
+		IM:          ptrToStr(r.IM),
+		RazaoSocial: ptrToStr(r.RazaoSocial),
+		Fantasia:    ptrToStr(r.Fantasia),
+		Observacoes: ptrToStr(r.Observacoes),
 	}
 }

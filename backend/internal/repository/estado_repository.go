@@ -5,15 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Estado struct {
-	ID    string `json:"id"`
-	Nome  string `json:"nome"`
-	Sigla string `json:"sigla"`
-	Ativo bool   `json:"ativo,omitempty"`
-}
 
 type EstadoListParams struct {
 	First     int
@@ -31,7 +25,7 @@ func NewEstadoRepository(pool *pgxpool.Pool) *EstadoRepository {
 	return &EstadoRepository{pool: pool}
 }
 
-func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([]Estado, int64, error) {
+func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([]domain.Estado, int64, error) {
 	whereParts := []string{"ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -72,9 +66,9 @@ func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([
 	}
 	defer rows.Close()
 
-	var estados []Estado
+	var estados []domain.Estado
 	for rows.Next() {
-		var estado Estado
+		var estado domain.Estado
 		if err := rows.Scan(&estado.ID, &estado.Nome, &estado.Sigla, &estado.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan estado: %w", err)
 		}
@@ -90,7 +84,7 @@ func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([
 	return estados, totalRecords, nil
 }
 
-func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]Estado, int64, error) {
+func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]domain.Estado, int64, error) {
 	const insertQuery = `INSERT INTO public.estado (nome, sigla) VALUES ($1, $2) RETURNING id, nome, sigla, ativo`
 
 	rows, err := r.pool.Query(ctx, insertQuery, nome, sigla)
@@ -99,9 +93,9 @@ func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]Es
 	}
 	defer rows.Close()
 
-	var estados []Estado
+	var estados []domain.Estado
 	for rows.Next() {
-		var estado Estado
+		var estado domain.Estado
 		if err := rows.Scan(&estado.ID, &estado.Nome, &estado.Sigla, &estado.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created estado: %w", err)
 		}
@@ -116,7 +110,7 @@ func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]Es
 	return estados, totalRecords, nil
 }
 
-func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) ([]Estado, int64, error) {
+func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) ([]domain.Estado, int64, error) {
 	const query = `UPDATE public.estado SET nome = $1, sigla = $2 WHERE id = $3 RETURNING id, nome, sigla, ativo`
 
 	rows, err := r.pool.Query(ctx, query, nome, sigla, id)
@@ -125,9 +119,9 @@ func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) (
 	}
 	defer rows.Close()
 
-	var estados []Estado
+	var estados []domain.Estado
 	for rows.Next() {
-		var estado Estado
+		var estado domain.Estado
 		if err := rows.Scan(&estado.ID, &estado.Nome, &estado.Sigla, &estado.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated estado: %w", err)
 		}
@@ -142,7 +136,7 @@ func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) (
 	return estados, totalRecords, nil
 }
 
-func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]Estado, int64, error) {
+func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]domain.Estado, int64, error) {
 	const query = `UPDATE public.estado SET ativo = false WHERE id = $1 RETURNING id, nome, sigla, ativo`
 
 	rows, err := r.pool.Query(ctx, query, id)
@@ -151,9 +145,9 @@ func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]Estado, int
 	}
 	defer rows.Close()
 
-	var estados []Estado
+	var estados []domain.Estado
 	for rows.Next() {
-		var estado Estado
+		var estado domain.Estado
 		if err := rows.Scan(&estado.ID, &estado.Nome, &estado.Sigla, &estado.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted estado: %w", err)
 		}
@@ -168,7 +162,7 @@ func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]Estado, int
 	return estados, totalRecords, nil
 }
 
-func (r *EstadoRepository) ListLite(ctx context.Context) ([]Estado, error) {
+func (r *EstadoRepository) ListLite(ctx context.Context) ([]domain.Estado, error) {
 	const query = `SELECT id, nome FROM public.estado WHERE ativo = true ORDER BY nome ASC`
 
 	rows, err := r.pool.Query(ctx, query)
@@ -177,9 +171,9 @@ func (r *EstadoRepository) ListLite(ctx context.Context) ([]Estado, error) {
 	}
 	defer rows.Close()
 
-	var estados []Estado
+	var estados []domain.Estado
 	for rows.Next() {
-		var estado Estado
+		var estado domain.Estado
 		if err := rows.Scan(&estado.ID, &estado.Nome); err != nil {
 			return nil, fmt.Errorf("scan lite estado: %w", err)
 		}

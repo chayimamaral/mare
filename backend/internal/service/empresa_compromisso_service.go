@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -16,21 +17,21 @@ type EmpresaCompromissoService struct {
 }
 
 type EmpresaCompromissoGerarResponse struct {
-	Itens      []repository.EmpresaCompromissoItem `json:"itens"`
+	Itens      []domain.EmpresaCompromissoItem `json:"itens"`
 	Quantidade int                                 `json:"quantidade"`
 	Message    string                              `json:"message"`
 }
 
 type EmpresaCompromissoAcompanhamentoResponse struct {
-	Itens []repository.EmpresaCompromissoAcompanhamentoItem `json:"itens"`
+	Itens []domain.EmpresaCompromissoAcompanhamentoItem `json:"itens"`
 }
 
 type EmpresaCompromissoFormOptionsResponse struct {
-	Empresas []repository.EmpresaCompromissoEmpresaOption `json:"empresas"`
+	Empresas []domain.EmpresaCompromissoEmpresaOption `json:"empresas"`
 }
 
 type EmpresaCompromissoObrigacoesResponse struct {
-	Obrigacoes []repository.EmpresaCompromissoObrigacaoOption `json:"obrigacoes"`
+	Obrigacoes []domain.EmpresaCompromissoObrigacaoOption `json:"obrigacoes"`
 }
 
 type EmpresaCompromissoCreateManualInput struct {
@@ -68,7 +69,7 @@ func (s *EmpresaCompromissoService) Gerar(ctx context.Context, empresaID, tenant
 	}
 
 	return EmpresaCompromissoGerarResponse{
-		Itens:      []repository.EmpresaCompromissoItem{},
+		Itens:      []domain.EmpresaCompromissoItem{},
 		Quantidade: total,
 		Message:    fmt.Sprintf("%d compromissos gerados", total),
 	}, nil

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chayimamaral/vecontab/backend/internal/auth"
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -27,7 +28,7 @@ type LoginResponse struct {
 	Email    string            `json:"email"`
 	TenantID string            `json:"tenantid"`
 	Token    string            `json:"token"`
-	Tenant   repository.Tenant `json:"tenant"`
+	Tenant   domain.Tenant `json:"tenant"`
 	Role     string            `json:"role"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,28 +44,28 @@ type TotalRecordsResponse struct {
 }
 
 type ListUsersResponse struct {
-	Usuarios     []repository.UserListItem `json:"usuarios,omitempty"`
+	Usuarios     []domain.UserListItem `json:"usuarios,omitempty"`
 	TotalRecords *TotalRecordsResponse     `json:"totalRecords,omitempty"`
 	Error        string                    `json:"error,omitempty"`
 }
 
 type CreateUserResponse struct {
-	Usuarios []repository.UserListItem `json:"usuarios"`
+	Usuarios []domain.UserListItem `json:"usuarios"`
 }
 
 func NewUserService(users *repository.UserRepository) *UserService {
 	return &UserService{users: users}
 }
 
-func (s *UserService) Detail(ctx context.Context, userID string) (repository.UserDetailResponse, error) {
+func (s *UserService) Detail(ctx context.Context, userID string) (domain.UserDetailResponse, error) {
 	return s.users.Detail(ctx, userID)
 }
 
-func (s *UserService) UserRole(ctx context.Context, userID string) (repository.UserRoleResponse, error) {
+func (s *UserService) UserRole(ctx context.Context, userID string) (domain.UserRoleResponse, error) {
 	return s.users.UserRole(ctx, userID)
 }
 
-func (s *UserService) TenantID(ctx context.Context, userID string) (repository.UserTenantIDResponse, error) {
+func (s *UserService) TenantID(ctx context.Context, userID string) (domain.UserTenantIDResponse, error) {
 	return s.users.TenantID(ctx, userID)
 }
 

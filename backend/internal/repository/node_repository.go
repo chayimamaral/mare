@@ -4,15 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// NodePasso is a flat row returned from DB queries.
-type NodePasso struct {
-	ID        string  `json:"id"`
-	Descricao string  `json:"descricao"`
-	ParentID  *string `json:"parent_id"`
-}
 
 type NodeRepository struct {
 	pool *pgxpool.Pool
@@ -23,7 +17,7 @@ func NewNodeRepository(pool *pgxpool.Pool) *NodeRepository {
 }
 
 // Nodes returns a flat list via recursive CTE (mirrors NodeService.nodes).
-func (r *NodeRepository) Nodes(ctx context.Context) ([]NodePasso, error) {
+func (r *NodeRepository) Nodes(ctx context.Context) ([]domain.NodePasso, error) {
 	const query = `
 		WITH RECURSIVE tree AS (
 			SELECT id, descricao, parent_id
@@ -42,9 +36,9 @@ func (r *NodeRepository) Nodes(ctx context.Context) ([]NodePasso, error) {
 	}
 	defer rows.Close()
 
-	passos := make([]NodePasso, 0)
+	passos := make([]domain.NodePasso, 0)
 	for rows.Next() {
-		var p NodePasso
+		var p domain.NodePasso
 		if err := rows.Scan(&p.ID, &p.Descricao, &p.ParentID); err != nil {
 			return nil, fmt.Errorf("nodes scan: %w", err)
 		}
@@ -67,7 +61,7 @@ func (r *NodeRepository) Family(ctx context.Context) (any, error) {
 }
 
 // Recurso returns all passos as a flat list ready for tree building.
-func (r *NodeRepository) Recurso(ctx context.Context) ([]NodePasso, error) {
+func (r *NodeRepository) Recurso(ctx context.Context) ([]domain.NodePasso, error) {
 	const query = `SELECT id, descricao, parent_id FROM passos`
 
 	rows, err := r.pool.Query(ctx, query)
@@ -76,9 +70,9 @@ func (r *NodeRepository) Recurso(ctx context.Context) ([]NodePasso, error) {
 	}
 	defer rows.Close()
 
-	passos := make([]NodePasso, 0)
+	passos := make([]domain.NodePasso, 0)
 	for rows.Next() {
-		var p NodePasso
+		var p domain.NodePasso
 		if err := rows.Scan(&p.ID, &p.Descricao, &p.ParentID); err != nil {
 			return nil, fmt.Errorf("recurso scan: %w", err)
 		}

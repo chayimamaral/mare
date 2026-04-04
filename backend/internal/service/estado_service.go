@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -11,12 +12,12 @@ type EstadoService struct {
 }
 
 type EstadoListResponse struct {
-	Estados      []repository.Estado `json:"estados"`
+	Estados      []domain.Estado `json:"estados"`
 	TotalRecords int64               `json:"totalRecords"`
 }
 
 type EstadoLiteResponse struct {
-	Estados []repository.Estado `json:"estados"`
+	Estados []domain.Estado `json:"estados"`
 }
 
 func NewEstadoService(repo *repository.EstadoRepository) *EstadoService {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -11,22 +12,22 @@ type FeriadoService struct {
 }
 
 type FeriadoListResponse struct {
-	Feriados     []repository.FeriadoListItem `json:"feriados"`
+	Feriados     []domain.FeriadoListItem `json:"feriados"`
 	TotalRecords int64                        `json:"totalRecords"`
 }
 
 type FeriadoCreateResponse struct {
-	FeriadoCriado []repository.FeriadoMutationItem `json:"feriadoCriado"`
+	FeriadoCriado []domain.FeriadoMutationItem `json:"feriadoCriado"`
 	TotalRecords  int64                            `json:"totalRecords"`
 }
 
 type FeriadoUpdateResponse struct {
-	Feriado      []repository.FeriadoMutationItem `json:"feriado"`
+	Feriado      []domain.FeriadoMutationItem `json:"feriado"`
 	TotalRecords int64                            `json:"totalRecords"`
 }
 
 type FeriadoDeleteResponse struct {
-	Feriados     []repository.FeriadoMutationItem `json:"feriados"`
+	Feriados     []domain.FeriadoMutationItem `json:"feriados"`
 	TotalRecords int64                            `json:"totalRecords"`
 }
 

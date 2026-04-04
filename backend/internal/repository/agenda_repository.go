@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -12,30 +13,11 @@ type AgendaRepository struct {
 	pool *pgxpool.Pool
 }
 
-type AgendaEvent struct {
-	ID              string `json:"id"`
-	Title           string `json:"title"`
-	RotinaID        string `json:"rotina_id,omitempty"`
-	PassoID         string `json:"passo_id,omitempty"`
-	AgendaID        string `json:"agenda_id,omitempty"`
-	Start           string `json:"start"`
-	End             string `json:"end"`
-	BackgroundColor string `json:"backgroundColor"`
-	TextColor       string `json:"textColor"`
-	BorderColor     string `json:"borderColor"`
-}
-
-type ConcluirPassoResult struct {
-	AgendaID              string `json:"agenda_id"`
-	AgendaItemID          string `json:"agenda_item_id"`
-	TodosPassosConcluidos bool   `json:"todos_passos_concluidos"`
-}
-
 func NewAgendaRepository(pool *pgxpool.Pool) *AgendaRepository {
 	return &AgendaRepository{pool: pool}
 }
 
-func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]AgendaEvent, error) {
+func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]domain.AgendaEvent, error) {
 	const query = `
 		SELECT
 			a.id,
@@ -76,14 +58,14 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]A
 	}
 	defer rows.Close()
 
-	events := make([]AgendaEvent, 0)
+	events := make([]domain.AgendaEvent, 0)
 	for rows.Next() {
 		var id, empresaNome, rotinaDesc, rotinaID, inicio, termino, background, textColor, border string
 		if err := rows.Scan(&id, &empresaNome, &rotinaDesc, &rotinaID, &inicio, &termino, &background, &textColor, &border); err != nil {
 			return nil, fmt.Errorf("scan agenda event: %w", err)
 		}
 
-		events = append(events, AgendaEvent{
+		events = append(events, domain.AgendaEvent{
 			ID:              id,
 			Title:           empresaNome + " => " + rotinaDesc,
 			RotinaID:        rotinaID,
@@ -98,7 +80,7 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]A
 	return events, nil
 }
 
-func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID string) ([]AgendaEvent, error) {
+func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID string) ([]domain.AgendaEvent, error) {
 	const query = `
 		SELECT
 			ai.id,
@@ -140,14 +122,14 @@ func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID 
 	}
 	defer rows.Close()
 
-	events := make([]AgendaEvent, 0)
+	events := make([]domain.AgendaEvent, 0)
 	for rows.Next() {
 		var id, title, passoID, agendaIDRow, inicio, termino, background, textColor, border string
 		if err := rows.Scan(&id, &title, &passoID, &agendaIDRow, &inicio, &termino, &background, &textColor, &border); err != nil {
 			return nil, fmt.Errorf("scan agenda detail event: %w", err)
 		}
 
-		events = append(events, AgendaEvent{
+		events = append(events, domain.AgendaEvent{
 			ID:              id,
 			Title:           title,
 			PassoID:         passoID,
@@ -163,7 +145,7 @@ func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID 
 	return events, nil
 }
 
-func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (ConcluirPassoResult, error) {
+func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (domain.ConcluirPassoResult, error) {
 	const ownershipQuery = `
 		SELECT EXISTS (
 			SELECT 1
@@ -176,27 +158,27 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 
 	var owned bool
 	if err := r.pool.QueryRow(ctx, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
-		return ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
+		return domain.ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
 	}
 	if !owned {
-		return ConcluirPassoResult{}, fmt.Errorf("passo da agenda nao encontrado para este tenant")
+		return domain.ConcluirPassoResult{}, fmt.Errorf("passo da agenda nao encontrado para este tenant")
 	}
 
 	hasConcluido, err := r.columnExists(ctx, "agendaitens", "concluido")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasStatus, err := r.columnExists(ctx, "agendaitens", "status")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasConcluidoEm, err := r.columnExists(ctx, "agendaitens", "concluido_em")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasTermino, err := r.columnExists(ctx, "agendaitens", "termino")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 
 	setParts := make([]string, 0, 4)
@@ -215,24 +197,24 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 	}
 
 	if len(setParts) == 0 {
-		return ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
+		return domain.ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
 	}
 
 	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
 	if _, err := r.pool.Exec(ctx, updateQuery, agendaItemID, agendaID); err != nil {
-		return ConcluirPassoResult{}, fmt.Errorf("concluir passo da agenda: %w", err)
+		return domain.ConcluirPassoResult{}, fmt.Errorf("concluir passo da agenda: %w", err)
 	}
 
 	todosConcluidos, err := r.todosPassosConcluidos(ctx, agendaID)
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 
 	if todosConcluidos {
 		_ = r.marcarAgendaConcluida(ctx, agendaID)
 	}
 
-	return ConcluirPassoResult{
+	return domain.ConcluirPassoResult{
 		AgendaID:              agendaID,
 		AgendaItemID:          agendaItemID,
 		TodosPassosConcluidos: todosConcluidos,
@@ -240,7 +222,7 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 }
 
 // ReabrirPasso desfaz a conclusão manual de um item da agenda (mesmo critério de colunas que ConcluirPasso).
-func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (ConcluirPassoResult, error) {
+func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (domain.ConcluirPassoResult, error) {
 	const ownershipQuery = `
 		SELECT EXISTS (
 			SELECT 1
@@ -253,27 +235,27 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 
 	var owned bool
 	if err := r.pool.QueryRow(ctx, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
-		return ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
+		return domain.ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
 	}
 	if !owned {
-		return ConcluirPassoResult{}, fmt.Errorf("passo da agenda nao encontrado para este tenant")
+		return domain.ConcluirPassoResult{}, fmt.Errorf("passo da agenda nao encontrado para este tenant")
 	}
 
 	hasConcluido, err := r.columnExists(ctx, "agendaitens", "concluido")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasStatus, err := r.columnExists(ctx, "agendaitens", "status")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasConcluidoEm, err := r.columnExists(ctx, "agendaitens", "concluido_em")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 	hasTermino, err := r.columnExists(ctx, "agendaitens", "termino")
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 
 	setParts := make([]string, 0, 4)
@@ -291,22 +273,22 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 	}
 
 	if len(setParts) == 0 {
-		return ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
+		return domain.ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
 	}
 
 	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
 	if _, err := r.pool.Exec(ctx, updateQuery, agendaItemID, agendaID); err != nil {
-		return ConcluirPassoResult{}, fmt.Errorf("reabrir passo da agenda: %w", err)
+		return domain.ConcluirPassoResult{}, fmt.Errorf("reabrir passo da agenda: %w", err)
 	}
 
 	_ = r.desmarcarAgendaConcluida(ctx, agendaID)
 
 	todosConcluidos, err := r.todosPassosConcluidos(ctx, agendaID)
 	if err != nil {
-		return ConcluirPassoResult{}, err
+		return domain.ConcluirPassoResult{}, err
 	}
 
-	return ConcluirPassoResult{
+	return domain.ConcluirPassoResult{
 		AgendaID:              agendaID,
 		AgendaItemID:          agendaItemID,
 		TodosPassosConcluidos: todosConcluidos,

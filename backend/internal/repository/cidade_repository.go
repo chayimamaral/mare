@@ -5,36 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Cidade struct {
-	ID     string `json:"id"`
-	Nome   string `json:"nome"`
-	Codigo string `json:"codigo"`
-	UfID   string `json:"ufid"`
-	Uf     UfLite `json:"uf,omitempty"`
-	Ativo  bool   `json:"ativo,omitempty"`
-}
-
-type CidadeListItem struct {
-	ID     string `json:"id"`
-	Nome   string `json:"nome"`
-	Codigo string `json:"codigo"`
-	UfID   string `json:"ufid"`
-	Uf     UfLite `json:"uf"`
-}
-
-type CidadeLiteItem struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type UfLite struct {
-	ID    string `json:"id"`
-	Nome  string `json:"nome"`
-	Sigla string `json:"sigla,omitempty"`
-}
 
 type CidadeListParams struct {
 	First     int
@@ -52,7 +25,7 @@ func NewCidadeRepository(pool *pgxpool.Pool) *CidadeRepository {
 	return &CidadeRepository{pool: pool}
 }
 
-func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([]CidadeListItem, int64, error) {
+func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([]domain.CidadeListItem, int64, error) {
 	whereParts := []string{"c.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -106,19 +79,19 @@ func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([
 	}
 	defer rows.Close()
 
-	municipios := make([]CidadeListItem, 0)
+	municipios := make([]domain.CidadeListItem, 0)
 	for rows.Next() {
-		var c Cidade
+		var c domain.Cidade
 		if err := rows.Scan(&c.ID, &c.Nome, &c.Codigo, &c.UfID, &c.Uf.ID, &c.Uf.Nome); err != nil {
 			return nil, 0, fmt.Errorf("scan cidade: %w", err)
 		}
 
-		municipios = append(municipios, CidadeListItem{
+		municipios = append(municipios, domain.CidadeListItem{
 			ID:     c.ID,
 			Nome:   c.Nome,
 			Codigo: c.Codigo,
 			UfID:   c.UfID,
-			Uf: UfLite{
+			Uf: domain.UfLite{
 				ID:   c.Uf.ID,
 				Nome: c.Uf.Nome,
 			},
@@ -134,7 +107,7 @@ func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([
 	return municipios, total, nil
 }
 
-func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string) ([]Cidade, int64, error) {
+func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string) ([]domain.Cidade, int64, error) {
 	const existsQuery = `SELECT count(*) FROM public.municipio WHERE nome = $1`
 	var count int64
 	if err := r.pool.QueryRow(ctx, existsQuery, nome).Scan(&count); err != nil {
@@ -156,9 +129,9 @@ func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string
 	}
 	defer rows.Close()
 
-	cidades := make([]Cidade, 0)
+	cidades := make([]domain.Cidade, 0)
 	for rows.Next() {
-		var c Cidade
+		var c domain.Cidade
 		if err := rows.Scan(&c.ID, &c.Nome, &c.Codigo, &c.UfID, &c.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created cidade: %w", err)
 		}
@@ -168,7 +141,7 @@ func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string
 	return cidades, int64(len(cidades)), nil
 }
 
-func (r *CidadeRepository) Update(ctx context.Context, id, nome, codigo, ufID string) ([]Cidade, int64, error) {
+func (r *CidadeRepository) Update(ctx context.Context, id, nome, codigo, ufID string) ([]domain.Cidade, int64, error) {
 	const query = `
 		UPDATE public.municipio
 		SET nome = $1, codigo = $2, ufid = $3
@@ -181,9 +154,9 @@ func (r *CidadeRepository) Update(ctx context.Context, id, nome, codigo, ufID st
 	}
 	defer rows.Close()
 
-	cidades := make([]Cidade, 0)
+	cidades := make([]domain.Cidade, 0)
 	for rows.Next() {
-		var c Cidade
+		var c domain.Cidade
 		if err := rows.Scan(&c.ID, &c.Nome, &c.Codigo, &c.UfID, &c.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated cidade: %w", err)
 		}
@@ -193,7 +166,7 @@ func (r *CidadeRepository) Update(ctx context.Context, id, nome, codigo, ufID st
 	return cidades, int64(len(cidades)), nil
 }
 
-func (r *CidadeRepository) Delete(ctx context.Context, id string) ([]Cidade, int64, error) {
+func (r *CidadeRepository) Delete(ctx context.Context, id string) ([]domain.Cidade, int64, error) {
 	const query = `
 		UPDATE public.municipio
 		SET ativo = false
@@ -206,9 +179,9 @@ func (r *CidadeRepository) Delete(ctx context.Context, id string) ([]Cidade, int
 	}
 	defer rows.Close()
 
-	cidades := make([]Cidade, 0)
+	cidades := make([]domain.Cidade, 0)
 	for rows.Next() {
-		var c Cidade
+		var c domain.Cidade
 		if err := rows.Scan(&c.ID, &c.Nome, &c.Codigo, &c.UfID, &c.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted cidade: %w", err)
 		}
@@ -218,7 +191,7 @@ func (r *CidadeRepository) Delete(ctx context.Context, id string) ([]Cidade, int
 	return cidades, int64(len(cidades)), nil
 }
 
-func (r *CidadeRepository) ListLite(ctx context.Context) ([]CidadeLiteItem, error) {
+func (r *CidadeRepository) ListLite(ctx context.Context) ([]domain.CidadeLiteItem, error) {
 	const query = `
 		SELECT c.id, c.nome, e.sigla
 		FROM public.municipio c
@@ -232,14 +205,14 @@ func (r *CidadeRepository) ListLite(ctx context.Context) ([]CidadeLiteItem, erro
 	}
 	defer rows.Close()
 
-	municipios := make([]CidadeLiteItem, 0)
+	municipios := make([]domain.CidadeLiteItem, 0)
 	for rows.Next() {
 		var id, nome, sigla string
 		if err := rows.Scan(&id, &nome, &sigla); err != nil {
 			return nil, fmt.Errorf("scan cidadeslite: %w", err)
 		}
 
-		municipios = append(municipios, CidadeLiteItem{ID: id, Nome: fmt.Sprintf("%s / %s", nome, sigla)})
+		municipios = append(municipios, domain.CidadeLiteItem{ID: id, Nome: fmt.Sprintf("%s / %s", nome, sigla)})
 	}
 
 	return municipios, nil

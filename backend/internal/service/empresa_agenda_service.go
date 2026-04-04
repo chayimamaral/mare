@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -16,16 +17,16 @@ type EmpresaAgendaService struct {
 }
 
 type EmpresaAgendaListResponse struct {
-	Itens []repository.EmpresaAgendaItem `json:"itens"`
+	Itens []domain.EmpresaAgendaItem `json:"itens"`
 }
 
 type EmpresaAgendaGerarResponse struct {
-	Itens   []repository.EmpresaAgendaItem `json:"itens"`
+	Itens   []domain.EmpresaAgendaItem `json:"itens"`
 	Message string                         `json:"message"`
 }
 
 type EmpresaAgendaAcompanhamentoResponse struct {
-	Itens []repository.EmpresaAgendaAcompanhamentoItem `json:"itens"`
+	Itens []domain.EmpresaAgendaAcompanhamentoItem `json:"itens"`
 }
 
 func NewEmpresaAgendaService(

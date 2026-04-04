@@ -5,76 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type Tenant struct {
-	ID      string `json:"id"`
-	Active  bool   `json:"active"`
-	Nome    string `json:"nome"`
-	Contato string `json:"contato,omitempty"`
-	Plano   string `json:"plano,omitempty"`
-}
-
-type User struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	TenantID string `json:"tenantid"`
-	Password string `json:"-"`
-	Role     string `json:"role"`
-	Active   bool   `json:"active,omitempty"`
-	Tenant   Tenant `json:"tenant"`
-}
-
-type UserDetailTenant struct {
-	ID     string `json:"id"`
-	Active bool   `json:"active"`
-	Nome   string `json:"nome"`
-}
-
-type UserDetailResult struct {
-	ID       string           `json:"id"`
-	Nome     string           `json:"nome"`
-	Email    string           `json:"email"`
-	Active   bool             `json:"active"`
-	TenantID string           `json:"tenantId"`
-	Role     string           `json:"role"`
-	Tenant   UserDetailTenant `json:"tenant"`
-}
-
-type UserDetailEntry struct {
-	Resultado UserDetailResult `json:"resultado"`
-}
-
-type UserDetailResponse struct {
-	Usuarios []UserDetailEntry `json:"usuarios"`
-}
-
-type UserRoleData struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	TenantID string `json:"tenantid"`
-	Role     string `json:"role"`
-}
-
-type UserRoleResponse struct {
-	Logado UserRoleData `json:"logado"`
-}
-
-type UserTenantIDResponse struct {
-	TenantID string `json:"tenantid"`
-}
-
-type UserListItem struct {
-	ID         string `json:"id"`
-	Nome       string `json:"nome"`
-	Email      string `json:"email"`
-	Role       string `json:"role"`
-	TenantID   string `json:"tenantid"`
-	TenantNome string `json:"tenantnome,omitempty"`
-	Active     bool   `json:"active"`
-}
 
 type UserRepository struct {
 	pool *pgxpool.Pool
@@ -84,7 +17,7 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 	return &UserRepository{pool: pool}
 }
 
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	const query = `
 		SELECT
 			u.id,
@@ -103,7 +36,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 		WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
 		LIMIT 1`
 
-	var user User
+	var user domain.User
 	if err := r.pool.QueryRow(ctx, query, email).Scan(
 		&user.ID,
 		&user.Nome,
@@ -123,7 +56,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 	return &user, nil
 }
 
-func (r *UserRepository) Detail(ctx context.Context, userID string) (UserDetailResponse, error) {
+func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.UserDetailResponse, error) {
 	const query = `
 		SELECT
 			u.id,
@@ -139,7 +72,7 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (UserDetailR
 		JOIN public.tenant t ON t.id = u.tenantid
 		WHERE u.id = $1::text`
 
-	var user User
+	var user domain.User
 	if err := r.pool.QueryRow(ctx, query, userID).Scan(
 		&user.ID,
 		&user.Nome,
@@ -151,20 +84,20 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (UserDetailR
 		&user.Tenant.Active,
 		&user.Tenant.Nome,
 	); err != nil {
-		return UserDetailResponse{}, fmt.Errorf("detail user: %w", err)
+		return domain.UserDetailResponse{}, fmt.Errorf("detail user: %w", err)
 	}
 
-	return UserDetailResponse{
-		Usuarios: []UserDetailEntry{
+	return domain.UserDetailResponse{
+		Usuarios: []domain.UserDetailEntry{
 			{
-				Resultado: UserDetailResult{
+				Resultado: domain.UserDetailResult{
 					ID:       user.ID,
 					Nome:     user.Nome,
 					Email:    user.Email,
 					Active:   user.Active,
 					TenantID: user.TenantID,
 					Role:     user.Role,
-					Tenant: UserDetailTenant{
+					Tenant: domain.UserDetailTenant{
 						ID:     user.Tenant.ID,
 						Active: user.Tenant.Active,
 						Nome:   user.Tenant.Nome,
@@ -175,7 +108,7 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (UserDetailR
 	}, nil
 }
 
-func (r *UserRepository) UserRole(ctx context.Context, userID string) (UserRoleResponse, error) {
+func (r *UserRepository) UserRole(ctx context.Context, userID string) (domain.UserRoleResponse, error) {
 	const query = `
 		SELECT u.id, u.email, u.tenantid, u.role
 		FROM public.usuario u
@@ -183,13 +116,13 @@ func (r *UserRepository) UserRole(ctx context.Context, userID string) (UserRoleR
 
 	var id, email, tenantID, role string
 	if err := r.pool.QueryRow(ctx, query, userID).Scan(&id, &email, &tenantID, &role); err != nil {
-		return UserRoleResponse{}, fmt.Errorf("user role: %w", err)
+		return domain.UserRoleResponse{}, fmt.Errorf("user role: %w", err)
 	}
 
-	return UserRoleResponse{Logado: UserRoleData{ID: id, Email: email, TenantID: tenantID, Role: role}}, nil
+	return domain.UserRoleResponse{Logado: domain.UserRoleData{ID: id, Email: email, TenantID: tenantID, Role: role}}, nil
 }
 
-func (r *UserRepository) TenantID(ctx context.Context, userID string) (UserTenantIDResponse, error) {
+func (r *UserRepository) TenantID(ctx context.Context, userID string) (domain.UserTenantIDResponse, error) {
 	const query = `
 		SELECT u.tenantid
 		FROM public.usuario u
@@ -197,13 +130,13 @@ func (r *UserRepository) TenantID(ctx context.Context, userID string) (UserTenan
 
 	var tenantID string
 	if err := r.pool.QueryRow(ctx, query, userID).Scan(&tenantID); err != nil {
-		return UserTenantIDResponse{}, fmt.Errorf("tenant id: %w", err)
+		return domain.UserTenantIDResponse{}, fmt.Errorf("tenant id: %w", err)
 	}
 
-	return UserTenantIDResponse{TenantID: tenantID}, nil
+	return domain.UserTenantIDResponse{TenantID: tenantID}, nil
 }
 
-func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string, first, rows int, sortField string, sortOrder int, nomeFilter string) ([]UserListItem, int64, error) {
+func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string, first, rows int, sortField string, sortOrder int, nomeFilter string) ([]domain.UserListItem, int64, error) {
 	whereParts := []string{"u.active = true"}
 	args := make([]any, 0)
 	argIndex := 1
@@ -257,7 +190,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 	}
 	defer rowsData.Close()
 
-	usuarios := make([]UserListItem, 0)
+	usuarios := make([]domain.UserListItem, 0)
 	for rowsData.Next() {
 		var id, nome, email, role, tenant, tenantNome string
 		var active bool
@@ -265,7 +198,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 			return nil, 0, fmt.Errorf("scan usuario: %w", err)
 		}
 
-		usuarios = append(usuarios, UserListItem{ID: id, Nome: nome, Email: email, Role: role, TenantID: tenant, TenantNome: tenantNome, Active: active})
+		usuarios = append(usuarios, domain.UserListItem{ID: id, Nome: nome, Email: email, Role: role, TenantID: tenant, TenantNome: tenantNome, Active: active})
 	}
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.usuario u WHERE %s", strings.Join(whereParts, " AND "))
@@ -277,7 +210,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 	return usuarios, total, nil
 }
 
-func (r *UserRepository) Create(ctx context.Context, nome, email, password, role, tenantID string) ([]UserListItem, error) {
+func (r *UserRepository) Create(ctx context.Context, nome, email, password, role, tenantID string) ([]domain.UserListItem, error) {
 	const query = `
 		INSERT INTO public.usuario (nome, email, password, role, tenantid, active)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -289,7 +222,7 @@ func (r *UserRepository) Create(ctx context.Context, nome, email, password, role
 	}
 	defer rows.Close()
 
-	usuarios := make([]UserListItem, 0)
+	usuarios := make([]domain.UserListItem, 0)
 	for rows.Next() {
 		var id, nomeDB, emailDB, roleDB, tenantIDDB string
 		var active bool
@@ -297,13 +230,13 @@ func (r *UserRepository) Create(ctx context.Context, nome, email, password, role
 			return nil, fmt.Errorf("scan created usuario: %w", err)
 		}
 
-		usuarios = append(usuarios, UserListItem{ID: id, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
+		usuarios = append(usuarios, domain.UserListItem{ID: id, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
 	}
 
 	return usuarios, nil
 }
 
-func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, requesterRole, requesterTenantID string) ([]UserListItem, error) {
+func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
 	query := `
 		UPDATE public.usuario
 		SET nome = $1,
@@ -332,7 +265,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 	}
 	defer rows.Close()
 
-	usuarios := make([]UserListItem, 0)
+	usuarios := make([]domain.UserListItem, 0)
 	for rows.Next() {
 		var idDB, nomeDB, emailDB, roleDB, tenantIDDB string
 		var active bool
@@ -340,7 +273,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 			return nil, fmt.Errorf("scan updated usuario: %w", err)
 		}
 
-		usuarios = append(usuarios, UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
+		usuarios = append(usuarios, domain.UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
 	}
 
 	if len(usuarios) == 0 {
@@ -350,7 +283,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 	return usuarios, nil
 }
 
-func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requesterTenantID string) ([]UserListItem, error) {
+func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
 	query := `
 		UPDATE public.usuario
 		SET active = false
@@ -373,7 +306,7 @@ func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requeste
 	}
 	defer rows.Close()
 
-	usuarios := make([]UserListItem, 0)
+	usuarios := make([]domain.UserListItem, 0)
 	for rows.Next() {
 		var idDB, nomeDB, emailDB, roleDB, tenantIDDB string
 		var active bool
@@ -381,7 +314,7 @@ func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requeste
 			return nil, fmt.Errorf("scan deleted usuario: %w", err)
 		}
 
-		usuarios = append(usuarios, UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
+		usuarios = append(usuarios, domain.UserListItem{ID: idDB, Nome: nomeDB, Email: emailDB, Role: roleDB, TenantID: tenantIDDB, Active: active})
 	}
 
 	if len(usuarios) == 0 {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -14,7 +15,7 @@ func NewEmpresaDadosService(repo *repository.EmpresaDadosRepository) *EmpresaDad
 	return &EmpresaDadosService{repo: repo}
 }
 
-func (s *EmpresaDadosService) Get(ctx context.Context, empresaID, tenantID string) (*repository.EmpresaDadosItem, error) {
+func (s *EmpresaDadosService) Get(ctx context.Context, empresaID, tenantID string) (*domain.EmpresaDadosItem, error) {
 	return s.repo.GetByEmpresa(ctx, empresaID, tenantID)
 }
 

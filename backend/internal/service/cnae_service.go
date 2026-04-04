@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -21,20 +22,20 @@ type CnaeInput struct {
 }
 
 type CnaeListResponse struct {
-	Cnaes        []repository.CnaeRecord `json:"cnaes"`
+	Cnaes        []domain.CnaeRecord `json:"cnaes"`
 	TotalRecords int64                   `json:"totalRecords"`
 }
 
 type CnaeLiteResponse struct {
-	Cnaes []repository.CnaeLiteItem `json:"cnaes"`
+	Cnaes []domain.CnaeLiteItem `json:"cnaes"`
 }
 
 type CnaeValidateResponse struct {
 	Valid bool `json:"valid"`
 }
 
-// CnaeIbgeResolveResponse espelha repository.CnaeIbgeResolve (JSON da API).
-type CnaeIbgeResolveResponse = repository.CnaeIbgeResolve
+// CnaeIbgeResolveResponse espelha domain.CnaeIbgeResolve (JSON da API).
+type CnaeIbgeResolveResponse = domain.CnaeIbgeResolve
 
 func NewCnaeService(repo *repository.CnaeRepository) *CnaeService {
 	return &CnaeService{repo: repo}

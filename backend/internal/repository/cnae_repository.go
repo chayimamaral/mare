@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -21,38 +22,6 @@ type CnaeListParams struct {
 	SortOrder   int
 	Denominacao string
 	Subclasse   string
-}
-
-type CnaeRecord struct {
-	ID          string `json:"id"`
-	Secao       string `json:"secao"`
-	Divisao     string `json:"divisao"`
-	Grupo       string `json:"grupo"`
-	Classe      string `json:"classe"`
-	Subclasse   string `json:"subclasse"`
-	Denominacao string `json:"denominacao"`
-	Ativo       bool   `json:"ativo"`
-}
-
-type CnaeLiteItem struct {
-	ID          string `json:"id"`
-	Denominacao string `json:"denominacao"`
-	Subclasse   string `json:"subclasse"`
-}
-
-type CnaeValidateItem struct {
-	ID string `json:"id"`
-}
-
-// CnaeIbgeResolve descreve uma subclasse encontrada nas tabelas ibge_cnae_* (catálogo oficial).
-type CnaeIbgeResolve struct {
-	Found       bool   `json:"found"`
-	Secao       string `json:"secao"`
-	Divisao     string `json:"divisao"`
-	Grupo       string `json:"grupo"`
-	Classe      string `json:"classe"`
-	Denominacao string `json:"denominacao"`
-	Subclasse   string `json:"subclasse"`
 }
 
 type CnaeRepository struct {
@@ -94,7 +63,7 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) ibge ON true`
 
-func (r *CnaeRepository) List(ctx context.Context, params CnaeListParams) ([]CnaeRecord, int64, error) {
+func (r *CnaeRepository) List(ctx context.Context, params CnaeListParams) ([]domain.CnaeRecord, int64, error) {
 	whereParts := []string{"c.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -170,9 +139,9 @@ func (r *CnaeRepository) List(ctx context.Context, params CnaeListParams) ([]Cna
 	}
 	defer rows.Close()
 
-	cnaes := make([]CnaeRecord, 0)
+	cnaes := make([]domain.CnaeRecord, 0)
 	for rows.Next() {
-		var rec CnaeRecord
+		var rec domain.CnaeRecord
 		if err := rows.Scan(&rec.ID, &rec.Secao, &rec.Divisao, &rec.Grupo, &rec.Classe, &rec.Subclasse, &rec.Denominacao, &rec.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan cnae: %w", err)
 		}
@@ -241,9 +210,9 @@ func (r *CnaeRepository) upsertCnaeIbgeHierarquia(ctx context.Context, sub, seca
 }
 
 // ResolveIbge retorna dados oficiais para a subclasse ou found=false.
-func (r *CnaeRepository) ResolveIbge(ctx context.Context, subclasse string) (CnaeIbgeResolve, error) {
+func (r *CnaeRepository) ResolveIbge(ctx context.Context, subclasse string) (domain.CnaeIbgeResolve, error) {
 	sub := SubclasseSomenteDigitos(subclasse)
-	out := CnaeIbgeResolve{Subclasse: sub}
+	out := domain.CnaeIbgeResolve{Subclasse: sub}
 	if len(sub) != 7 {
 		return out, nil
 	}
@@ -256,7 +225,7 @@ func (r *CnaeRepository) ResolveIbge(ctx context.Context, subclasse string) (Cna
 	return out, nil
 }
 
-func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, classe, denominacao, subclasse string) ([]CnaeRecord, int64, error) {
+func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, classe, denominacao, subclasse string) ([]domain.CnaeRecord, int64, error) {
 	sec, div, grp, cls, den, sub, err := r.mergeComCatalogoIbge(ctx, secao, divisao, grupo, classe, denominacao, subclasse)
 	if err != nil {
 		return nil, 0, err
@@ -276,9 +245,9 @@ func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, clas
 	}
 	defer rows.Close()
 
-	cnaes := make([]CnaeRecord, 0)
+	cnaes := make([]domain.CnaeRecord, 0)
 	for rows.Next() {
-		var rec CnaeRecord
+		var rec domain.CnaeRecord
 		if err := rows.Scan(&rec.ID, &rec.Secao, &rec.Divisao, &rec.Grupo, &rec.Classe, &rec.Subclasse, &rec.Denominacao, &rec.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created cnae: %w", err)
 		}
@@ -304,7 +273,7 @@ func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, clas
 	return cnaes, total, nil
 }
 
-func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, classe, denominacao, subclasse string) ([]CnaeRecord, int64, error) {
+func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, classe, denominacao, subclasse string) ([]domain.CnaeRecord, int64, error) {
 	sec, div, grp, cls, den, sub, err := r.mergeComCatalogoIbge(ctx, secao, divisao, grupo, classe, denominacao, subclasse)
 	if err != nil {
 		return nil, 0, err
@@ -325,9 +294,9 @@ func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, 
 	}
 	defer rows.Close()
 
-	cnaes := make([]CnaeRecord, 0)
+	cnaes := make([]domain.CnaeRecord, 0)
 	for rows.Next() {
-		var rec CnaeRecord
+		var rec domain.CnaeRecord
 		if err := rows.Scan(&rec.ID, &rec.Secao, &rec.Divisao, &rec.Grupo, &rec.Classe, &rec.Subclasse, &rec.Denominacao, &rec.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated cnae: %w", err)
 		}
@@ -353,7 +322,7 @@ func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, 
 	return cnaes, total, nil
 }
 
-func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]CnaeRecord, int64, error) {
+func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]domain.CnaeRecord, int64, error) {
 	const query = `
 		UPDATE public.cnae
 		SET ativo = false
@@ -366,9 +335,9 @@ func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]CnaeRecord, i
 	}
 	defer rows.Close()
 
-	cnaes := make([]CnaeRecord, 0)
+	cnaes := make([]domain.CnaeRecord, 0)
 	for rows.Next() {
-		var rec CnaeRecord
+		var rec domain.CnaeRecord
 		if err := rows.Scan(&rec.ID, &rec.Secao, &rec.Divisao, &rec.Grupo, &rec.Classe, &rec.Subclasse, &rec.Denominacao, &rec.Ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted cnae: %w", err)
 		}
@@ -383,26 +352,26 @@ func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]CnaeRecord, i
 	return cnaes, total, nil
 }
 
-func (r *CnaeRepository) Lite(ctx context.Context) ([]CnaeLiteItem, error) {
+func (r *CnaeRepository) Lite(ctx context.Context) ([]domain.CnaeLiteItem, error) {
 	rows, err := r.pool.Query(ctx, `SELECT id, denominacao, subclasse FROM public.cnae WHERE ativo = true ORDER BY denominacao ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("lite cnae: %w", err)
 	}
 	defer rows.Close()
 
-	cnaes := make([]CnaeLiteItem, 0)
+	cnaes := make([]domain.CnaeLiteItem, 0)
 	for rows.Next() {
 		var id, d, s string
 		if err := rows.Scan(&id, &d, &s); err != nil {
 			return nil, fmt.Errorf("scan lite cnae: %w", err)
 		}
-		cnaes = append(cnaes, CnaeLiteItem{ID: id, Denominacao: d, Subclasse: s})
+		cnaes = append(cnaes, domain.CnaeLiteItem{ID: id, Denominacao: d, Subclasse: s})
 	}
 
 	return cnaes, nil
 }
 
-func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]CnaeValidateItem, error) {
+func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]domain.CnaeValidateItem, error) {
 	sub := SubclasseSomenteDigitos(cnae)
 	if sub == "" {
 		return nil, nil
@@ -413,13 +382,13 @@ func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]CnaeValid
 	}
 	defer rows.Close()
 
-	result := make([]CnaeValidateItem, 0)
+	result := make([]domain.CnaeValidateItem, 0)
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			return nil, fmt.Errorf("scan validate cnae: %w", err)
 		}
-		result = append(result, CnaeValidateItem{ID: id})
+		result = append(result, domain.CnaeValidateItem{ID: id})
 	}
 
 	if len(result) > 0 {
@@ -434,7 +403,7 @@ func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]CnaeValid
 		return nil, fmt.Errorf("validate cnae ibge: %w", err)
 	}
 	if ibgeExists {
-		result = append(result, CnaeValidateItem{ID: ""})
+		result = append(result, domain.CnaeValidateItem{ID: ""})
 	}
 
 	return result, nil

@@ -6,22 +6,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type EmpresaDadosItem struct {
-	EmpresaID        string  `json:"empresa_id"`
-	CNPJ             *string `json:"cnpj,omitempty"`
-	Endereco         *string `json:"endereco,omitempty"`
-	EmailContato     *string `json:"email_contato,omitempty"`
-	Telefone         *string `json:"telefone,omitempty"`
-	Telefone2        *string `json:"telefone2,omitempty"`
-	DataAbertura     *string `json:"data_abertura,omitempty"`
-	DataEncerramento *string `json:"data_encerramento,omitempty"`
-	Observacao       *string `json:"observacao,omitempty"`
-}
 
 type EmpresaDadosUpsertInput struct {
 	EmpresaID        string
@@ -82,7 +71,7 @@ func parseDateOrNil(s string) (any, error) {
 	return t, nil
 }
 
-func (r *EmpresaDadosRepository) GetByEmpresa(ctx context.Context, empresaID, tenantID string) (*EmpresaDadosItem, error) {
+func (r *EmpresaDadosRepository) GetByEmpresa(ctx context.Context, empresaID, tenantID string) (*domain.EmpresaDadosItem, error) {
 	if strings.TrimSpace(empresaID) == "" || strings.TrimSpace(tenantID) == "" {
 		return nil, fmt.Errorf("empresa e tenant obrigatorios")
 	}
@@ -110,7 +99,7 @@ func (r *EmpresaDadosRepository) GetByEmpresa(ctx context.Context, empresaID, te
 		return nil, fmt.Errorf("buscar dados complementares: %w", err)
 	}
 
-	out := &EmpresaDadosItem{
+	out := &domain.EmpresaDadosItem{
 		EmpresaID:        id,
 		CNPJ:             textPtr(cnpj),
 		Endereco:         textPtr(endereco),

@@ -6,45 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// ObrigacaoRef referência geográfica ou tipo de empresa.
-type ObrigacaoRef struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-// ObrigacaoListItem projeção do cadastro de obrigações legais (ex-compromissos financeiros).
-type ObrigacaoListItem struct {
-	ID                string        `json:"id"`
-	TipoEmpresaID     string        `json:"tipo_empresa_id"`
-	TipoEmpresa       *ObrigacaoRef `json:"tipoempresa,omitempty"`
-	Descricao         string        `json:"descricao"`
-	Periodicidade     string        `json:"periodicidade"`
-	Abrangencia       string        `json:"abrangencia"`
-	DiaBase           int           `json:"dia_base"`
-	MesBase           string        `json:"mes_base,omitempty"`
-	TipoClassificacao string        `json:"tipo_classificacao,omitempty"`
-	Valor             *float64      `json:"valor,omitempty"`
-	Observacao        string        `json:"observacao,omitempty"`
-	Estado            *ObrigacaoRef `json:"estado,omitempty"`
-	Municipio         *ObrigacaoRef `json:"municipio,omitempty"`
-	Bairro            string        `json:"bairro,omitempty"`
-}
-
-// ObrigacaoMutationItem retorno de Create/Update/Delete.
-type ObrigacaoMutationItem struct {
-	ID                string   `json:"id"`
-	TipoEmpresaID     string   `json:"tipo_empresa_id"`
-	TipoClassificacao string   `json:"tipo_classificacao"`
-	Descricao         string   `json:"descricao"`
-	Periodicidade     string   `json:"periodicidade"`
-	Abrangencia       string   `json:"abrangencia"`
-	Valor             *float64 `json:"valor,omitempty"`
-	Observacao        string   `json:"observacao,omitempty"`
-	Ativo             bool     `json:"ativo"`
-}
 
 // ObrigacaoListParams filtros da listagem lazy.
 type ObrigacaoListParams struct {
@@ -105,7 +69,7 @@ func mesBaseArg(s string) any {
 	return strings.TrimSpace(s)
 }
 
-func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListParams) ([]ObrigacaoListItem, int64, error) {
+func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListParams) ([]domain.ObrigacaoListItem, int64, error) {
 	whereParts := []string{"c.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -206,7 +170,7 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 	}
 	defer rows.Close()
 
-	items := make([]ObrigacaoListItem, 0)
+	items := make([]domain.ObrigacaoListItem, 0)
 	for rows.Next() {
 		var id, tipoEmpresaID, tipoEmpresaNome, descricao, periodicidade, abrangencia string
 		var diaBase int
@@ -225,10 +189,10 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 			return nil, 0, fmt.Errorf("scan obrigacao: %w", err)
 		}
 
-		item := ObrigacaoListItem{
+		item := domain.ObrigacaoListItem{
 			ID:            id,
 			TipoEmpresaID: tipoEmpresaID,
-			TipoEmpresa:   &ObrigacaoRef{ID: tipoEmpresaID, Nome: tipoEmpresaNome},
+			TipoEmpresa:   &domain.ObrigacaoRef{ID: tipoEmpresaID, Nome: tipoEmpresaNome},
 			Descricao:     descricao,
 			Periodicidade: periodicidade,
 			Abrangencia:   abrangencia,
@@ -247,10 +211,10 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 			item.Observacao = observacao.String
 		}
 		if estadoID.Valid {
-			item.Estado = &ObrigacaoRef{ID: estadoID.String, Nome: estadoNome.String}
+			item.Estado = &domain.ObrigacaoRef{ID: estadoID.String, Nome: estadoNome.String}
 		}
 		if municipioID.Valid {
-			item.Municipio = &ObrigacaoRef{ID: municipioID.String, Nome: municipioNome.String}
+			item.Municipio = &domain.ObrigacaoRef{ID: municipioID.String, Nome: municipioNome.String}
 		}
 		if bairro.Valid {
 			item.Bairro = bairro.String
@@ -281,7 +245,7 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 	return items, total, nil
 }
 
-func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertInput) ([]ObrigacaoMutationItem, int64, error) {
+func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertInput) ([]domain.ObrigacaoMutationItem, int64, error) {
 	const existsQuery = `
 		SELECT count(*) FROM public.tipoempresa_obrigacao
 		WHERE tipo_empresa_id = $1 AND descricao = $2 AND abrangencia = $3 AND ativo = true`
@@ -317,7 +281,7 @@ func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertI
 	}
 	defer rows.Close()
 
-	result := make([]ObrigacaoMutationItem, 0)
+	result := make([]domain.ObrigacaoMutationItem, 0)
 	var createdID string
 	for rows.Next() {
 		item, id, err := scanObrigacaoMutation(rows)
@@ -332,7 +296,7 @@ func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertI
 	return result, int64(len(result)), nil
 }
 
-func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertInput) ([]ObrigacaoMutationItem, int64, error) {
+func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertInput) ([]domain.ObrigacaoMutationItem, int64, error) {
 	dia := input.DiaBase
 	if dia <= 0 {
 		dia = 20
@@ -357,7 +321,7 @@ func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertI
 	}
 	defer rows.Close()
 
-	result := make([]ObrigacaoMutationItem, 0)
+	result := make([]domain.ObrigacaoMutationItem, 0)
 	for rows.Next() {
 		item, _, err := scanObrigacaoMutation(rows)
 		if err != nil {
@@ -371,7 +335,7 @@ func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertI
 	return result, int64(len(result)), nil
 }
 
-func (r *ObrigacaoRepository) Delete(ctx context.Context, id string) ([]ObrigacaoMutationItem, int64, error) {
+func (r *ObrigacaoRepository) Delete(ctx context.Context, id string) ([]domain.ObrigacaoMutationItem, int64, error) {
 	const query = `
 		UPDATE public.tipoempresa_obrigacao
 		SET ativo = false, atualizado_em = NOW()
@@ -384,7 +348,7 @@ func (r *ObrigacaoRepository) Delete(ctx context.Context, id string) ([]Obrigaca
 	}
 	defer rows.Close()
 
-	result := make([]ObrigacaoMutationItem, 0)
+	result := make([]domain.ObrigacaoMutationItem, 0)
 	for rows.Next() {
 		item, _, err := scanObrigacaoMutation(rows)
 		if err != nil {
@@ -403,17 +367,17 @@ type obrigacaoMutationScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanObrigacaoMutation(row obrigacaoMutationScanner) (ObrigacaoMutationItem, string, error) {
+func scanObrigacaoMutation(row obrigacaoMutationScanner) (domain.ObrigacaoMutationItem, string, error) {
 	var id, tipoEmpresaID, tipoClass, descricao, periodicidade, abrangencia string
 	var valor sql.NullFloat64
 	var observacao sql.NullString
 	var ativo bool
 
 	if err := row.Scan(&id, &tipoEmpresaID, &tipoClass, &descricao, &periodicidade, &abrangencia, &valor, &observacao, &ativo); err != nil {
-		return ObrigacaoMutationItem{}, "", fmt.Errorf("scan mutation obrigacao: %w", err)
+		return domain.ObrigacaoMutationItem{}, "", fmt.Errorf("scan mutation obrigacao: %w", err)
 	}
 
-	item := ObrigacaoMutationItem{
+	item := domain.ObrigacaoMutationItem{
 		ID:                id,
 		TipoEmpresaID:     tipoEmpresaID,
 		TipoClassificacao: tipoClass,

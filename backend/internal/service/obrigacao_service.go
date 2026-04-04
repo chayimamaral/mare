@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -13,22 +14,22 @@ type ObrigacaoService struct {
 }
 
 type ObrigacaoListResponse struct {
-	Obrigacoes   []repository.ObrigacaoListItem `json:"obrigacoes"`
+	Obrigacoes   []domain.ObrigacaoListItem `json:"obrigacoes"`
 	TotalRecords int64                          `json:"totalRecords"`
 }
 
 type ObrigacaoCreateResponse struct {
-	ObrigacaoCriado []repository.ObrigacaoMutationItem `json:"obrigacaoCriado"`
+	ObrigacaoCriado []domain.ObrigacaoMutationItem `json:"obrigacaoCriado"`
 	TotalRecords    int64                              `json:"totalRecords"`
 }
 
 type ObrigacaoUpdateResponse struct {
-	Obrigacao    []repository.ObrigacaoMutationItem `json:"obrigacao"`
+	Obrigacao    []domain.ObrigacaoMutationItem `json:"obrigacao"`
 	TotalRecords int64                              `json:"totalRecords"`
 }
 
 type ObrigacaoDeleteResponse struct {
-	Obrigacoes   []repository.ObrigacaoMutationItem `json:"obrigacoes"`
+	Obrigacoes   []domain.ObrigacaoMutationItem `json:"obrigacoes"`
 	TotalRecords int64                              `json:"totalRecords"`
 }
 

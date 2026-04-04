@@ -4,16 +4,16 @@ import (
 	"context"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 )
 
 // AgendaRepository descreve o acesso a dados da agenda (calendário de rotinas).
-// *repository.AgendaRepository satisfaz esta interface.
+// O tipo AgendaRepository em internal/repository satisfaz esta interface.
 type AgendaRepository interface {
-	ListEvents(ctx context.Context, tenantID string) ([]repository.AgendaEvent, error)
-	DetailEvents(ctx context.Context, tenantID, agendaID string) ([]repository.AgendaEvent, error)
-	ConcluirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (repository.ConcluirPassoResult, error)
-	ReabrirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (repository.ConcluirPassoResult, error)
+	ListEvents(ctx context.Context, tenantID string) ([]domain.AgendaEvent, error)
+	DetailEvents(ctx context.Context, tenantID, agendaID string) ([]domain.AgendaEvent, error)
+	ConcluirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (domain.ConcluirPassoResult, error)
+	ReabrirPasso(ctx context.Context, tenantID, agendaID, agendaItemID string) (domain.ConcluirPassoResult, error)
 	InsertAgendaItem(ctx context.Context, tenantID, agendaID, descricao, inicio, termino string) (string, error)
 	UpdateAgendaItem(ctx context.Context, tenantID, agendaID, itemID string, descricao, inicio, termino *string) error
 	DeleteAgendaItem(ctx context.Context, tenantID, agendaID, itemID string) error
@@ -24,7 +24,7 @@ type AgendaService struct {
 }
 
 type AgendaResponse struct {
-	Events []repository.AgendaEvent `json:"events"`
+	Events []domain.AgendaEvent `json:"events"`
 }
 
 type AgendaConcluirPassoResponse struct {

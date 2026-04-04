@@ -4,16 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type TenantEntity struct {
-	ID      string `json:"id"`
-	Nome    string `json:"nome"`
-	Contato string `json:"contato"`
-	Active  bool   `json:"active"`
-	Plano   string `json:"plano"`
-}
 
 type TenantRepository struct {
 	pool *pgxpool.Pool
@@ -23,15 +16,15 @@ func NewTenantRepository(pool *pgxpool.Pool) *TenantRepository {
 	return &TenantRepository{pool: pool}
 }
 
-func (r *TenantRepository) Create(ctx context.Context, nome, contato string) (TenantEntity, error) {
+func (r *TenantRepository) Create(ctx context.Context, nome, contato string) (domain.TenantEntity, error) {
 	const existsQuery = `SELECT count(*) FROM public.tenant WHERE nome = $1`
 	var count int64
 	if err := r.pool.QueryRow(ctx, existsQuery, nome).Scan(&count); err != nil {
-		return TenantEntity{}, fmt.Errorf("check tenant exists: %w", err)
+		return domain.TenantEntity{}, fmt.Errorf("check tenant exists: %w", err)
 	}
 
 	if count > 0 {
-		return TenantEntity{}, fmt.Errorf("Empresa ja cadastrada")
+		return domain.TenantEntity{}, fmt.Errorf("Empresa ja cadastrada")
 	}
 
 	const query = `
@@ -39,7 +32,7 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato string) (Te
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, nome, contato, active, plano`
 
-	var tenant TenantEntity
+	var tenant domain.TenantEntity
 	if err := r.pool.QueryRow(ctx, query, nome, contato, true, "DEMO").Scan(
 		&tenant.ID,
 		&tenant.Nome,
@@ -47,13 +40,13 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato string) (Te
 		&tenant.Active,
 		&tenant.Plano,
 	); err != nil {
-		return TenantEntity{}, fmt.Errorf("create tenant: %w", err)
+		return domain.TenantEntity{}, fmt.Errorf("create tenant: %w", err)
 	}
 
 	return tenant, nil
 }
 
-func (r *TenantRepository) Detail(ctx context.Context, id string) (TenantEntity, error) {
+func (r *TenantRepository) Detail(ctx context.Context, id string) (domain.TenantEntity, error) {
 	const query = `
 		SELECT id,
 		       COALESCE(nome, ''),
@@ -63,7 +56,7 @@ func (r *TenantRepository) Detail(ctx context.Context, id string) (TenantEntity,
 		FROM public.tenant
 		WHERE id::text = $1`
 
-	var tenant TenantEntity
+	var tenant domain.TenantEntity
 	if err := r.pool.QueryRow(ctx, query, id).Scan(
 		&tenant.ID,
 		&tenant.Nome,
@@ -71,20 +64,20 @@ func (r *TenantRepository) Detail(ctx context.Context, id string) (TenantEntity,
 		&tenant.Active,
 		&tenant.Plano,
 	); err != nil {
-		return TenantEntity{}, fmt.Errorf("detail tenant: %w", err)
+		return domain.TenantEntity{}, fmt.Errorf("detail tenant: %w", err)
 	}
 
 	return tenant, nil
 }
 
-func (r *TenantRepository) Update(ctx context.Context, id, nome, contato string, active bool) (TenantEntity, error) {
+func (r *TenantRepository) Update(ctx context.Context, id, nome, contato string, active bool) (domain.TenantEntity, error) {
 	const query = `
 		UPDATE public.tenant
 		SET nome = $1, active = $2, contato = $3
 		WHERE id::text = $4
 		RETURNING id, COALESCE(nome, ''), COALESCE(contato, ''), COALESCE(active, false), COALESCE(plano::text, '')`
 
-	var tenant TenantEntity
+	var tenant domain.TenantEntity
 	if err := r.pool.QueryRow(ctx, query, nome, active, contato, id).Scan(
 		&tenant.ID,
 		&tenant.Nome,
@@ -92,13 +85,13 @@ func (r *TenantRepository) Update(ctx context.Context, id, nome, contato string,
 		&tenant.Active,
 		&tenant.Plano,
 	); err != nil {
-		return TenantEntity{}, fmt.Errorf("update tenant: %w", err)
+		return domain.TenantEntity{}, fmt.Errorf("update tenant: %w", err)
 	}
 
 	return tenant, nil
 }
 
-func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]TenantEntity, error) {
+func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]domain.TenantEntity, error) {
 	query := `
 		SELECT id,
 		       COALESCE(nome, ''),
@@ -127,9 +120,9 @@ func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]T
 	}
 	defer rows.Close()
 
-	tenants := make([]TenantEntity, 0)
+	tenants := make([]domain.TenantEntity, 0)
 	for rows.Next() {
-		var tenant TenantEntity
+		var tenant domain.TenantEntity
 		if err := rows.Scan(
 			&tenant.ID,
 			&tenant.Nome,

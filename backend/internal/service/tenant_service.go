@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -12,11 +13,11 @@ type TenantService struct {
 }
 
 type TenantCreatedResponse struct {
-	TenantCreated repository.TenantEntity `json:"tenantCreated"`
+	TenantCreated domain.TenantEntity `json:"tenantCreated"`
 }
 
 type TenantDetailResponse struct {
-	Tenant repository.TenantEntity `json:"tenant"`
+	Tenant domain.TenantEntity `json:"tenant"`
 }
 
 func NewTenantService(repo *repository.TenantRepository) *TenantService {
@@ -41,10 +42,10 @@ func (s *TenantService) Detail(ctx context.Context, id string) (TenantDetailResp
 	return TenantDetailResponse{Tenant: tenant}, nil
 }
 
-func (s *TenantService) Update(ctx context.Context, id, nome, contato string, active bool) (repository.TenantEntity, error) {
+func (s *TenantService) Update(ctx context.Context, id, nome, contato string, active bool) (domain.TenantEntity, error) {
 	tenant, err := s.repo.Update(ctx, id, nome, contato, active)
 	if err != nil {
-		return repository.TenantEntity{}, err
+		return domain.TenantEntity{}, err
 	}
 
 	return tenant, nil
@@ -55,7 +56,7 @@ func (s *TenantService) List(ctx context.Context, role, tenantID string) (any, e
 	tenantID = strings.TrimSpace(tenantID)
 
 	if role != "SUPER" && tenantID == "" {
-		return []repository.TenantEntity{}, nil
+		return []domain.TenantEntity{}, nil
 	}
 
 	tenants, err := s.repo.List(ctx, role, tenantID)
@@ -68,7 +69,7 @@ func (s *TenantService) List(ctx context.Context, role, tenantID string) (any, e
 	}
 
 	if len(tenants) == 0 {
-		return []repository.TenantEntity{}, nil
+		return []domain.TenantEntity{}, nil
 	}
 
 	return tenants[0], nil

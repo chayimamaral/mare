@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -11,12 +12,12 @@ type GrupoPassosService struct {
 }
 
 type GrupoPassosListResponse struct {
-	GrupoPassos  []repository.GrupoPassosListItem `json:"grupopassos"`
+	GrupoPassos  []domain.GrupoPassosListItem `json:"grupopassos"`
 	TotalRecords int64                            `json:"totalRecords"`
 }
 
 type GrupoPassosMutationResponse struct {
-	GrupoPassos  []repository.GrupoPassosMutationItem `json:"grupopassos"`
+	GrupoPassos  []domain.GrupoPassosMutationItem `json:"grupopassos"`
 	TotalRecords int64                                `json:"totalRecords"`
 }
 

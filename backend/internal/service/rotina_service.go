@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -58,16 +59,16 @@ func (s *RotinaService) ListRotinas(ctx context.Context, params repository.Rotin
 	if err != nil {
 		return RotinaListResponse{}, err
 	}
-	out := make([]repository.RotinaWithItensItem, 0, len(rotinas))
+	out := make([]domain.RotinaWithItensItem, 0, len(rotinas))
 	for _, r := range rotinas {
-		out = append(out, repository.RotinaWithItensItem{
+		out = append(out, domain.RotinaWithItensItem{
 			ID:            r.ID,
 			Descricao:     r.Descricao,
 			MunicipioID:   r.MunicipioID,
 			Municipio:     r.Municipio,
 			TipoEmpresaID: r.TipoEmpresaID,
 			TipoEmpresa:   r.TipoEmpresa,
-			RotinaItens:   []repository.RotinaPassoItem{},
+			RotinaItens:   []domain.RotinaPassoItem{},
 		})
 	}
 	return RotinaListResponse{Rotinas: out, TotalRecords: total}, nil

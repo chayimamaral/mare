@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,67 +32,6 @@ type RotinaPassoSelection struct {
 	Ordem    int
 }
 
-type RotinaMunicipioRef struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type RotinaTipoEmpresaRef struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-}
-
-type RotinaListItem struct {
-	ID             string                 `json:"id"`
-	Descricao      string                 `json:"descricao"`
-	MunicipioID    string                 `json:"municipio_id"`
-	Municipio      RotinaMunicipioRef     `json:"municipio"`
-	TipoEmpresaID  string                 `json:"tipo_empresa_id"`
-	TipoEmpresa    RotinaTipoEmpresaRef   `json:"tipo_empresa"`
-}
-
-type RotinaPassoItem struct {
-	ID            string `json:"id"`
-	Descricao     string `json:"descricao"`
-	TempoEstimado int    `json:"tempoestimado"`
-	Link          string `json:"link"`
-}
-
-type RotinaWithItensItem struct {
-	ID             string                 `json:"id"`
-	Descricao      string                 `json:"descricao"`
-	MunicipioID    string                 `json:"municipio_id"`
-	Municipio      RotinaMunicipioRef     `json:"municipio"`
-	TipoEmpresaID  string                 `json:"tipo_empresa_id"`
-	TipoEmpresa    RotinaTipoEmpresaRef   `json:"tipo_empresa"`
-	RotinaItens    []RotinaPassoItem      `json:"rotinaitens"`
-}
-
-type RotinaLiteItem struct {
-	ID            string               `json:"id"`
-	Descricao     string               `json:"descricao"`
-	TipoEmpresaID string               `json:"tipo_empresa_id"`
-	TipoEmpresa   RotinaTipoEmpresaRef `json:"tipo_empresa"`
-}
-
-type RotinaMutationItem struct {
-	ID             string `json:"id"`
-	Descricao      string `json:"descricao"`
-	MunicipioID    string `json:"municipio_id"`
-	TipoEmpresaID  string `json:"tipo_empresa_id"`
-	Ativo          bool   `json:"ativo"`
-}
-
-type RotinaSelectedPassoItem struct {
-	ID            string `json:"id"`
-	Descricao     string `json:"descricao"`
-	TempoEstimado int    `json:"tempoestimado"`
-	Tipopasso     string `json:"tipopasso"`
-	RotinaID      string `json:"rotina_id"`
-	Ordem         any    `json:"ordem"`
-	Link          string `json:"link"`
-}
-
 type RotinaRepository struct {
 	pool *pgxpool.Pool
 }
@@ -107,7 +47,7 @@ func rotinaNullableTipoEmpresaID(s string) any {
 	return strings.TrimSpace(s)
 }
 
-func (r *RotinaRepository) List(ctx context.Context, params RotinaListParams) ([]RotinaListItem, int64, error) {
+func (r *RotinaRepository) List(ctx context.Context, params RotinaListParams) ([]domain.RotinaListItem, int64, error) {
 	whereParts := []string{"r.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -153,23 +93,23 @@ LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, arg
 	}
 	defer rows.Close()
 
-	rotinas := make([]RotinaListItem, 0)
+	rotinas := make([]domain.RotinaListItem, 0)
 	for rows.Next() {
 		var id, descricao, municipioID, mid, mnome, sigla, tipoEmpresaID, teid, tedesc string
 		if err := rows.Scan(&id, &descricao, &municipioID, &mid, &mnome, &sigla, &tipoEmpresaID, &teid, &tedesc); err != nil {
 			return nil, 0, fmt.Errorf("scan rotina: %w", err)
 		}
 
-		rotinas = append(rotinas, RotinaListItem{
+		rotinas = append(rotinas, domain.RotinaListItem{
 			ID:            id,
 			Descricao:     descricao,
 			MunicipioID:   municipioID,
 			TipoEmpresaID: tipoEmpresaID,
-			Municipio: RotinaMunicipioRef{
+			Municipio: domain.RotinaMunicipioRef{
 				ID:   mid,
 				Nome: rotinaMunicipioExibicao(mnome, sigla),
 			},
-			TipoEmpresa: RotinaTipoEmpresaRef{
+			TipoEmpresa: domain.RotinaTipoEmpresaRef{
 				ID:        teid,
 				Descricao: tedesc,
 			},
@@ -185,7 +125,7 @@ LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, arg
 	return rotinas, total, nil
 }
 
-func (r *RotinaRepository) ListWithItens(ctx context.Context, params RotinaListParams) ([]RotinaWithItensItem, int64, error) {
+func (r *RotinaRepository) ListWithItens(ctx context.Context, params RotinaListParams) ([]domain.RotinaWithItensItem, int64, error) {
 	whereParts := []string{"r.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -258,7 +198,7 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 	}
 	defer rows.Close()
 
-	byID := map[string]*RotinaWithItensItem{}
+	byID := map[string]*domain.RotinaWithItensItem{}
 	ordered := make([]string, 0)
 
 	for rows.Next() {
@@ -271,27 +211,27 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 
 		entry, ok := byID[id]
 		if !ok {
-			entry = &RotinaWithItensItem{
+			entry = &domain.RotinaWithItensItem{
 				ID:            id,
 				Descricao:     descricao,
 				MunicipioID:   municipioID,
 				TipoEmpresaID: tipoEmpresaID,
-				Municipio: RotinaMunicipioRef{
+				Municipio: domain.RotinaMunicipioRef{
 					ID:   mid,
 					Nome: rotinaMunicipioExibicao(mnome, sigla),
 				},
-				TipoEmpresa: RotinaTipoEmpresaRef{
+				TipoEmpresa: domain.RotinaTipoEmpresaRef{
 					ID:        teid,
 					Descricao: tedesc,
 				},
-				RotinaItens: make([]RotinaPassoItem, 0),
+				RotinaItens: make([]domain.RotinaPassoItem, 0),
 			}
 			byID[id] = entry
 			ordered = append(ordered, id)
 		}
 
 		if pid != nil {
-			entry.RotinaItens = append(entry.RotinaItens, RotinaPassoItem{
+			entry.RotinaItens = append(entry.RotinaItens, domain.RotinaPassoItem{
 				ID:            *pid,
 				Descricao:     valueOrEmpty(pdesc),
 				TempoEstimado: valueOrZero(tempo),
@@ -300,7 +240,7 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 		}
 	}
 
-	rotinas := make([]RotinaWithItensItem, 0, len(ordered))
+	rotinas := make([]domain.RotinaWithItensItem, 0, len(ordered))
 	for _, id := range ordered {
 		rotinas = append(rotinas, *byID[id])
 	}
@@ -314,7 +254,7 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 	return rotinas, total, nil
 }
 
-func (r *RotinaRepository) ListLite(ctx context.Context, municipioID string) ([]RotinaLiteItem, int64, error) {
+func (r *RotinaRepository) ListLite(ctx context.Context, municipioID string) ([]domain.RotinaLiteItem, int64, error) {
 	rows, err := r.pool.Query(ctx, `
 SELECT r.id, r.descricao, COALESCE(r.tipo_empresa_id, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, '')
 FROM public.rotinas r
@@ -326,17 +266,17 @@ ORDER BY r.descricao ASC`, municipioID)
 	}
 	defer rows.Close()
 
-	rotinas := make([]RotinaLiteItem, 0)
+	rotinas := make([]domain.RotinaLiteItem, 0)
 	for rows.Next() {
 		var id, descricao, tipoEmpresaID, teid, tedesc string
 		if err := rows.Scan(&id, &descricao, &tipoEmpresaID, &teid, &tedesc); err != nil {
 			return nil, 0, fmt.Errorf("scan rotina lite: %w", err)
 		}
-		rotinas = append(rotinas, RotinaLiteItem{
+		rotinas = append(rotinas, domain.RotinaLiteItem{
 			ID:            id,
 			Descricao:     descricao,
 			TipoEmpresaID: tipoEmpresaID,
-			TipoEmpresa: RotinaTipoEmpresaRef{
+			TipoEmpresa: domain.RotinaTipoEmpresaRef{
 				ID:        teid,
 				Descricao: tedesc,
 			},
@@ -351,7 +291,7 @@ ORDER BY r.descricao ASC`, municipioID)
 	return rotinas, total, nil
 }
 
-func (r *RotinaRepository) Create(ctx context.Context, input RotinaInput) ([]RotinaMutationItem, int64, error) {
+func (r *RotinaRepository) Create(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := r.pool.Query(ctx, `
 INSERT INTO public.rotinas (descricao, municipio_id, tipo_empresa_id)
 VALUES ($1, $2, $3)
@@ -361,7 +301,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id, ''), ativo`, in
 	}
 	defer rows.Close()
 
-	rotinas := make([]RotinaMutationItem, 0)
+	rotinas := make([]domain.RotinaMutationItem, 0)
 	var createdID string
 	for rows.Next() {
 		var id, descricao, municipioID, tipoEmpresaID string
@@ -370,7 +310,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id, ''), ativo`, in
 			return nil, 0, fmt.Errorf("scan created rotina: %w", err)
 		}
 		createdID = id
-		rotinas = append(rotinas, RotinaMutationItem{ID: id, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
+		rotinas = append(rotinas, domain.RotinaMutationItem{ID: id, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
 	}
 
 	if strings.TrimSpace(input.Link) != "" && createdID != "" {
@@ -389,7 +329,7 @@ DO UPDATE SET link = $1`, input.Link, createdID)
 	return rotinas, total, nil
 }
 
-func (r *RotinaRepository) Update(ctx context.Context, input RotinaInput) ([]RotinaMutationItem, int64, error) {
+func (r *RotinaRepository) Update(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := r.pool.Query(ctx, `
 UPDATE public.rotinas
 SET descricao = $1, municipio_id = $2, tipo_empresa_id = $3
@@ -400,14 +340,14 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id, ''), ativo`, in
 	}
 	defer rows.Close()
 
-	rotinas := make([]RotinaMutationItem, 0)
+	rotinas := make([]domain.RotinaMutationItem, 0)
 	for rows.Next() {
 		var id, descricao, municipioID, tipoEmpresaID string
 		var ativo bool
 		if err := rows.Scan(&id, &descricao, &municipioID, &tipoEmpresaID, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated rotina: %w", err)
 		}
-		rotinas = append(rotinas, RotinaMutationItem{ID: id, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
+		rotinas = append(rotinas, domain.RotinaMutationItem{ID: id, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
 	}
 
 	if strings.TrimSpace(input.Link) != "" {
@@ -426,7 +366,7 @@ DO UPDATE SET link = $2`, input.ID, input.Link)
 	return rotinas, total, nil
 }
 
-func (r *RotinaRepository) Delete(ctx context.Context, id string) ([]RotinaMutationItem, int64, error) {
+func (r *RotinaRepository) Delete(ctx context.Context, id string) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := r.pool.Query(ctx, `
 UPDATE public.rotinas
 SET ativo = false
@@ -437,14 +377,14 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id, ''), ativo`, id
 	}
 	defer rows.Close()
 
-	rotinas := make([]RotinaMutationItem, 0)
+	rotinas := make([]domain.RotinaMutationItem, 0)
 	for rows.Next() {
 		var rid, descricao, municipioID, tipoEmpresaID string
 		var ativo bool
 		if err := rows.Scan(&rid, &descricao, &municipioID, &tipoEmpresaID, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted rotina: %w", err)
 		}
-		rotinas = append(rotinas, RotinaMutationItem{ID: rid, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
+		rotinas = append(rotinas, domain.RotinaMutationItem{ID: rid, Descricao: descricao, MunicipioID: municipioID, TipoEmpresaID: tipoEmpresaID, Ativo: ativo})
 	}
 
 	var total int64
@@ -603,7 +543,7 @@ RETURNING *`, id)
 	return itens, total, nil
 }
 
-func (r *RotinaRepository) ListSelectedItens(ctx context.Context, rotinaID string) ([]RotinaSelectedPassoItem, int64, error) {
+func (r *RotinaRepository) ListSelectedItens(ctx context.Context, rotinaID string) ([]domain.RotinaSelectedPassoItem, int64, error) {
 	rows, err := r.pool.Query(ctx, `
 SELECT p.id, p.descricao, p.tempoestimado, p.tipopasso, ri.rotina_id, ri.ordem, COALESCE(l.link, '')
 FROM public.rotinas r
@@ -617,7 +557,7 @@ ORDER BY ri.ordem ASC`, rotinaID)
 	}
 	defer rows.Close()
 
-	passos := make([]RotinaSelectedPassoItem, 0)
+	passos := make([]domain.RotinaSelectedPassoItem, 0)
 	for rows.Next() {
 		var id, descricao, tipopasso, rid, link string
 		var tempo int
@@ -625,7 +565,7 @@ ORDER BY ri.ordem ASC`, rotinaID)
 		if err := rows.Scan(&id, &descricao, &tempo, &tipopasso, &rid, &ordem, &link); err != nil {
 			return nil, 0, fmt.Errorf("scan selected itens: %w", err)
 		}
-		passos = append(passos, RotinaSelectedPassoItem{
+		passos = append(passos, domain.RotinaSelectedPassoItem{
 			ID:            id,
 			Descricao:     descricao,
 			TempoEstimado: tempo,

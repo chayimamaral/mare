@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,33 +17,6 @@ type GrupoPassosListParams struct {
 	Descricao string
 }
 
-type GrupoPassosMunicipio struct {
-	ID   string `json:"id"`
-	Nome string `json:"nome"`
-}
-
-type GrupoPassosTipoEmpresa struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-}
-
-type GrupoPassosListItem struct {
-	ID            string                 `json:"id"`
-	Descricao     string                 `json:"descricao"`
-	MunicipioID   string                 `json:"municipio_id"`
-	TipoEmpresaID string                 `json:"tipoempresa_id"`
-	Municipio     GrupoPassosMunicipio   `json:"municipio"`
-	TipoEmpresa   GrupoPassosTipoEmpresa `json:"tipoempresa"`
-}
-
-type GrupoPassosMutationItem struct {
-	ID            string `json:"id"`
-	Descricao     string `json:"descricao"`
-	MunicipioID   string `json:"municipio_id"`
-	TipoEmpresaID string `json:"tipoempresa_id"`
-	Ativo         bool   `json:"ativo"`
-}
-
 type GrupoPassosRepository struct {
 	pool *pgxpool.Pool
 }
@@ -51,7 +25,7 @@ func NewGrupoPassosRepository(pool *pgxpool.Pool) *GrupoPassosRepository {
 	return &GrupoPassosRepository{pool: pool}
 }
 
-func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosListParams) ([]GrupoPassosListItem, int64, error) {
+func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosListParams) ([]domain.GrupoPassosListItem, int64, error) {
 	whereParts := []string{"g.ativo = true"}
 	args := []any{}
 	argIndex := 1
@@ -110,23 +84,23 @@ func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosList
 	}
 	defer rows.Close()
 
-	grupos := make([]GrupoPassosListItem, 0)
+	grupos := make([]domain.GrupoPassosListItem, 0)
 	for rows.Next() {
 		var id, descricao, municipioID, tipoEmpresaID, mid, mnome, sigla, tid, tdesc string
 		if err := rows.Scan(&id, &descricao, &municipioID, &tipoEmpresaID, &mid, &mnome, &sigla, &tid, &tdesc); err != nil {
 			return nil, 0, fmt.Errorf("scan grupopassos: %w", err)
 		}
 
-		grupos = append(grupos, GrupoPassosListItem{
+		grupos = append(grupos, domain.GrupoPassosListItem{
 			ID:            id,
 			Descricao:     descricao,
 			MunicipioID:   municipioID,
 			TipoEmpresaID: tipoEmpresaID,
-			Municipio: GrupoPassosMunicipio{
+			Municipio: domain.GrupoPassosMunicipio{
 				ID:   mid,
 				Nome: mnome + " / " + sigla,
 			},
-			TipoEmpresa: GrupoPassosTipoEmpresa{
+			TipoEmpresa: domain.GrupoPassosTipoEmpresa{
 				ID:        tid,
 				Descricao: tdesc,
 			},
@@ -142,7 +116,7 @@ func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosList
 	return grupos, total, nil
 }
 
-func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipioID, tipoEmpresaID string) ([]GrupoPassosMutationItem, int64, error) {
+func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipioID, tipoEmpresaID string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
 		INSERT INTO public.grupopassos (descricao, municipio_id, tipoempresa_id)
 		VALUES ($1, $2, $3)
@@ -154,14 +128,14 @@ func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipio
 	}
 	defer rows.Close()
 
-	grupos := make([]GrupoPassosMutationItem, 0)
+	grupos := make([]domain.GrupoPassosMutationItem, 0)
 	for rows.Next() {
 		var id, d, m, t string
 		var ativo bool
 		if err := rows.Scan(&id, &d, &m, &t, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created grupopassos: %w", err)
 		}
-		grupos = append(grupos, GrupoPassosMutationItem{ID: id, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+		grupos = append(grupos, domain.GrupoPassosMutationItem{ID: id, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
 	}
 
 	var total int64
@@ -172,7 +146,7 @@ func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipio
 	return grupos, total, nil
 }
 
-func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, municipioID, tipoEmpresaID string) ([]GrupoPassosMutationItem, int64, error) {
+func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, municipioID, tipoEmpresaID string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
 		UPDATE public.grupopassos
 		SET descricao = $1, municipio_id = $2, tipoempresa_id = $3
@@ -185,14 +159,14 @@ func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, munic
 	}
 	defer rows.Close()
 
-	grupos := make([]GrupoPassosMutationItem, 0)
+	grupos := make([]domain.GrupoPassosMutationItem, 0)
 	for rows.Next() {
 		var gid, d, m, t string
 		var ativo bool
 		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated grupopassos: %w", err)
 		}
-		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+		grupos = append(grupos, domain.GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
 	}
 
 	var total int64
@@ -203,7 +177,7 @@ func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, munic
 	return grupos, total, nil
 }
 
-func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]GrupoPassosMutationItem, int64, error) {
+func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
 		UPDATE public.grupopassos
 		SET ativo = false
@@ -216,14 +190,14 @@ func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]GrupoP
 	}
 	defer rows.Close()
 
-	grupos := make([]GrupoPassosMutationItem, 0)
+	grupos := make([]domain.GrupoPassosMutationItem, 0)
 	for rows.Next() {
 		var gid, d, m, t string
 		var ativo bool
 		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted grupopassos: %w", err)
 		}
-		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+		grupos = append(grupos, domain.GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
 	}
 
 	var total int64
@@ -234,7 +208,7 @@ func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]GrupoP
 	return grupos, total, nil
 }
 
-func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]GrupoPassosMutationItem, int64, error) {
+func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
 		SELECT id, descricao, municipio_id, tipoempresa_id, ativo
 		FROM public.grupopassos
@@ -246,14 +220,14 @@ func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]Grupo
 	}
 	defer rows.Close()
 
-	grupos := make([]GrupoPassosMutationItem, 0)
+	grupos := make([]domain.GrupoPassosMutationItem, 0)
 	for rows.Next() {
 		var gid, d, m, t string
 		var ativo bool
 		if err := rows.Scan(&gid, &d, &m, &t, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan grupopassos by id: %w", err)
 		}
-		grupos = append(grupos, GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
+		grupos = append(grupos, domain.GrupoPassosMutationItem{ID: gid, Descricao: d, MunicipioID: m, TipoEmpresaID: t, Ativo: ativo})
 	}
 
 	var total int64

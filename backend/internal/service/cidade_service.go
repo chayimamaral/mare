@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 )
 
@@ -11,17 +12,17 @@ type CidadeService struct {
 }
 
 type CidadeListResponse struct {
-	Municipios   []repository.CidadeListItem `json:"municipios"`
+	Municipios   []domain.CidadeListItem `json:"municipios"`
 	TotalRecords int64                       `json:"totalRecords"`
 }
 
 type CidadeMutationResponse struct {
-	Cidades      []repository.Cidade `json:"cidades"`
+	Cidades      []domain.Cidade `json:"cidades"`
 	TotalRecords int64               `json:"totalRecords"`
 }
 
 type CidadeLiteResponse struct {
-	Municipios []repository.CidadeLiteItem `json:"municipios"`
+	Municipios []domain.CidadeLiteItem `json:"municipios"`
 }
 
 func NewCidadeService(repo *repository.CidadeRepository) *CidadeService {
