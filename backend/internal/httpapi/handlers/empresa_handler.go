@@ -27,6 +27,9 @@ type empresaEnvelope struct {
 		Rotina      struct {
 			ID string `json:"id"`
 		} `json:"rotina"`
+		RotinaPF struct {
+			ID string `json:"id"`
+		} `json:"rotina_pf"`
 		Cnaes       any    `json:"cnaes"`
 		Bairro      string `json:"bairro"`
 		TipoPessoa  string `json:"tipo_pessoa"`
@@ -85,6 +88,10 @@ func (h *EmpresaHandler) Create(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
 		return
 	}
+	if tp == "PF" && strings.TrimSpace(payload.Params.RotinaPF.ID) == "" {
+		render.WriteError(w, http.StatusBadRequest, "Rotina PF obrigatoria para pessoa fisica")
+		return
+	}
 	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {
 		render.WriteError(w, http.StatusBadRequest, "Municipio e obrigatorio")
 		return
@@ -95,6 +102,7 @@ func (h *EmpresaHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TenantID:    tenantID,
 		MunicipioID: strings.TrimSpace(payload.Params.Municipio.ID),
 		RotinaID:    payload.Params.Rotina.ID,
+		RotinaPFID:  strings.TrimSpace(payload.Params.RotinaPF.ID),
 		Cnaes:       payload.Params.Cnaes,
 		Bairro:      payload.Params.Bairro,
 		TipoPessoa:  tp,
@@ -129,6 +137,10 @@ func (h *EmpresaHandler) Update(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
 		return
 	}
+	if tp == "PF" && strings.TrimSpace(payload.Params.RotinaPF.ID) == "" {
+		render.WriteError(w, http.StatusBadRequest, "Rotina PF obrigatoria para pessoa fisica")
+		return
+	}
 	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {
 		render.WriteError(w, http.StatusBadRequest, "Municipio e obrigatorio")
 		return
@@ -140,6 +152,7 @@ func (h *EmpresaHandler) Update(w http.ResponseWriter, r *http.Request) {
 		TenantID:    tenantID,
 		MunicipioID: strings.TrimSpace(payload.Params.Municipio.ID),
 		RotinaID:    payload.Params.Rotina.ID,
+		RotinaPFID:  strings.TrimSpace(payload.Params.RotinaPF.ID),
 		Cnaes:       payload.Params.Cnaes,
 		Bairro:      payload.Params.Bairro,
 		TipoPessoa:  tp,

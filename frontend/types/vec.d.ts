@@ -96,6 +96,8 @@ declare namespace Vec {
         bairro?: string;
         municipio: MunicipioLite;
         rotina: RotinaLite;
+        /** Template PF (IRPF / Carnê-Leão etc.); alinhado ao JSON da API */
+        rotina_pf?: RotinaPFLite;
         tipo_empresa?: TipoEmpresaLite;
         uf?: string;
         cep?: string;
@@ -138,6 +140,33 @@ declare namespace Vec {
         municipio?: MunicipioLite;
         /** Rótulo para dropdown quando a lista reúne rotinas de vários municípios */
         lista_label?: string;
+    }
+
+    /** Template de rotina para cliente PF (federal / sazonal); tenant. */
+    type RotinaPFLite = {
+        id?: string;
+        nome?: string;
+        categoria?: string;
+    }
+
+    type RotinaPFListRow = {
+        id?: string;
+        nome?: string;
+        categoria?: string;
+        descricao?: string;
+        ativo?: boolean;
+        criado_em?: string;
+        item_count?: number;
+    }
+
+    type RotinaPFItemRow = {
+        id?: string;
+        rotina_pf_id?: string;
+        ordem?: number;
+        passo_id?: string;
+        passo_descricao?: string;
+        descricao?: string;
+        tempo_estimado?: number;
     }
 
     type RotinaItem = {

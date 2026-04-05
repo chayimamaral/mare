@@ -56,6 +56,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	clienteService := service.NewClienteService(repository.NewClienteRepository(pool))
 	monitorOperacaoRepo := repository.NewMonitorOperacaoRepository(pool)
 	monitorOperacaoService := service.NewMonitorOperacaoService(monitorOperacaoRepo)
+	rotinaPFService := service.NewRotinaPFService(repository.NewRotinaPFRepository(pool))
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -78,6 +79,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	monitorOperacaoHandler := handlers.NewMonitorOperacaoHandler(monitorOperacaoService)
 	empresaDadosHandler := handlers.NewEmpresaDadosHandler(empresaDadosService)
 	clienteHandler := handlers.NewClienteHandler(clienteService)
+	rotinaPFHandler := handlers.NewRotinaPFHandler(rotinaPFService)
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
 	requireAdminOrUser := apiMiddleware.RequireAnyRole("ADMIN", "USER")
@@ -87,9 +89,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
+	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
 	})
 
 	return r
@@ -111,6 +113,7 @@ func registerRoutes(
 	cnaeHandler *handlers.CnaeHandler,
 	agendaHandler *handlers.AgendaHandler,
 	rotinaHandler *handlers.RotinaHandler,
+	rotinaPFHandler *handlers.RotinaPFHandler,
 	registroHandler *handlers.RegistroHandler,
 	nodeHandler *handlers.NodeHandler,
 	obrigacaoHandler *handlers.ObrigacaoHandler,
@@ -187,6 +190,15 @@ func registerRoutes(
 	r.With(requireAuth).Get("/listrotinas", rotinaHandler.ListRotinas)
 	r.With(requireAuth, requireAdmin).Put("/salvarselecao", rotinaHandler.SaveSelectedItens)
 	r.With(requireAuth).Get("/listrotinaslite", rotinaHandler.ListLite)
+	r.With(requireAuth).Get("/listrotinapflite", rotinaPFHandler.ListLite)
+	r.With(requireAuth).Get("/listrotinaspf", rotinaPFHandler.ListAdmin)
+	r.With(requireAuth, requireAdmin).Post("/rotinapf", rotinaPFHandler.Create)
+	r.With(requireAuth, requireAdmin).Put("/rotinapf", rotinaPFHandler.Update)
+	r.With(requireAuth, requireAdmin).Put("/deleterotinapf", rotinaPFHandler.SoftDelete)
+	r.With(requireAuth).Get("/rotinapfitens", rotinaPFHandler.ListItens)
+	r.With(requireAuth, requireAdmin).Post("/rotinapfitem", rotinaPFHandler.CreateItem)
+	r.With(requireAuth, requireAdmin).Put("/rotinapfitem", rotinaPFHandler.UpdateItem)
+	r.With(requireAuth, requireAdmin).Put("/deleterotinapfitem", rotinaPFHandler.DeleteItem)
 	r.With(requireAuth).Get("/listrotinaitensselected", rotinaHandler.ListSelectedItens)
 	r.With(requireAuth, requireAdmin).Put("/removepassoselecionado", rotinaHandler.RemoveSelectedItens)
 

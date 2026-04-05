@@ -102,6 +102,11 @@ const AppMenu = () => {
                                         to: '/rotinas',
                                     },
                                     {
+                                        label: 'Rotinas PF (IRPF / Carnê-Leão)',
+                                        icon: 'pi pi-fw pi-user',
+                                        to: '/rotinas-pf',
+                                    },
+                                    {
                                         label: 'Passos das Rotinas',
                                         icon: 'pi pi-fw pi-bookmark',
                                         to: '/passos',

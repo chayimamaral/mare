@@ -40,6 +40,7 @@ type EmpresaUpsertInput struct {
 	TenantID    string
 	MunicipioID string
 	RotinaID    string
+	RotinaPFID  string
 	Cnaes       any
 	Bairro      string
 	TipoPessoa  string
@@ -118,6 +119,16 @@ func empresaRotinaIDParam(tipo, rotinaID string) any {
 	return nil
 }
 
+func empresaRotinaPFIDParam(tipo, rotinaPFID string) any {
+	if normalizeEmpresaTipoPessoa(tipo) != "PF" {
+		return nil
+	}
+	if id := strings.TrimSpace(rotinaPFID); id != "" {
+		return id
+	}
+	return nil
+}
+
 func empresaCnaesParam(tipo string, cnaes []string) any {
 	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
 		if len(cnaes) == 0 {
@@ -177,6 +188,9 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			COALESCE(r.descricao, ''),
 			COALESCE(te.id, ''),
 			COALESCE(te.descricao, ''),
+			COALESCE(rpf.id::text, ''),
+			COALESCE(rpf.nome, ''),
+			COALESCE(rpf.categoria, ''),
 			e.cnaes,
 			COALESCE(e.bairro, ''),
 			e.iniciado,
@@ -200,6 +214,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		LEFT JOIN public.municipio m ON m.id = COALESCE(e.municipio_id, ed.municipio_id)
 		LEFT JOIN public.rotinas r ON r.id = e.rotina_id
 		LEFT JOIN public.tipoempresa te ON te.id = r.tipo_empresa_id
+		LEFT JOIN public.rotina_pf rpf ON rpf.id = e.rotina_pf_id
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
@@ -213,10 +228,10 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 
 	empresas := make([]domain.EmpresaListItem, 0)
 	for rows.Next() {
-		var id, nome, tpessoa, doc, mid, mnome, rid, rdesc, teid, tedesc, ebairro string
+		var id, nome, tpessoa, doc, mid, mnome, rid, rdesc, teid, tedesc, rpfid, rpfnome, rpfcat, ebairro string
 		var iniciado, passosConcluidos, compromissosGerados bool
 		var cnaes any
-		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &mid, &mnome, &rid, &rdesc, &teid, &tedesc, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados); err != nil {
+		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &mid, &mnome, &rid, &rdesc, &teid, &tedesc, &rpfid, &rpfnome, &rpfcat, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados); err != nil {
 			return nil, 0, fmt.Errorf("scan empresa: %w", err)
 		}
 
@@ -237,6 +252,9 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		}
 		item.Rotina.ID = rid
 		item.Rotina.Descricao = rdesc
+		item.RotinaPF.ID = rpfid
+		item.RotinaPF.Nome = rpfnome
+		item.RotinaPF.Categoria = rpfcat
 		item.TipoEmpresa.ID = teid
 		item.TipoEmpresa.Descricao = tedesc
 		empresas = append(empresas, item)
@@ -265,9 +283,9 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	doc := strings.TrimSpace(input.Documento)
 
 	const query = `
-		INSERT INTO public.empresa (nome, municipio_id, tenant_id, rotina_id, cnaes, bairro, tipo_pessoa, documento)
-		VALUES ($1, $2, $3, $4, $5, NULLIF(TRIM($6), ''), $7, NULLIF(TRIM($8), ''))
-		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
+		INSERT INTO public.empresa (nome, municipio_id, tenant_id, rotina_id, rotina_pf_id, cnaes, bairro, tipo_pessoa, documento)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF(TRIM($7), ''), $8, NULLIF(TRIM($9), ''))
+		RETURNING id, nome, municipio_id, tenant_id, rotina_id, rotina_pf_id, cnaes, iniciado, ativo`
 
 	cnaes := normalizeCnaesParaTextArray(input.Cnaes)
 	if cnaes == nil {
@@ -275,7 +293,8 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, empresaMunicipioIDParam(input.MunicipioID), input.TenantID, rotinaArg, cnaesArg, input.Bairro, tipo, doc)
+	rotinaPFArg := empresaRotinaPFIDParam(tipo, input.RotinaPFID)
+	rows, err := r.pool.Query(ctx, query, input.Nome, empresaMunicipioIDParam(input.MunicipioID), input.TenantID, rotinaArg, rotinaPFArg, cnaesArg, input.Bairro, tipo, doc)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create empresa: %w", err)
 	}
@@ -284,10 +303,10 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, tenantID string
-		var municipioID, rotinaID sql.NullString
+		var municipioID, rotinaID, rotinaPFID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -296,6 +315,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
 			RotinaID:    empresaRotinaScanString(rotinaID),
+			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -311,9 +331,9 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 
 	const query = `
 		UPDATE public.empresa
-		SET nome = $1, tenant_id = $2, rotina_id = $3, cnaes = $4, bairro = NULLIF(TRIM($7), ''), tipo_pessoa = $8, documento = NULLIF(TRIM($9), ''), municipio_id = $10
+		SET nome = $1, tenant_id = $2, rotina_id = $3, cnaes = $4, bairro = NULLIF(TRIM($7), ''), tipo_pessoa = $8, documento = NULLIF(TRIM($9), ''), municipio_id = $10, rotina_pf_id = $11
 		WHERE id = $5 AND tenant_id = $6
-		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
+		RETURNING id, nome, municipio_id, tenant_id, rotina_id, rotina_pf_id, cnaes, iniciado, ativo`
 
 	cnaes := normalizeCnaesParaTextArray(input.Cnaes)
 	if cnaes == nil {
@@ -321,7 +341,8 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID))
+	rotinaPFArg := empresaRotinaPFIDParam(tipo, input.RotinaPFID)
+	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), rotinaPFArg)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update empresa: %w", err)
 	}
@@ -330,10 +351,10 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, tenantID string
-		var municipioID, rotinaID sql.NullString
+		var municipioID, rotinaID, rotinaPFID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -342,6 +363,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
 			RotinaID:    empresaRotinaScanString(rotinaID),
+			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -356,7 +378,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 		UPDATE public.empresa
 		SET iniciado = true
 		WHERE id = $1 AND tenant_id = $2
-		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
+		RETURNING id, nome, municipio_id, tenant_id, rotina_id, rotina_pf_id, cnaes, iniciado, ativo`
 
 	rows, err := r.pool.Query(ctx, query, id, tenantID)
 	if err != nil {
@@ -367,10 +389,10 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, tenantID string
-		var municipioID, rotinaID sql.NullString
+		var municipioID, rotinaID, rotinaPFID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan iniciar processo empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -379,6 +401,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
 			RotinaID:    empresaRotinaScanString(rotinaID),
+			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -393,7 +416,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 		UPDATE public.empresa
 		SET ativo = false
 		WHERE id = $1 AND tenant_id = $2
-		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
+		RETURNING id, nome, municipio_id, tenant_id, rotina_id, rotina_pf_id, cnaes, iniciado, ativo`
 
 	rows, err := r.pool.Query(ctx, query, id, tenantID)
 	if err != nil {
@@ -404,10 +427,10 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, tenantID string
-		var municipioID, rotinaID sql.NullString
+		var municipioID, rotinaID, rotinaPFID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -416,6 +439,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
 			RotinaID:    empresaRotinaScanString(rotinaID),
+			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,

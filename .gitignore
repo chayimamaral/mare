@@ -8,3 +8,4 @@ public-api/public-api
 backup/
 docs/
 migrations/
+gitsave.sh

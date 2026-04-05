@@ -92,6 +92,7 @@ export default function EmpresaService() {
           tipo_pessoa: tipo,
           documento: params?.documento ?? '',
           rotina: params?.rotina ?? { id: '' },
+          rotina_pf: params?.rotina_pf ?? { id: '' },
           municipio: { id: params?.municipio?.id ?? '' },
         }
       })
@@ -169,6 +170,7 @@ export default function EmpresaService() {
           tipo_pessoa: tipo,
           documento: params?.documento ?? '',
           rotina: params?.rotina ?? { id: '' },
+          rotina_pf: params?.rotina_pf ?? { id: '' },
           municipio: { id: params?.municipio?.id ?? '' },
         },
       })

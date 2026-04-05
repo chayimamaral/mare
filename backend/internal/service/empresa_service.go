@@ -27,6 +27,7 @@ type EmpresaInput struct {
 	TenantID    string `json:"tenantid"`
 	MunicipioID string `json:"municipio_id"`
 	RotinaID    string `json:"rotina_id"`
+	RotinaPFID  string `json:"rotina_pf_id"`
 	Cnaes       any    `json:"cnaes"`
 	Bairro      string `json:"bairro"`
 	TipoPessoa  string `json:"tipo_pessoa"`
@@ -52,6 +53,7 @@ func (s *EmpresaService) Create(ctx context.Context, input EmpresaInput) (Empres
 		TenantID:    input.TenantID,
 		MunicipioID: input.MunicipioID,
 		RotinaID:    input.RotinaID,
+		RotinaPFID:  input.RotinaPFID,
 		Cnaes:       input.Cnaes,
 		Bairro:      input.Bairro,
 		TipoPessoa:  input.TipoPessoa,
@@ -71,6 +73,7 @@ func (s *EmpresaService) Update(ctx context.Context, input EmpresaInput) (Empres
 		TenantID:    input.TenantID,
 		MunicipioID: input.MunicipioID,
 		RotinaID:    input.RotinaID,
+		RotinaPFID:  input.RotinaPFID,
 		Cnaes:       input.Cnaes,
 		Bairro:      input.Bairro,
 		TipoPessoa:  input.TipoPessoa,

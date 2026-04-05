@@ -1,4 +1,6 @@
 #!/bin/bash
+# para essa execução, antes foi configurado o seguinte:
+#git config --global alias.save '!git add . && git commit -m "$1" && git push origin main && echo "🚀 Enviado com sucesso!"'
 
 # Verifica se a mensagem de commit foi enviada como argumento
 if [ -z "$1" ]; then

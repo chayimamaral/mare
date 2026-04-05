@@ -16,6 +16,7 @@ import { Dropdown } from 'primereact/dropdown';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import EmpresaService from '../../services/cruds/EmpresaService';
 import RotinaService from '../../services/cruds/RotinaService';
+import RotinaPFService from '../../services/cruds/RotinaPFService';
 import EmpresaDadosService from '../../services/cruds/EmpresaDadosService';
 import { Chips } from "primereact/chips";
 
@@ -60,6 +61,11 @@ const Clientes = ({ dados }) => {
       id: '',
       descricao: ''
     },
+    rotina_pf: {
+      id: '',
+      nome: '',
+      categoria: ''
+    },
     tipo_empresa: {
       id: '',
       descricao: ''
@@ -78,12 +84,20 @@ const Clientes = ({ dados }) => {
     descricao: ''
   }
 
+  let emptyRotinaPF: Vec.RotinaPFLite = {
+    id: '',
+    nome: '',
+    categoria: ''
+  }
+
   const [empresas, setEmpresas] = useState([]);
 
   const [municipios, setMunicipios] = useState<Vec.MunicipioLite[]>([]);
 
   const [rotinas, setRotinas] = useState<Vec.RotinaLite[]>([]);
   const [rotina, setRotina] = useState<Vec.RotinaLite>(emptyRotina);
+  const [rotinasPF, setRotinasPF] = useState<Vec.RotinaPFLite[]>([]);
+  const [rotinaPF, setRotinaPF] = useState<Vec.RotinaPFLite>(emptyRotinaPF);
   const [userRole, setUserRole] = useState<string | null>(null);
 
   type ClienteExtraForm = {
@@ -151,6 +165,34 @@ const Clientes = ({ dados }) => {
     loadLazyMunicipios();
     loadLazyEmpresa();
   }, []);
+
+  const loadRotinasPF = () => {
+    const svc = RotinaPFService();
+    svc
+      .getRotinasPFLite()
+      .then(({ data }) => {
+        setRotinasPF(Array.isArray(data?.rotinas_pf) ? data.rotinas_pf : []);
+      })
+      .catch(() => {
+        setRotinasPF([]);
+        toast.current?.show({
+          severity: 'warn',
+          summary: 'Atenção',
+          detail: 'Não foi possível carregar rotinas PF (cadastre templates no banco após a migration 025).',
+          life: 5000,
+        });
+      });
+  };
+
+  useEffect(() => {
+    if (!empresaDialog) {
+      return;
+    }
+    if ((empresa.tipo_pessoa ?? 'PJ') !== 'PF') {
+      return;
+    }
+    loadRotinasPF();
+  }, [empresaDialog, empresa.tipo_pessoa]);
 
   useEffect(() => {
     const api = setupAPIClient(undefined);
@@ -324,8 +366,10 @@ const Clientes = ({ dados }) => {
   const openNew = () => {
     setEmpresa(emptyEmpresa);
     setRotina(emptyRotina);
+    setRotinaPF(emptyRotinaPF);
     setClienteExtra(emptyClienteExtra);
     setRotinas([]);
+    setRotinasPF([]);
     setSubmitted(false);
     setEmpresaDialog(true);
   };
@@ -392,6 +436,19 @@ const Clientes = ({ dados }) => {
     }));
   }
 
+  function onRotinaPFChange(selectedValue: Vec.RotinaPFLite) {
+    const v = selectedValue ?? emptyRotinaPF;
+    setRotinaPF(v);
+    setEmpresa((prev) => ({
+      ...prev,
+      rotina_pf: {
+        id: v.id ?? '',
+        nome: v.nome ?? '',
+        categoria: v.categoria ?? '',
+      },
+    }));
+  }
+
   const isClientePF = (empresa.tipo_pessoa ?? 'PJ') === 'PF';
 
   const coreCamposBloqueados =
@@ -408,6 +465,22 @@ const Clientes = ({ dados }) => {
       return fromList;
     }
     return { id: empresa.municipio.id, nome: empresa.municipio.nome ?? '' };
+  })();
+
+  const rotinaPFFormDropdownValue = (() => {
+    const id = (rotinaPF?.id ?? empresa.rotina_pf?.id ?? '').trim();
+    if (!id) {
+      return null;
+    }
+    const fromList = rotinasPF.find((r) => (r.id ?? '').trim() === id);
+    if (fromList) {
+      return fromList;
+    }
+    return {
+      id: rotinaPF.id,
+      nome: rotinaPF.nome ?? empresa.rotina_pf?.nome ?? '',
+      categoria: rotinaPF.categoria ?? empresa.rotina_pf?.categoria ?? '',
+    };
   })();
 
   const onlyDigits = (s: string) => String(s ?? '').replace(/\D/g, '');
@@ -430,6 +503,7 @@ const Clientes = ({ dados }) => {
   const saveEmpresa = (event: any) => {
     empresa.tenantid = tenantid;
     empresa.rotina = rotina;
+    empresa.rotina_pf = rotinaPF;
     setSubmitted(true);
 
     const docDigits = onlyDigits(empresa.documento ?? '');
@@ -437,6 +511,7 @@ const Clientes = ({ dados }) => {
     const docOkPf = isClientePF && docDigits.length === 11;
     const docOkPj = !isClientePF && (docDigits.length === 0 || docDigits.length === 14);
     const rotinaOk = (empresa.rotina?.id ?? '').trim() !== '';
+    const rotinaPfOk = (empresa.rotina_pf?.id ?? '').trim() !== '';
 
     const salvarSoDadosUsuario =
       !podeCadastrarClientes && podeEditarDadosComplementares && !!empresa.id;
@@ -469,13 +544,16 @@ const Clientes = ({ dados }) => {
     const canSave =
       !!empresa?.nome?.trim() &&
       munOk &&
-      (isClientePF ? docOkPf : rotinaOk && docOkPj);
+      (isClientePF ? docOkPf && rotinaPfOk : rotinaOk && docOkPj);
 
     if (canSave) {
       const _empresa = {
         ...empresa,
         tipo_pessoa: isClientePF ? 'PF' : 'PJ',
         municipio: { id: (empresa.municipio?.id ?? '').trim() },
+        rotina_pf: {
+          id: (empresa.rotina_pf?.id ?? rotinaPF?.id ?? '').trim(),
+        },
         cnaes: Array.isArray(empresa.cnaes) ? [...empresa.cnaes] : [],
       };
 
@@ -537,6 +615,14 @@ const Clientes = ({ dados }) => {
       if (!isClientePF && !rotinaOk) {
         toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Selecione a rotina (obrigatória para PJ)', life: 3000 });
       }
+      if (isClientePF && !rotinaPfOk) {
+        toast.current?.show({
+          severity: 'warn',
+          summary: 'Alerta',
+          detail: 'Selecione a rotina PF (obrigatória para pessoa física)',
+          life: 3500,
+        });
+      }
       if (isClientePF && !docOkPf) {
         toast.current?.show({
           severity: 'warn',
@@ -559,6 +645,12 @@ const Clientes = ({ dados }) => {
 
   const editEmpresa = (row: Vec.Empresa) => {
     setRotina(row.rotina);
+    const rpf = row.rotina_pf;
+    setRotinaPF(
+      rpf?.id
+        ? { id: rpf.id, nome: rpf.nome ?? '', categoria: rpf.categoria ?? '' }
+        : emptyRotinaPF
+    );
     const rawCnaes = row.cnaes as unknown;
     const cnaesArr = Array.isArray(rawCnaes)
       ? rawCnaes.map((c) => String(c).replace(/\D/g, '')).filter(Boolean)
@@ -568,6 +660,7 @@ const Clientes = ({ dados }) => {
       ...row,
       municipio: row.municipio ?? { id: '', nome: '' },
       rotina: row.rotina,
+      rotina_pf: row.rotina_pf ?? { id: '', nome: '', categoria: '' },
       bairro: row.bairro ?? '',
       cnaes: cnaesArr,
       tipo_pessoa: (row.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF' ? 'PF' : 'PJ',
@@ -580,6 +673,9 @@ const Clientes = ({ dados }) => {
       loadRotinasPorMunicipio(mid);
     } else {
       setRotinas([]);
+    }
+    if ((row.tipo_pessoa ?? 'PJ') === 'PF') {
+      loadRotinasPF();
     }
 
     if (row.id) {
@@ -649,18 +745,26 @@ const Clientes = ({ dados }) => {
     const v = value === 'PF' ? 'PF' : 'PJ';
     if (v === 'PF') {
       setRotina(emptyRotina);
+      setRotinaPF(emptyRotinaPF);
       setEmpresa((prev) => ({
         ...prev,
         tipo_pessoa: 'PF',
         rotina: { id: '', descricao: '' },
+        rotina_pf: { id: '', nome: '', categoria: '' },
         tipo_empresa: { id: '', descricao: '' },
         cnaes: [],
       }));
       setRotinas([]);
+      loadRotinasPF();
       return;
     }
+    setRotinaPF(emptyRotinaPF);
     setEmpresa((prev) => {
-      const next = { ...prev, tipo_pessoa: 'PJ' as const };
+      const next = {
+        ...prev,
+        tipo_pessoa: 'PJ' as const,
+        rotina_pf: { id: '', nome: '', categoria: '' },
+      };
       const mid = (next.municipio?.id ?? '').trim();
       if (mid) {
         loadRotinasPorMunicipio(mid);
@@ -731,10 +835,12 @@ const Clientes = ({ dados }) => {
   };
 
   const rotinaBodyTemplate = (rowData: Vec.Empresa) => {
+    const pf = (rowData.tipo_pessoa ?? 'PJ') === 'PF';
+    const label = pf ? rowData.rotina_pf?.nome : rowData.rotina?.descricao;
     return (
       <>
         <span className="p-column-title">Rotina</span>
-        {rowData.rotina?.descricao}
+        {label?.trim() ? label : '—'}
       </>
     );
   };
@@ -826,7 +932,7 @@ const Clientes = ({ dados }) => {
     <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
       <div>
         <h5 className="m-0">Cadastro de Clientes</h5>
-        <p className="m-0 mt-1 text-600 text-sm">Cadastro unificado: município, rotina (PJ, filtrada pelo município), CNAEs, CPF/CNPJ, endereço e contatos no mesmo formulário. Processo e compromissos na Manutenção de Empresas.</p>
+        <p className="m-0 mt-1 text-600 text-sm">Cadastro unificado: município, rotina municipal (PJ), rotina PF (IRPF/Carnê-Leão), CNAEs, CPF/CNPJ, endereço e contatos. Processo e compromissos na Manutenção de Empresas.</p>
       </div>
       <span className="block mt-2 md:mt-0 p-input-icon-left">
         <i className="pi pi-search" />
@@ -895,7 +1001,7 @@ const Clientes = ({ dados }) => {
               headerStyle={{ minWidth: '6rem' }}
             />
             <Column field="municipio" header="Municipio" body={municipioBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
-            <Column field="rotina" header="Rotina" body={rotinaBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
+            <Column field="rotina" header="Rotina (PJ / PF)" body={rotinaBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column field="tipo_empresa" header="Tipo de Empresa" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
             <Column body={actionBodyTemplate} header="Ações" headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
@@ -959,9 +1065,12 @@ const Clientes = ({ dados }) => {
                 className="w-full"
                 showClear
               />
-              <small className="text-600">Define a lista de rotinas disponíveis para PJ.</small>
+              <small className="text-600">
+                {isClientePF ? 'Município de residência ou contato.' : 'Define a lista de rotinas disponíveis para PJ.'}
+              </small>
             </div>
 
+            {!isClientePF && (
             <div className="field">
               <label htmlFor="ddrotina">Rotina (somente PJ)</label>
               <Dropdown
@@ -972,20 +1081,46 @@ const Clientes = ({ dados }) => {
                 optionLabel="lista_label"
                 dataKey="id"
                 placeholder={
-                  isClientePF
-                    ? 'Não aplicável a PF'
-                    : (empresa.municipio?.id ?? '').trim()
-                      ? 'Selecione a rotina do município'
-                      : 'Selecione o município primeiro'
+                  (empresa.municipio?.id ?? '').trim()
+                    ? 'Selecione a rotina do município'
+                    : 'Selecione o município primeiro'
                 }
                 emptyMessage="Nenhuma rotina para este município"
-                disabled={empresa?.iniciado === true || isClientePF || coreCamposBloqueados}
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
               />
-              {submitted && !isClientePF && !(empresa.rotina?.id ?? '').trim() && (
+              {submitted && !(empresa.rotina?.id ?? '').trim() && (
                 <small className="p-invalid">Rotina é obrigatória para pessoa jurídica.</small>
               )}
             </div>
+            )}
 
+            <div className="field">
+              <label htmlFor="ddrotinapf">Rotina PF (somente pessoa física)</label>
+              <Dropdown
+                id="ddrotinapf"
+                value={rotinaPFFormDropdownValue}
+                options={rotinasPF}
+                onChange={(e) => onRotinaPFChange(e.value ?? emptyRotinaPF)}
+                optionLabel="nome"
+                dataKey="id"
+                placeholder={
+                  isClientePF
+                    ? rotinasPF.length
+                      ? 'Selecione a rotina federal / sazonal'
+                      : 'Cadastre rotinas PF no banco (tabela rotina_pf)'
+                    : 'Não aplicável a PJ'
+                }
+                emptyMessage="Nenhuma rotina PF para este tenant"
+                disabled={empresa?.iniciado === true || !isClientePF || coreCamposBloqueados}
+                className="w-full"
+              />
+              {submitted && isClientePF && !(empresa.rotina_pf?.id ?? rotinaPF?.id ?? '').trim() && (
+                <small className="p-invalid">Rotina PF é obrigatória para pessoa física.</small>
+              )}
+              <small className="text-600">Templates por tenant (Carnê-Leão mensal, IRPF anual, etc.).</small>
+            </div>
+
+            {!isClientePF && (
             <div className="p-fluid field">
               <label htmlFor="ddtag">CNAE&apos;s (somente PJ)</label>
               <Chips
@@ -998,9 +1133,10 @@ const Clientes = ({ dados }) => {
                   </div>
                 )}
                 keyfilter="alphanum"
-                disabled={empresa?.iniciado === true || isClientePF || coreCamposBloqueados}
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
               />
             </div>
+            )}
 
             <div className="field">
               <label htmlFor="documento_">{isClientePF ? 'CPF (11 dígitos)' : 'CNPJ (14 dígitos, opcional)'}</label>
