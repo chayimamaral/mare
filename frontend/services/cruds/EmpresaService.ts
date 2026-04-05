@@ -78,11 +78,21 @@ export default function EmpresaService() {
 
     try {
       const apiClient = setupAPIClient(undefined);
+      const tipo =
+        String(params?.tipo_pessoa ?? 'PJ')
+          .trim()
+          .toUpperCase() === 'PF'
+          ? 'PF'
+          : 'PJ';
 
       const response = await apiClient.put('/api/updateempresa', {
         params:
         {
-          ...params
+          ...params,
+          tipo_pessoa: tipo,
+          documento: params?.documento ?? '',
+          rotina: params?.rotina ?? { id: '' },
+          municipio: { id: params?.municipio?.id ?? '' },
         }
       })
 
@@ -146,11 +156,21 @@ export default function EmpresaService() {
   const createEmpresa = async (params) => {
     try {
       const apiClient = setupAPIClient(undefined);
+      const tipo =
+        String(params?.tipo_pessoa ?? 'PJ')
+          .trim()
+          .toUpperCase() === 'PF'
+          ? 'PF'
+          : 'PJ';
 
       const response = await apiClient.post('/api/empresa', {
         params: {
-          ...params
-        }
+          ...params,
+          tipo_pessoa: tipo,
+          documento: params?.documento ?? '',
+          rotina: params?.rotina ?? { id: '' },
+          municipio: { id: params?.municipio?.id ?? '' },
+        },
       })
 
       const { empresas, totalRecords } = response.data

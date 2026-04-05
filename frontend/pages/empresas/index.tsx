@@ -95,29 +95,36 @@ const Empresas = ({ dados }) => {
     tenantid: tenantid
   });
 
+  const lazyStateRef = useRef(lazyState);
+  lazyStateRef.current = lazyState;
+
   useEffect(() => {
     loadLazyEmpresa();
   }, []);
 
   const empresaService = EmpresaService();
   const empresaCompromissoService = EmpresaCompromissoService();
-  const loadLazyEmpresa = () => {
-    setLazyState(prevState => ({
-      ...prevState,
-      tenantid: tenantid
-    }))
-    empresaService.getEmpresas({ lazyEvent: JSON.stringify(lazyState) })
 
+  const fetchEmpresasPayload = (payload: LazyTableState) => {
+    setLoading(true);
+    const body = { ...payload, tenantid };
+    empresaService
+      .getEmpresas({ lazyEvent: JSON.stringify(body) })
       .then(({ data }) => {
         setEmpresas(data.empresas);
         setTotalRecords(data.totalRecords);
       })
-      .catch((error) => {
+      .catch(() => {
         toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar as Empresas', life: 3000 });
       })
       .finally(() => setLoading(false));
+  };
 
-  }
+  const loadLazyEmpresa = () => {
+    const next: LazyTableState = { ...lazyStateRef.current, tenantid };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyEmpresa} />;
 
@@ -125,11 +132,22 @@ const Empresas = ({ dados }) => {
     setFirst(event.first);
     setRows(event.rows);
     setCurrentPage(event.page + 1);
-    setSortOrder(event.sortOrder);
-    setSortField(event.sortField);
-    setLazyState({ ...lazyState, first: event.first, rows: event.rows, page: event.page + 1, sortField: event.sortField, sortOrder: event.sortOrder });
-    setLazyState(event)
-  }
+    setSortOrder(event.sortOrder ?? 1);
+    setSortField(event.sortField ?? '');
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      first: event.first,
+      rows: event.rows,
+      page: event.page + 1,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+      filters: event.filters ?? prev.filters,
+    };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   //const onPageInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, options: { totalPages: number; rows: React.SetStateAction<number>; first: React.SetStateAction<number>; }) => {
   const onPageInputKeyDown = (event, options) => {
@@ -139,12 +157,22 @@ const Empresas = ({ dados }) => {
         setPageInputTooltip(`Valor deve estar entre 1 e ${options.totalPages}.`);
       }
       else {
-        const first = currentPage ? options.rows * (page - 1) : 0;
+        const pageNum = typeof page === 'number' ? page : parseInt(String(page), 10);
+        const firstIdx = options.rows * (pageNum - 1);
 
-        setFirst(options.first);
+        setFirst(firstIdx);
         setRows(options.rows);
-        setCurrentPage(page);
-        setLazyState({ ...lazyState, first: first, rows: options.rows, page: currentPage });
+        setCurrentPage(pageNum);
+        const prev = lazyStateRef.current;
+        const next: LazyTableState = {
+          ...prev,
+          tenantid,
+          first: firstIdx,
+          rows: options.rows,
+          page: pageNum,
+        };
+        setLazyState(next);
+        fetchEmpresasPayload(next);
       }
     }
 
@@ -156,34 +184,75 @@ const Empresas = ({ dados }) => {
 
 
   const onSort = (event) => {
-    setLazyState(event);
-  }
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+      filters: event.filters ?? prev.filters,
+      first: event.first ?? prev.first,
+    };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   const onFilter = (event) => {
-    event['first'] = 0;
-    setLazyState(event)
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      first: 0,
+      page: 1,
+      filters: event.filters ?? prev.filters,
+      rows: event.rows ?? prev.rows,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+    };
+    setFirst(0);
+    setCurrentPage(1);
+    setLazyState(next);
+    fetchEmpresasPayload(next);
   };
 
   function handleBuscaEmpresa(event, value: string): void {
     if (event.key === 'Enter') {
-      if (value !== '') {
-        setLazyState({ ...lazyState, filters: { nome: { value: value, matchMode: 'contains' } } });
-      } else {
-        setLazyState({ ...lazyState, filters: { nome: { value: '', matchMode: 'contains' } } });
-      }
+      const prev = lazyStateRef.current;
+      const next: LazyTableState = {
+        ...prev,
+        tenantid,
+        first: 0,
+        page: 1,
+        filters: { nome: { value: value.trim(), matchMode: 'contains' } },
+      };
+      setFirst(0);
+      setCurrentPage(1);
+      setLazyState(next);
+      fetchEmpresasPayload(next);
     }
   }
 
   function handleClear(e): void {
     if (!e.target.value) {
-      setLazyState({ ...lazyState, filters: { nome: { value: '', matchMode: 'contains' } } });
+      const prev = lazyStateRef.current;
+      const next: LazyTableState = {
+        ...prev,
+        tenantid,
+        first: 0,
+        page: 1,
+        filters: { nome: { value: '', matchMode: 'contains' } },
+      };
+      setFirst(0);
+      setCurrentPage(1);
+      setLazyState(next);
+      fetchEmpresasPayload(next);
     }
   }
 
   const leftToolbarTemplate = () => {
     return (
       <p className="text-600 m-0 text-sm">
-        Cadastro de clientes e dados complementares (município, contatos) em{' '}
+        Cadastro unificado de clientes (município, endereço, contatos) em{' '}
         <strong>Operações → Cadastros Operacionais → Clientes</strong>.
       </p>
     );
@@ -361,7 +430,7 @@ const Empresas = ({ dados }) => {
     <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
       <div>
         <h5 className="m-0">Manutenção de Empresas</h5>
-        <p className="m-0 mt-1 text-600 text-sm">Processo e compromissos. Cadastro e dados complementares em Clientes.</p>
+        <p className="m-0 mt-1 text-600 text-sm">Processo e compromissos. Cadastro completo de clientes em Clientes.</p>
       </div>
       <span className="block mt-2 md:mt-0 p-input-icon-left">
         <i className="pi pi-search" />

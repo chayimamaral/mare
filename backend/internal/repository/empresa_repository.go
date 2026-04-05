@@ -35,14 +35,15 @@ type EmpresaListParams struct {
 }
 
 type EmpresaUpsertInput struct {
-	ID         string
-	Nome       string
-	TenantID   string
-	RotinaID   string
-	Cnaes      any
-	Bairro     string
-	TipoPessoa string
-	Documento  string
+	ID          string
+	Nome        string
+	TenantID    string
+	MunicipioID string
+	RotinaID    string
+	Cnaes       any
+	Bairro      string
+	TipoPessoa  string
+	Documento   string
 }
 
 type EmpresaRepository struct {
@@ -130,6 +131,13 @@ func empresaCnaesParam(tipo string, cnaes []string) any {
 	return cnaes
 }
 
+func empresaMunicipioIDParam(s string) any {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	return strings.TrimSpace(s)
+}
+
 func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) ([]domain.EmpresaListItem, int64, error) {
 	whereParts := []string{"e.ativo = true", "e.tenant_id = $1"}
 	args := []any{params.TenantID}
@@ -163,8 +171,8 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			e.nome,
 			COALESCE(NULLIF(BTRIM(e.tipo_pessoa::text), ''), 'PJ'),
 			COALESCE(NULLIF(BTRIM(e.documento), ''), ''),
-			m.id,
-			m.nome,
+			COALESCE(m.id::text, ''),
+			COALESCE(m.nome, ''),
 			COALESCE(r.id, ''),
 			COALESCE(r.descricao, ''),
 			COALESCE(te.id, ''),
@@ -258,7 +266,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 
 	const query = `
 		INSERT INTO public.empresa (nome, municipio_id, tenant_id, rotina_id, cnaes, bairro, tipo_pessoa, documento)
-		VALUES ($1, NULL, $2, $3, $4, NULLIF(TRIM($5), ''), $6, NULLIF(TRIM($7), ''))
+		VALUES ($1, $2, $3, $4, $5, NULLIF(TRIM($6), ''), $7, NULLIF(TRIM($8), ''))
 		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
 
 	cnaes := normalizeCnaesParaTextArray(input.Cnaes)
@@ -267,7 +275,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.Bairro, tipo, doc)
+	rows, err := r.pool.Query(ctx, query, input.Nome, empresaMunicipioIDParam(input.MunicipioID), input.TenantID, rotinaArg, cnaesArg, input.Bairro, tipo, doc)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create empresa: %w", err)
 	}
@@ -303,7 +311,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 
 	const query = `
 		UPDATE public.empresa
-		SET nome = $1, tenant_id = $2, rotina_id = $3, cnaes = $4, bairro = NULLIF(TRIM($7), ''), tipo_pessoa = $8, documento = NULLIF(TRIM($9), '')
+		SET nome = $1, tenant_id = $2, rotina_id = $3, cnaes = $4, bairro = NULLIF(TRIM($7), ''), tipo_pessoa = $8, documento = NULLIF(TRIM($9), ''), municipio_id = $10
 		WHERE id = $5 AND tenant_id = $6
 		RETURNING id, nome, municipio_id, tenant_id, rotina_id, cnaes, iniciado, ativo`
 
@@ -313,7 +321,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc)
+	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID))
 	if err != nil {
 		return nil, 0, fmt.Errorf("update empresa: %w", err)
 	}

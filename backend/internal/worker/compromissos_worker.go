@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/chayimamaral/vecontab/backend/internal/config"
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/robfig/cron/v3"
 )
@@ -17,11 +19,12 @@ type CompromissosWorker struct {
 	cfg     config.Config
 	cron    *cron.Cron
 	running int32
+	monitor *repository.MonitorOperacaoRepository
 }
 
 const compromissosAdvisoryLockKey int64 = 9482217701
 
-func NewCompromissosWorker(pool *pgxpool.Pool, cfg config.Config) (*CompromissosWorker, error) {
+func NewCompromissosWorker(pool *pgxpool.Pool, cfg config.Config, monitor *repository.MonitorOperacaoRepository) (*CompromissosWorker, error) {
 	loc, err := time.LoadLocation(cfg.CompromissosWorkerTimezone)
 	if err != nil {
 		return nil, fmt.Errorf("timezone inválida do worker: %w", err)
@@ -34,9 +37,10 @@ func NewCompromissosWorker(pool *pgxpool.Pool, cfg config.Config) (*Compromissos
 	)
 
 	w := &CompromissosWorker{
-		pool: pool,
-		cfg:  cfg,
-		cron: c,
+		pool:    pool,
+		cfg:     cfg,
+		cron:    c,
+		monitor: monitor,
 	}
 
 	if _, err := c.AddFunc(cfg.CompromissosWorkerCron, func() {
@@ -105,6 +109,10 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 		`SELECT public.gerar_compromissos_geral($1::date)`,
 		refMonth.Format("2006-01-02"),
 	).Scan(&totalInseridos); err != nil {
+		w.recordMonitorOperacao(context.Background(), domain.MonitorOperacaoStatusErro, err.Error(), map[string]any{
+			"competencia": refMonth.Format("2006-01-02"),
+			"fase":        "gerar_compromissos_geral",
+		})
 		return fmt.Errorf("executar gerar_compromissos_geral: %w", err)
 	}
 
@@ -112,5 +120,28 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx worker: %w", err)
 	}
+
+	w.recordMonitorOperacao(context.Background(), domain.MonitorOperacaoStatusSucesso, fmt.Sprintf("inseridos=%d", totalInseridos), map[string]any{
+		"competencia": refMonth.Format("2006-01-02"),
+		"inseridos":   totalInseridos,
+	})
 	return nil
+}
+
+func (w *CompromissosWorker) recordMonitorOperacao(ctx context.Context, status, msg string, det map[string]any) {
+	if w.monitor == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	m := msg
+	_ = w.monitor.Insert(ctx, repository.MonitorOperacaoInsert{
+		TenantID: domain.MonitorOperacaoTenantPlataformaID,
+		UserID:   nil,
+		Origem:   domain.MonitorOperacaoOrigemAutomatico,
+		Tipo:     domain.MonitorOperacaoTipoWorkerCompromissosMensal,
+		Status:   status,
+		Mensagem: &m,
+		Detalhe:  det,
+	})
 }

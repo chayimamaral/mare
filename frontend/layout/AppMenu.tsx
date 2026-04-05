@@ -17,6 +17,7 @@ const AppMenu = () => {
     }, []);
 
     const podeGerenciarUsuarios = userRole === 'ADMIN' || userRole === 'SUPER';
+    const podeVerMonitor = userRole === 'ADMIN' || userRole === 'SUPER';
 
     const model: AppMenuItem[] = useMemo(
         () => [
@@ -166,6 +167,18 @@ const AppMenu = () => {
                         ],
                     },
                     {
+                        label: 'Monitor',
+                        icon: 'pi pi-fw pi-chart-line',
+                        visible: podeVerMonitor,
+                        items: [
+                            {
+                                label: 'Operações',
+                                icon: 'pi pi-fw pi-list',
+                                to: '/monitor',
+                            },
+                        ],
+                    },
+                    {
                         label: 'Sobre',
                         icon: 'pi pi-fw pi-pencil',
                         to: '/pages/landing',
@@ -173,7 +186,7 @@ const AppMenu = () => {
                 ],
             },
         ],
-        [podeGerenciarUsuarios],
+        [podeGerenciarUsuarios, podeVerMonitor],
     );
 
     return (

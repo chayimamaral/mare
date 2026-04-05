@@ -1,0 +1,151 @@
+import { Button } from 'primereact/button';
+import { Column } from 'primereact/column';
+import { DataTable } from 'primereact/datatable';
+import { Toast } from 'primereact/toast';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import setupAPIClient from '../../components/api/api';
+import { canSSRAuth } from '../../components/utils/canSSRAuth';
+import MonitorOperacaoService from '../../services/cruds/MonitorOperacaoService';
+import { Vec } from '../../types/types';
+
+const fmtDetalhe = (d?: Record<string, unknown>) => {
+  if (!d || typeof d !== 'object') {
+    return '';
+  }
+  try {
+    return JSON.stringify(d);
+  } catch {
+    return '';
+  }
+};
+
+const MonitorPage = () => {
+  const [loading, setLoading] = useState(false);
+  const [itens, setItens] = useState<Vec.MonitorOperacaoItem[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rows, setRows] = useState(25);
+  const toast = useRef<Toast>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { itens: lista, total } = await MonitorOperacaoService().list(rows, first);
+      setItens(lista ?? []);
+      setTotalRecords(typeof total === 'number' ? total : 0);
+    } catch (e: unknown) {
+      const ax = e as { response?: { data?: { error?: string } } };
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Erro',
+        detail: ax?.response?.data?.error ?? 'Falha ao carregar o monitor',
+        life: 5000,
+      });
+      setItens([]);
+      setTotalRecords(0);
+    } finally {
+      setLoading(false);
+    }
+  }, [first, rows]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const paginatorLeft = (
+    <Button
+      type="button"
+      icon="pi pi-refresh"
+      tooltip="Atualizar"
+      className="p-button-text"
+      onClick={() => void load()}
+      loading={loading}
+    />
+  );
+
+  const statusBody = (row: Vec.MonitorOperacaoItem) => (
+    <span className={row.status === 'ERRO' ? 'text-red-500' : undefined}>{row.status}</span>
+  );
+
+  return (
+    <div className="grid">
+      <div className="col-12">
+        <div className="card">
+          <h5>Monitor de operações</h5>
+          <p className="text-color-secondary text-sm mb-3">
+            Registros de geração de compromissos, agenda e execuções automáticas. Cada linha tem um tenant_id;
+            SUPER vê todos os clientes; ADMIN vê apenas seus clientes.
+          </p>
+          <Toast ref={toast} />
+          <DataTable
+            value={itens}
+            loading={loading}
+            dataKey="id"
+            paginator
+            rows={rows}
+            first={first}
+            totalRecords={totalRecords}
+            lazy
+            paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+            currentPageReportTemplate="{first} a {last} de {totalRecords}"
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            paginatorLeft={paginatorLeft}
+            onPage={(e) => {
+              setFirst(e.first);
+              setRows(e.rows);
+            }}
+            emptyMessage="Nenhum registro"
+          >
+            <Column
+              field="criado_em"
+              header="Data"
+              body={(r: Vec.MonitorOperacaoItem) =>
+                r.criado_em ? new Date(r.criado_em).toLocaleString('pt-BR') : ''
+              }
+              style={{ minWidth: '10rem' }}
+            />
+            <Column field="tenant_nome" header="Tenant" body={(r) => r.tenant_nome ?? r.tenant_id ?? '—'} />
+            <Column field="user_id" header="Usuário" body={(r) => r.user_id ?? '—'} />
+            <Column field="origem" header="Origem" />
+            <Column field="tipo" header="Tipo" style={{ minWidth: '12rem' }} />
+            <Column field="status" header="Status" body={statusBody} />
+            <Column field="mensagem" header="Mensagem" style={{ minWidth: '14rem' }} />
+            <Column
+              header="Detalhe"
+              body={(r: Vec.MonitorOperacaoItem) => (
+                <span className="text-sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {fmtDetalhe(r.detalhe)}
+                </span>
+              )}
+            />
+          </DataTable>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MonitorPage;
+
+export const getServerSideProps = canSSRAuth(async (ctx) => {
+  const apiClient = setupAPIClient(ctx);
+  try {
+    await apiClient.get('/api/registro');
+  } catch (err: unknown) {
+    const ax = err as { response?: { status?: number; data?: { error?: string } } };
+    const msg = ax?.response?.data?.error ?? '';
+    if (ax?.response?.status === 400 && msg.includes('no rows in result set')) {
+      // mesmo critério de outras páginas autenticadas
+    } else {
+      return { redirect: { destination: '/', permanent: false } };
+    }
+  }
+
+  const { data } = await apiClient.get('/api/usuariorole');
+  const role = data?.logado?.role;
+  if (role !== 'ADMIN' && role !== 'SUPER') {
+    return { redirect: { destination: '/', permanent: false } };
+  }
+
+  return { props: {} };
+});

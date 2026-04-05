@@ -14,6 +14,8 @@ export default function EmpresaDadosService() {
     municipio_id?: string;
     cnpj?: string;
     endereco?: string;
+    numero?: string;
+    cep?: string;
     email_contato?: string;
     telefone?: string;
     telefone2?: string;

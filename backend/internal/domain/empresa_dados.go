@@ -4,6 +4,8 @@ type EmpresaDadosItem struct {
 	EmpresaID        string     `json:"empresa_id"`
 	CNPJ             *string    `json:"cnpj,omitempty"`
 	Endereco         *string    `json:"endereco,omitempty"`
+	Numero           *string    `json:"numero,omitempty"`
+	CEP              *string    `json:"cep,omitempty"`
 	EmailContato     *string    `json:"email_contato,omitempty"`
 	Telefone         *string    `json:"telefone,omitempty"`
 	Telefone2        *string    `json:"telefone2,omitempty"`

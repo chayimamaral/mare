@@ -31,17 +31,10 @@ const MODULOS: ModuloCard[] = [
     },
     {
         titulo: 'Manutenção de Empresas',
-        descricao: 'Dados complementares, iniciar processo e gerar compromissos após conclusão dos passos.',
+        descricao: 'Cadastro de clientes (formulário único), iniciar processo e gerar compromissos após conclusão dos passos.',
         href: '/empresas',
         icon: 'pi pi-building',
         tooltip: 'Operações sobre empresas já cadastradas; cadastro em Clientes.',
-    },
-    {
-        future: true,
-        titulo: 'Relatórios gerenciais',
-        descricao: 'Indicadores e exportações para gestão contábil e fiscal.',
-        icon: 'pi pi-chart-bar',
-        tooltip: 'Implementação futura — painéis e relatórios em desenvolvimento.',
     },
     {
         future: true,
@@ -50,6 +43,7 @@ const MODULOS: ModuloCard[] = [
         icon: 'pi pi-cloud-download',
         tooltip: 'Implementação futura — integrações serão adicionadas gradualmente.',
     },
+
     {
         titulo: 'Compromissos por Empresas',
         descricao: 'Acompanhe vencimentos e status dos compromissos legais gerados por empresa.',
@@ -93,6 +87,13 @@ const MODULOS: ModuloCard[] = [
         tooltip: 'Implementação futura — módulo de monitoramento centralizado.',
     },
 
+    {
+        future: true,
+        titulo: 'Relatórios gerenciais',
+        descricao: 'Indicadores e exportações para gestão contábil e fiscal.',
+        icon: 'pi pi-chart-bar',
+        tooltip: 'Implementação futura — painéis e relatórios em desenvolvimento.',
+    },
 
 ];
 

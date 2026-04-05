@@ -68,6 +68,8 @@ declare namespace Vec {
         municipio?: MunicipioLite;
         cnpj?: string;
         endereco?: string;
+        numero?: string;
+        cep?: string;
         email_contato?: string;
         telefone?: string;
         telefone2?: string;
@@ -88,16 +90,16 @@ declare namespace Vec {
         im?: string;
         razaosocial?: string;
         fantasia?: string;
-        endereco: '';
-        numero: '';
-        complemento: '';
+        endereco?: string;
+        numero?: string;
+        complemento?: string;
         bairro?: string;
         municipio: MunicipioLite;
         rotina: RotinaLite;
         tipo_empresa?: TipoEmpresaLite;
-        uf: '';
-        cep: '';
-        tenantid: '';
+        uf?: string;
+        cep?: string;
+        tenantid?: string;
         cnaes: string[];
         iniciado: boolean;
         passos_concluidos?: boolean;
@@ -225,5 +227,18 @@ declare namespace Vec {
         classificacao?: string; // FINANCEIRO | NAO_FINANCEIRO (derivado do template)
         agenda_item_id?: string;
         valor_estimado?: number | null;
+    }
+
+    type MonitorOperacaoItem = {
+        id?: string;
+        tenant_id?: string;
+        tenant_nome?: string;
+        user_id?: string;
+        origem?: string;
+        tipo?: string;
+        status?: string;
+        mensagem?: string;
+        detalhe?: Record<string, unknown>;
+        criado_em?: string;
     }
 }

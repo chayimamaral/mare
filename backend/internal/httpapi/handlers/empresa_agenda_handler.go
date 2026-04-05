@@ -6,17 +6,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
 )
 
 type EmpresaAgendaHandler struct {
 	service *service.EmpresaAgendaService
+	monitor *service.MonitorOperacaoService
 }
 
-func NewEmpresaAgendaHandler(service *service.EmpresaAgendaService) *EmpresaAgendaHandler {
-	return &EmpresaAgendaHandler{service: service}
+func NewEmpresaAgendaHandler(svc *service.EmpresaAgendaService, m *service.MonitorOperacaoService) *EmpresaAgendaHandler {
+	return &EmpresaAgendaHandler{service: svc, monitor: m}
 }
 
 func (h *EmpresaAgendaHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +63,11 @@ type gerarAgendaEnvelope struct {
 }
 
 func (h *EmpresaAgendaHandler) Gerar(w http.ResponseWriter, r *http.Request) {
-	_ = middleware.TenantID(r.Context())
+	tenantID := middleware.TenantID(r.Context())
+	if strings.TrimSpace(tenantID) == "" {
+		render.WriteError(w, http.StatusUnauthorized, "tenant nao identificado")
+		return
+	}
 
 	var payload gerarAgendaEnvelope
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -85,6 +92,37 @@ func (h *EmpresaAgendaHandler) Gerar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.GerarAgenda(r.Context(), p.EmpresaID, p.TipoEmpresaID, dataInicio)
+	if h.monitor != nil {
+		tid := tenantID
+		uid := strings.TrimSpace(middleware.UserID(r.Context()))
+		var uidPtr *string
+		if uid != "" {
+			uidPtr = &uid
+		}
+		det := map[string]any{
+			"empresa_id":      strings.TrimSpace(p.EmpresaID),
+			"tipo_empresa_id": strings.TrimSpace(p.TipoEmpresaID),
+			"data_inicio":     dataInicio.Format("2006-01-02"),
+		}
+		st := domain.MonitorOperacaoStatusSucesso
+		var msg string
+		if err != nil {
+			st = domain.MonitorOperacaoStatusErro
+			msg = err.Error()
+		} else {
+			msg = response.Message
+			det["quantidade_obrigacoes"] = len(response.Itens)
+		}
+		_ = h.monitor.Registrar(r.Context(), repository.MonitorOperacaoInsert{
+			TenantID: tid,
+			UserID:   uidPtr,
+			Origem:   domain.MonitorOperacaoOrigemManual,
+			Tipo:     domain.MonitorOperacaoTipoGeracaoAgenda,
+			Status:   st,
+			Mensagem: &msg,
+			Detalhe:  det,
+		})
+	}
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -135,9 +173,9 @@ func (h *EmpresaAgendaHandler) UpdateStatus(w http.ResponseWriter, r *http.Reque
 
 type updateItemEnvelope struct {
 	Params struct {
-		ID              string   `json:"id"`
-		DataVencimento  *string  `json:"data_vencimento"`
-		ValorEstimado   *float64 `json:"valor_estimado"`
+		ID             string   `json:"id"`
+		DataVencimento *string  `json:"data_vencimento"`
+		ValorEstimado  *float64 `json:"valor_estimado"`
 	} `json:"params"`
 }
 

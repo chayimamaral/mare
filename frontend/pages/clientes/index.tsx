@@ -86,19 +86,31 @@ const Clientes = ({ dados }) => {
   const [rotina, setRotina] = useState<Vec.RotinaLite>(emptyRotina);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  const [dadosComplementaresDialog, setDadosComplementaresDialog] = useState(false);
-  const [empresaDadosRef, setEmpresaDadosRef] = useState<Vec.Empresa | null>(null);
-  const [empresaDadosMunicipio, setEmpresaDadosMunicipio] = useState<Vec.MunicipioLite>({ id: '', nome: '' });
-  const [empresaDadosForm, setEmpresaDadosForm] = useState<Vec.EmpresaDados>({
-    cnpj: '',
-    endereco: '',
+  type ClienteExtraForm = {
+    logradouro: string;
+    numero: string;
+    cep: string;
+    email_contato: string;
+    telefone: string;
+    telefone2: string;
+    data_abertura: string;
+    data_encerramento: string;
+    observacao: string;
+  };
+
+  const emptyClienteExtra: ClienteExtraForm = {
+    logradouro: '',
+    numero: '',
+    cep: '',
     email_contato: '',
     telefone: '',
     telefone2: '',
     data_abertura: '',
     data_encerramento: '',
     observacao: '',
-  });
+  };
+
+  const [clienteExtra, setClienteExtra] = useState<ClienteExtraForm>(emptyClienteExtra);
 
   const [empresaDialog, setEmpresaDialog] = useState(false);
   const [deleteEmpresaDialog, setDeleteEmpresaDialog] = useState(false);
@@ -132,9 +144,11 @@ const Clientes = ({ dados }) => {
     tenantid: tenantid
   });
 
+  const lazyStateRef = useRef(lazyState);
+  lazyStateRef.current = lazyState;
+
   useEffect(() => {
     loadLazyMunicipios();
-    loadRotinasTodas();
     loadLazyEmpresa();
   }, []);
 
@@ -152,23 +166,26 @@ const Clientes = ({ dados }) => {
   const podeCadastrarClientes = userRole === 'ADMIN' || userRole === 'SUPER';
   const podeEditarDadosComplementares = userRole === 'ADMIN' || userRole === 'USER';
 
-  const loadLazyEmpresa = () => {
-    setLazyState(prevState => ({
-      ...prevState,
-      tenantid: tenantid
-    }))
-    empresaService.getEmpresas({ lazyEvent: JSON.stringify(lazyState) })
-
+  const fetchEmpresasPayload = (payload: LazyTableState) => {
+    setLoading(true);
+    const body = { ...payload, tenantid };
+    empresaService
+      .getEmpresas({ lazyEvent: JSON.stringify(body) })
       .then(({ data }) => {
         setEmpresas(data.empresas);
         setTotalRecords(data.totalRecords);
       })
-      .catch((error) => {
+      .catch(() => {
         toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar as Empresas', life: 3000 });
       })
       .finally(() => setLoading(false));
+  };
 
-  }
+  const loadLazyEmpresa = () => {
+    const next: LazyTableState = { ...lazyStateRef.current, tenantid };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   async function handleCnaesChange(event): Promise<void> {
     const value: string[] = Array.isArray(event.value) ? [...event.value] : [];
@@ -197,9 +214,14 @@ const Clientes = ({ dados }) => {
     })
   }
 
-  const loadRotinasTodas = () => {
+  const loadRotinasPorMunicipio = (municipioId: string) => {
+    const mid = (municipioId ?? '').trim();
+    if (!mid) {
+      setRotinas([]);
+      return;
+    }
     const rotinaService = RotinaService();
-    rotinaService.getRotinasLite(null).then(({ data }) => {
+    rotinaService.getRotinasLite({ id: mid }).then(({ data }) => {
       const raw = data?.rotinas ?? [];
       setRotinas(
         raw.map((r: Vec.RotinaLite) => ({
@@ -216,11 +238,22 @@ const Clientes = ({ dados }) => {
     setFirst(event.first);
     setRows(event.rows);
     setCurrentPage(event.page + 1);
-    setSortOrder(event.sortOrder);
-    setSortField(event.sortField);
-    setLazyState({ ...lazyState, first: event.first, rows: event.rows, page: event.page + 1, sortField: event.sortField, sortOrder: event.sortOrder });
-    setLazyState(event)
-  }
+    setSortOrder(event.sortOrder ?? 1);
+    setSortField(event.sortField ?? '');
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      first: event.first,
+      rows: event.rows,
+      page: event.page + 1,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+      filters: event.filters ?? prev.filters,
+    };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   //const onPageInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, options: { totalPages: number; rows: React.SetStateAction<number>; first: React.SetStateAction<number>; }) => {
   const onPageInputKeyDown = (event, options) => {
@@ -230,12 +263,22 @@ const Clientes = ({ dados }) => {
         setPageInputTooltip(`Valor deve estar entre 1 e ${options.totalPages}.`);
       }
       else {
-        const first = currentPage ? options.rows * (page - 1) : 0;
+        const pageNum = typeof page === 'number' ? page : parseInt(String(page), 10);
+        const firstIdx = options.rows * (pageNum - 1);
 
-        setFirst(options.first);
+        setFirst(firstIdx);
         setRows(options.rows);
-        setCurrentPage(page);
-        setLazyState({ ...lazyState, first: first, rows: options.rows, page: currentPage });
+        setCurrentPage(pageNum);
+        const prev = lazyStateRef.current;
+        const next: LazyTableState = {
+          ...prev,
+          tenantid,
+          first: firstIdx,
+          rows: options.rows,
+          page: pageNum,
+        };
+        setLazyState(next);
+        fetchEmpresasPayload(next);
       }
     }
 
@@ -247,17 +290,42 @@ const Clientes = ({ dados }) => {
 
 
   const onSort = (event) => {
-    setLazyState(event);
-  }
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+      filters: event.filters ?? prev.filters,
+      first: event.first ?? prev.first,
+    };
+    setLazyState(next);
+    fetchEmpresasPayload(next);
+  };
 
   const onFilter = (event) => {
-    event['first'] = 0;
-    setLazyState(event)
+    const prev = lazyStateRef.current;
+    const next: LazyTableState = {
+      ...prev,
+      tenantid,
+      first: 0,
+      page: 1,
+      filters: event.filters ?? prev.filters,
+      rows: event.rows ?? prev.rows,
+      sortField: event.sortField ?? prev.sortField,
+      sortOrder: event.sortOrder ?? prev.sortOrder,
+    };
+    setFirst(0);
+    setCurrentPage(1);
+    setLazyState(next);
+    fetchEmpresasPayload(next);
   };
 
   const openNew = () => {
     setEmpresa(emptyEmpresa);
     setRotina(emptyRotina);
+    setClienteExtra(emptyClienteExtra);
+    setRotinas([]);
     setSubmitted(false);
     setEmpresaDialog(true);
   };
@@ -265,6 +333,7 @@ const Clientes = ({ dados }) => {
   const hideDialog = () => {
     setSubmitted(false);
     setEmpresaDialog(false);
+    setClienteExtra(emptyClienteExtra);
   };
 
   const hideDeleteEmpresaDialog = () => {
@@ -273,17 +342,35 @@ const Clientes = ({ dados }) => {
 
   function handleBuscaEmpresa(event, value: string): void {
     if (event.key === 'Enter') {
-      if (value !== '') {
-        setLazyState({ ...lazyState, filters: { nome: { value: value, matchMode: 'contains' } } });
-      } else {
-        setLazyState({ ...lazyState, filters: { nome: { value: '', matchMode: 'contains' } } });
-      }
+      const prev = lazyStateRef.current;
+      const next: LazyTableState = {
+        ...prev,
+        tenantid,
+        first: 0,
+        page: 1,
+        filters: { nome: { value: value.trim(), matchMode: 'contains' } },
+      };
+      setFirst(0);
+      setCurrentPage(1);
+      setLazyState(next);
+      fetchEmpresasPayload(next);
     }
   }
 
   function handleClear(e): void {
     if (!e.target.value) {
-      setLazyState({ ...lazyState, filters: { nome: { value: '', matchMode: 'contains' } } });
+      const prev = lazyStateRef.current;
+      const next: LazyTableState = {
+        ...prev,
+        tenantid,
+        first: 0,
+        page: 1,
+        filters: { nome: { value: '', matchMode: 'contains' } },
+      };
+      setFirst(0);
+      setCurrentPage(1);
+      setLazyState(next);
+      fetchEmpresasPayload(next);
     }
   }
 
@@ -307,9 +394,12 @@ const Clientes = ({ dados }) => {
 
   const isClientePF = (empresa.tipo_pessoa ?? 'PJ') === 'PF';
 
-  /** PrimeReact Dropdown exige o mesmo objeto da lista `options` (ou valor alinhado por id). */
-  const dadosComplMunicipioDropdownValue = (() => {
-    const id = (empresaDadosMunicipio?.id ?? '').trim();
+  const coreCamposBloqueados =
+    empresa?.iniciado === true || (!podeCadastrarClientes && podeEditarDadosComplementares);
+
+  /** PrimeReact Dropdown: objeto da lista `options`. */
+  const municipioFormDropdownValue = (() => {
+    const id = (empresa.municipio?.id ?? '').trim();
     if (!id) {
       return null;
     }
@@ -317,87 +407,206 @@ const Clientes = ({ dados }) => {
     if (fromList) {
       return fromList;
     }
-    return { id: empresaDadosMunicipio.id, nome: empresaDadosMunicipio.nome ?? '' };
+    return { id: empresa.municipio.id, nome: empresa.municipio.nome ?? '' };
   })();
+
+  const onlyDigits = (s: string) => String(s ?? '').replace(/\D/g, '');
+
+  const buildPayloadDados = (empresaId: string) => ({
+    id: empresaId,
+    municipio_id: (empresa.municipio?.id ?? '').trim(),
+    cnpj: '',
+    endereco: clienteExtra.logradouro.trim(),
+    numero: clienteExtra.numero.trim(),
+    cep: onlyDigits(clienteExtra.cep),
+    email_contato: clienteExtra.email_contato.trim(),
+    telefone: clienteExtra.telefone.trim(),
+    telefone2: clienteExtra.telefone2.trim(),
+    data_abertura: clienteExtra.data_abertura.trim(),
+    data_encerramento: clienteExtra.data_encerramento.trim(),
+    observacao: clienteExtra.observacao.trim(),
+  });
 
   const saveEmpresa = (event: any) => {
     empresa.tenantid = tenantid;
     empresa.rotina = rotina;
     setSubmitted(true);
-    const docOk = (empresa.documento ?? '').trim() !== '';
+
+    const docDigits = onlyDigits(empresa.documento ?? '');
+    const munOk = (empresa.municipio?.id ?? '').trim() !== '';
+    const docOkPf = isClientePF && docDigits.length === 11;
+    const docOkPj = !isClientePF && (docDigits.length === 0 || docDigits.length === 14);
     const rotinaOk = (empresa.rotina?.id ?? '').trim() !== '';
-    const canSave = !!empresa?.nome?.trim() && (isClientePF ? docOk : rotinaOk);
+
+    const salvarSoDadosUsuario =
+      !podeCadastrarClientes && podeEditarDadosComplementares && !!empresa.id;
+
+    if (salvarSoDadosUsuario) {
+      if (!munOk) {
+        toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Selecione o município.', life: 3500 });
+        setSubmitted(false);
+        return;
+      }
+      empresaDadosService
+        .save(buildPayloadDados(empresa.id!))
+        .then(() => {
+          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Dados do cliente atualizados', life: 3000 });
+        })
+        .catch((err) => {
+          const msg = err?.response?.data?.error ?? 'Erro ao gravar';
+          toast.current?.show({ severity: 'error', summary: 'Erro', detail: String(msg), life: 4500 });
+        })
+        .finally(() => {
+          setEmpresaDialog(false);
+          setEmpresa(emptyEmpresa);
+          setClienteExtra(emptyClienteExtra);
+          loadLazyEmpresa();
+        });
+      setSubmitted(false);
+      return;
+    }
+
+    const canSave =
+      !!empresa?.nome?.trim() &&
+      munOk &&
+      (isClientePF ? docOkPf : rotinaOk && docOkPj);
 
     if (canSave) {
-      let _empresa = {
+      const _empresa = {
         ...empresa,
         tipo_pessoa: isClientePF ? 'PF' : 'PJ',
+        municipio: { id: (empresa.municipio?.id ?? '').trim() },
         cnaes: Array.isArray(empresa.cnaes) ? [...empresa.cnaes] : [],
       };
 
-      if (empresa.id) {
-        empresaService.updateEmpresa(_empresa)
+      const afterEmpresaOk = (id: string) => {
+        empresaDadosService
+          .save(buildPayloadDados(id))
           .then(() => {
-            toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Cliente atualizado', life: 3000 });
+            toast.current?.show({
+              severity: 'success',
+              summary: 'Sucesso',
+              detail: empresa.id ? 'Cliente atualizado' : 'Cliente criado',
+              life: 3000,
+            });
           })
-          .catch((error) => {
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao atualizar o cliente', life: 3000 });
+          .catch((err) => {
+            const msg = err?.response?.data?.error ?? 'Cliente salvo, mas falhou ao gravar endereço/contatos';
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: String(msg), life: 5000 });
           })
           .finally(() => {
-            //setLoading(false);
             setEmpresaDialog(false);
             setEmpresa(emptyEmpresa);
+            setClienteExtra(emptyClienteExtra);
             loadLazyEmpresa();
           });
-      } else {
-        empresaService.createEmpresa(_empresa)
-          .then((response) => {
-            if (response && response.data) {
-              setEmpresas(response.data.empresas);
-              setTotalRecords(response.data.totalRecords);
-            }
-            toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Cliente criado', life: 3000 });
-          })
+      };
+
+      if (empresa.id) {
+        empresaService
+          .updateEmpresa(_empresa)
+          .then(() => afterEmpresaOk(empresa.id!))
           .catch((error) => {
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao criar o cliente', life: 3000 });
+            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao atualizar o cliente', life: 3000 });
+            setSubmitted(false);
+          });
+      } else {
+        empresaService
+          .createEmpresa(_empresa)
+          .then((res) => {
+            const nid = res?.data?.empresas?.[0]?.id;
+            if (nid) {
+              afterEmpresaOk(nid);
+            } else {
+              toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Resposta sem id do cliente', life: 4000 });
+              loadLazyEmpresa();
+            }
           })
-          .finally(() => {
-            //setLoading(false);
-            setEmpresaDialog(false);
-            setEmpresa(emptyEmpresa);
-            loadLazyEmpresa();
+          .catch(() => {
+            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao criar o cliente', life: 3000 });
+            setSubmitted(false);
           });
       }
     } else {
       if (!empresa?.nome?.trim()) {
         toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Preencha o nome do cliente', life: 3000 });
       }
+      if (!munOk) {
+        toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Selecione o município', life: 3000 });
+      }
       if (!isClientePF && !rotinaOk) {
         toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Selecione a rotina (obrigatória para PJ)', life: 3000 });
       }
-      if (isClientePF && !docOk) {
-        toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Informe o CPF do cliente (pessoa física)', life: 3000 });
+      if (isClientePF && !docOkPf) {
+        toast.current?.show({
+          severity: 'warn',
+          summary: 'Alerta',
+          detail: 'CPF deve ter 11 dígitos (apenas números ou formatado)',
+          life: 3500,
+        });
+      }
+      if (!isClientePF && !docOkPj) {
+        toast.current?.show({
+          severity: 'warn',
+          summary: 'Alerta',
+          detail: 'CNPJ, se informado, deve ter 14 dígitos',
+          life: 3500,
+        });
       }
     }
     setSubmitted(false);
   };
 
-  const editEmpresa = (empresa: Vec.Empresa) => {
-    setRotina(empresa.rotina)
-    const rawCnaes = empresa.cnaes as unknown;
+  const editEmpresa = (row: Vec.Empresa) => {
+    setRotina(row.rotina);
+    const rawCnaes = row.cnaes as unknown;
     const cnaesArr = Array.isArray(rawCnaes)
       ? rawCnaes.map((c) => String(c).replace(/\D/g, '')).filter(Boolean)
       : [];
+    setClienteExtra(emptyClienteExtra);
     setEmpresa({
-      ...empresa,
-      municipio: empresa.municipio,
-      rotina: empresa.rotina,
-      bairro: empresa.bairro ?? '',
+      ...row,
+      municipio: row.municipio ?? { id: '', nome: '' },
+      rotina: row.rotina,
+      bairro: row.bairro ?? '',
       cnaes: cnaesArr,
-      tipo_pessoa: (empresa.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF' ? 'PF' : 'PJ',
-      documento: empresa.documento ?? '',
+      tipo_pessoa: (row.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF' ? 'PF' : 'PJ',
+      documento: row.documento ?? '',
     });
     setEmpresaDialog(true);
+
+    const mid = (row.municipio?.id ?? '').trim();
+    if (mid && (row.tipo_pessoa ?? 'PJ') !== 'PF') {
+      loadRotinasPorMunicipio(mid);
+    } else {
+      setRotinas([]);
+    }
+
+    if (row.id) {
+      empresaDadosService.getByEmpresa(row.id).then(({ data }) => {
+        setClienteExtra({
+          logradouro: data?.endereco ?? '',
+          numero: data?.numero ?? '',
+          cep: data?.cep ?? '',
+          email_contato: data?.email_contato ?? '',
+          telefone: data?.telefone ?? '',
+          telefone2: data?.telefone2 ?? '',
+          data_abertura: data?.data_abertura ?? '',
+          data_encerramento: data?.data_encerramento ?? '',
+          observacao: data?.observacao ?? '',
+        });
+        const m = data?.municipio;
+        if (m?.id) {
+          setEmpresa((prev) => ({
+            ...prev,
+            municipio: { id: m.id, nome: m.nome ?? '' },
+          }));
+          if ((row.tipo_pessoa ?? 'PJ') !== 'PF') {
+            loadRotinasPorMunicipio(m.id);
+          }
+        }
+      }).catch(() => { /* sem linha empresa_dados */ });
+    }
   };
 
   const confirmDeleteEmpresa = (empresa: Vec.Empresa) => {
@@ -447,94 +656,32 @@ const Clientes = ({ dados }) => {
         tipo_empresa: { id: '', descricao: '' },
         cnaes: [],
       }));
+      setRotinas([]);
       return;
     }
-    setEmpresa((prev) => ({ ...prev, tipo_pessoa: 'PJ' }));
-  }
-
-  function openDadosComplementares(row: Vec.Empresa): void {
-    if (!row?.id) {
-      return;
-    }
-    setEmpresaDadosRef(row);
-    setEmpresaDadosMunicipio(
-      row.municipio?.id
-        ? { id: row.municipio.id, nome: row.municipio.nome ?? '' }
-        : { id: '', nome: '' },
-    );
-    setEmpresaDadosForm({
-      cnpj: '',
-      endereco: '',
-      email_contato: '',
-      telefone: '',
-      telefone2: '',
-      data_abertura: '',
-      data_encerramento: '',
-      observacao: '',
+    setEmpresa((prev) => {
+      const next = { ...prev, tipo_pessoa: 'PJ' as const };
+      const mid = (next.municipio?.id ?? '').trim();
+      if (mid) {
+        loadRotinasPorMunicipio(mid);
+      }
+      return next;
     });
-    setDadosComplementaresDialog(true);
-    empresaDadosService
-      .getByEmpresa(row.id)
-      .then(({ data }) => {
-        const mun = data?.municipio;
-        setEmpresaDadosMunicipio(
-          mun?.id ? { id: mun.id, nome: mun.nome ?? '' } : { id: '', nome: '' },
-        );
-        setEmpresaDadosForm({
-          cnpj: data?.cnpj ?? '',
-          endereco: data?.endereco ?? '',
-          email_contato: data?.email_contato ?? '',
-          telefone: data?.telefone ?? '',
-          telefone2: data?.telefone2 ?? '',
-          data_abertura: data?.data_abertura ?? '',
-          data_encerramento: data?.data_encerramento ?? '',
-          observacao: data?.observacao ?? '',
-        });
-      })
-      .catch(() => {
-        toast.current?.show({
-          severity: 'error',
-          summary: 'Erro',
-          detail: 'Não foi possível carregar os dados complementares.',
-          life: 3500,
-        });
-      });
   }
 
-  function saveDadosComplementares(): void {
-    if (!empresaDadosRef?.id || !podeEditarDadosComplementares) {
-      return;
-    }
-    empresaDadosService
-      .save({
-        id: empresaDadosRef.id,
-        municipio_id: (empresaDadosMunicipio?.id ?? '').trim(),
-        cnpj: empresaDadosForm.cnpj,
-        endereco: empresaDadosForm.endereco,
-        email_contato: empresaDadosForm.email_contato,
-        telefone: empresaDadosForm.telefone,
-        telefone2: empresaDadosForm.telefone2,
-        data_abertura: empresaDadosForm.data_abertura,
-        data_encerramento: empresaDadosForm.data_encerramento,
-        observacao: empresaDadosForm.observacao,
-      })
-      .then(() => {
-        toast.current?.show({
-          severity: 'success',
-          summary: 'Sucesso',
-          detail: 'Dados complementares gravados.',
-          life: 3000,
-        });
-        setDadosComplementaresDialog(false);
-        loadLazyEmpresa();
-      })
-      .catch((err) => {
-        const msg =
-          err?.response?.data?.error ??
-          err?.response?.data?.message ??
-          'Erro ao gravar dados complementares.';
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail: String(msg), life: 4500 });
-      });
+  function onMunicipioClienteChange(m: Vec.MunicipioLite | null): void {
+    const muni = m?.id ? { id: m.id, nome: m.nome ?? '' } : { id: '', nome: '' };
+    setEmpresa((prev) => {
+      const next = { ...prev, municipio: muni };
+      if ((next.tipo_pessoa ?? 'PJ') === 'PJ') {
+        if (muni.id) {
+          loadRotinasPorMunicipio(muni.id);
+        } else {
+          setRotinas([]);
+        }
+      }
+      return next;
+    });
   }
 
   async function validaCnae(cnae: string): Promise<boolean> {
@@ -552,7 +699,7 @@ const Clientes = ({ dados }) => {
     if (!podeCadastrarClientes) {
       return (
         <p className="text-600 m-0 text-sm">
-          Cadastro (criar, alterar, excluir) é restrito a administradores. Use o ícone de livro na grade para dados complementares (município, contatos, etc.). Processo e compromissos em{' '}
+          Cadastro completo (inclui endereço e contatos) na edição do cliente. Criar, alterar e excluir clientes é restrito a administradores; usuários do escritório podem ajustar município e contatos. Processo e compromissos em{' '}
           <strong>Manutenção de Empresas</strong>.
         </p>
       );
@@ -650,24 +797,26 @@ const Clientes = ({ dados }) => {
   };
 
   const actionBodyTemplate = (rowData: Vec.Empresa) => {
+    const podeEditarLinha = podeCadastrarClientes || podeEditarDadosComplementares;
     return (
       <>
-        <Button
-          icon="pi pi-book"
-          tooltip="Dados complementares"
-          tooltipOptions={{ position: 'left' }}
-          rounded
-          severity="secondary"
-          className="mr-2"
-          onClick={() => openDadosComplementares(rowData)}
-        />
-        {podeCadastrarClientes ? (
+        {podeEditarLinha ? (
           <>
-            <Button icon="pi pi-pencil" tooltip='Alterar' tooltipOptions={{ position: 'left' }} rounded severity="success" className="mr-2" onClick={() => editEmpresa(rowData)} />
-            <Button icon="pi pi-trash" tooltip='Excluir' tooltipOptions={{ position: 'left' }} rounded severity="warning" onClick={() => confirmDeleteEmpresa(rowData)} />
+            <Button
+              icon="pi pi-pencil"
+              tooltip={podeCadastrarClientes ? 'Alterar' : 'Alterar contatos e município'}
+              tooltipOptions={{ position: 'left' }}
+              rounded
+              severity="success"
+              className="mr-2"
+              onClick={() => editEmpresa(rowData)}
+            />
+            {podeCadastrarClientes && (
+              <Button icon="pi pi-trash" tooltip='Excluir' tooltipOptions={{ position: 'left' }} rounded severity="warning" onClick={() => confirmDeleteEmpresa(rowData)} />
+            )}
           </>
         ) : (
-          <span className="text-500 text-sm ml-1">Cadastro restrito</span>
+          <span className="text-500 text-sm ml-1">Sem permissão para editar</span>
         )}
       </>
     );
@@ -677,7 +826,7 @@ const Clientes = ({ dados }) => {
     <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
       <div>
         <h5 className="m-0">Cadastro de Clientes</h5>
-        <p className="m-0 mt-1 text-600 text-sm">PJ: rotina e CNAEs. PF: CPF (sem rotina). Município e contatos nos dados complementares (ícone do livro). Processo e compromissos na Manutenção de Empresas.</p>
+        <p className="m-0 mt-1 text-600 text-sm">Cadastro unificado: município, rotina (PJ, filtrada pelo município), CNAEs, CPF/CNPJ, endereço e contatos no mesmo formulário. Processo e compromissos na Manutenção de Empresas.</p>
       </div>
       <span className="block mt-2 md:mt-0 p-input-icon-left">
         <i className="pi pi-search" />
@@ -690,15 +839,6 @@ const Clientes = ({ dados }) => {
     <>
       <Button label="Cancelar" icon="pi pi-times" text onClick={hideDialog} />
       <Button label="Salvar" icon="pi pi-check" text onClick={saveEmpresa} />
-    </>
-  );
-
-  const dadosComplementaresDialogFooter = (
-    <>
-      <Button label="Fechar" icon="pi pi-times" text onClick={() => setDadosComplementaresDialog(false)} />
-      {podeEditarDadosComplementares && (
-        <Button label="Salvar" icon="pi pi-check" text onClick={saveDadosComplementares} />
-      )}
     </>
   );
 
@@ -760,7 +900,21 @@ const Clientes = ({ dados }) => {
             <Column body={actionBodyTemplate} header="Ações" headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
 
-          <Dialog visible={empresaDialog} style={{ width: '580px' }} header="Cliente (cadastro)" modal className="p-fluid" footer={empresaDialogFooter} onHide={hideDialog}>
+          <Dialog
+            visible={empresaDialog}
+            style={{ width: 'min(720px, 96vw)' }}
+            header={empresa?.id ? 'Cliente (edição)' : 'Cliente (novo)'}
+            modal
+            className="p-fluid"
+            footer={empresaDialogFooter}
+            onHide={hideDialog}
+          >
+            {coreCamposBloqueados && (
+              <p className="text-600 text-sm mb-3">
+                Você pode alterar município, endereço e contatos. Demais campos do cadastro são mantidos pelo administrador.
+              </p>
+            )}
+
             <div className="field">
               <label htmlFor="ddtipo_pessoa">Pessoa física ou jurídica</label>
               <Dropdown
@@ -770,52 +924,124 @@ const Clientes = ({ dados }) => {
                 onChange={(e) => onTipoPessoaChange(e.value)}
                 optionLabel="label"
                 optionValue="value"
-                disabled={empresa?.iniciado === true}
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
                 className="w-full"
               />
             </div>
 
             <div className="field">
               <label htmlFor="nome_">Nome</label>
-              <InputText id="nome_" value={empresa.nome} type='text' onChange={(e) => onInputChange(e, 'nome')} required autoFocus className={classNames({ 'p-invalid': submitted && !empresa.nome })} />
+              <InputText
+                id="nome_"
+                value={empresa.nome}
+                type="text"
+                onChange={(e) => onInputChange(e, 'nome')}
+                required
+                autoFocus
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                className={classNames({ 'p-invalid': submitted && !empresa.nome })}
+              />
               {submitted && !empresa.nome && <small className="p-invalid">Nome do cliente é obrigatório.</small>}
             </div>
 
             <div className="field">
-              <label htmlFor="documento_">{isClientePF ? 'CPF' : 'CNPJ (opcional)'}</label>
+              <label htmlFor="ddmuncli">Município</label>
+              <Dropdown
+                id="ddmuncli"
+                value={municipioFormDropdownValue}
+                options={municipios}
+                onChange={(e) => onMunicipioClienteChange(e.value ?? null)}
+                optionLabel="nome"
+                dataKey="id"
+                placeholder="Selecione o município"
+                emptyMessage="Nenhum município encontrado"
+                disabled={empresa?.iniciado === true}
+                className="w-full"
+                showClear
+              />
+              <small className="text-600">Define a lista de rotinas disponíveis para PJ.</small>
+            </div>
+
+            <div className="field">
+              <label htmlFor="ddrotina">Rotina (somente PJ)</label>
+              <Dropdown
+                id="ddrotina"
+                value={empresa.rotina}
+                options={rotinas}
+                onChange={(e) => onRotinaChange(e.value)}
+                optionLabel="lista_label"
+                dataKey="id"
+                placeholder={
+                  isClientePF
+                    ? 'Não aplicável a PF'
+                    : (empresa.municipio?.id ?? '').trim()
+                      ? 'Selecione a rotina do município'
+                      : 'Selecione o município primeiro'
+                }
+                emptyMessage="Nenhuma rotina para este município"
+                disabled={empresa?.iniciado === true || isClientePF || coreCamposBloqueados}
+              />
+              {submitted && !isClientePF && !(empresa.rotina?.id ?? '').trim() && (
+                <small className="p-invalid">Rotina é obrigatória para pessoa jurídica.</small>
+              )}
+            </div>
+
+            <div className="p-fluid field">
+              <label htmlFor="ddtag">CNAE&apos;s (somente PJ)</label>
+              <Chips
+                id="ddtag"
+                value={empresa.cnaes}
+                onChange={handleCnaesChange}
+                itemTemplate={(cnae: string) => (
+                  <div className="p-d-flex p-ai-center p-flex-wrap">
+                    <div className="p-mr-2">{cnae.replace(/(\d{2})(\d{2})(\d{1})(\d{2})/, '$1.$2-$3/$4')}</div>
+                  </div>
+                )}
+                keyfilter="alphanum"
+                disabled={empresa?.iniciado === true || isClientePF || coreCamposBloqueados}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="documento_">{isClientePF ? 'CPF (11 dígitos)' : 'CNPJ (14 dígitos, opcional)'}</label>
               <InputText
                 id="documento_"
                 value={empresa.documento ?? ''}
                 type="text"
+                inputMode="numeric"
+                maxLength={isClientePF ? 14 : 18}
                 onChange={(e) => onInputChange(e, 'documento')}
-                disabled={empresa?.iniciado === true}
-                className={classNames({ 'p-invalid': submitted && isClientePF && !(empresa.documento ?? '').trim() })}
-                placeholder={isClientePF ? 'Obrigatório para PF' : 'Opcional; pode constar também nos dados complementares'}
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                className={classNames({ 'p-invalid': submitted && isClientePF && onlyDigits(empresa.documento ?? '').length !== 11 })}
+                placeholder={isClientePF ? 'Somente números ou formatado' : 'Opcional para PJ'}
               />
-              {submitted && isClientePF && !(empresa.documento ?? '').trim() && (
-                <small className="p-invalid">CPF é obrigatório para pessoa física.</small>
-              )}
+              <small className="text-600">Único cadastro de CPF/CNPJ; não duplicar em outros campos.</small>
             </div>
 
-            <div className="field">
-              <label htmlFor="ddrotina">Rotina</label>
-              <span className='p-float-label'>
-                <Dropdown
-                  id="ddrotina"
-                  value={empresa.rotina}
-                  options={rotinas}
-                  onChange={(e) => onRotinaChange(e.value)}
-                  optionLabel='lista_label'
-                  dataKey='id'
-                  placeholder={isClientePF ? 'Não aplicável a PF' : 'Selecione uma rotina (por município na descrição)'}
-                  emptyMessage='Nenhuma Rotina encontrada'
-                  disabled={empresa?.iniciado === true || isClientePF}
+            <div className="formgrid grid">
+              <div className="field col-12 md:col-8">
+                <label htmlFor="logr_">Logradouro (rua)</label>
+                <InputText
+                  id="logr_"
+                  value={clienteExtra.logradouro}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, logradouro: e.target.value }))}
+                  disabled={empresa?.iniciado === true}
+                  className="w-full"
                 />
-                {submitted && !isClientePF && !(empresa.rotina?.id ?? '').trim() && (
-                  <small className="p-invalid">Rotina é obrigatória para pessoa jurídica.</small>
-                )}
-              </span>
+              </div>
+              <div className="field col-12 md:col-4">
+                <label htmlFor="num_">Número</label>
+                <InputText
+                  id="num_"
+                  value={clienteExtra.numero}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, numero: e.target.value }))}
+                  disabled={empresa?.iniciado === true}
+                  className="w-full"
+                  maxLength={40}
+                />
+              </div>
             </div>
+
             <div className="field">
               <label htmlFor="bairro_">Bairro</label>
               <InputText
@@ -823,110 +1049,44 @@ const Clientes = ({ dados }) => {
                 value={empresa.bairro ?? ''}
                 type="text"
                 onChange={(e) => onInputChange(e, 'bairro')}
-                disabled={empresa?.iniciado === true}
-                placeholder="Obrigatório para compromissos por bairro (quando cadastrados)"
+                disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                placeholder="Obrigatório quando houver compromissos por bairro"
               />
-            </div>
-            <div className="p-fluid field">
-              <label htmlFor="ddtag">CNAE's</label>
-              <Chips
-                id='ddtag'
-                value={empresa.cnaes} onChange={handleCnaesChange}
-                itemTemplate={(cnae: string) => (
-                  <div className="p-d-flex p-ai-center p-flex-wrap">
-                    <div className="p-mr-2">{cnae.replace(/(\d{2})(\d{2})(\d{1})(\d{2})/, '$1.$2-$3/$4')}</div>
-                  </div>
-                )}
-                keyfilter="alphanum"
-                disabled={empresa?.iniciado === true || isClientePF}
-              />
-              {isClientePF && <small className="text-600">CNAE's aplicam-se a pessoa jurídica.</small>}
             </div>
 
-          </Dialog>
-
-          <Dialog
-            visible={dadosComplementaresDialog}
-            style={{ width: '560px' }}
-            header={
-              empresaDadosRef?.nome
-                ? `Dados complementares — ${empresaDadosRef.nome}`
-                : 'Dados complementares'
-            }
-            modal
-            className="p-fluid"
-            footer={dadosComplementaresDialogFooter}
-            onHide={() => setDadosComplementaresDialog(false)}
-          >
-            {!podeEditarDadosComplementares && (
-              <p className="text-600 text-sm mb-3">
-                Somente perfis Admin e Usuário alteram estes campos (perfil Super não mantém dados complementares).
-              </p>
-            )}
             <div className="field">
-              <label htmlFor="ddmuncompl">Município</label>
-              <Dropdown
-                id="ddmuncompl"
-                value={dadosComplMunicipioDropdownValue}
-                options={municipios}
-                onChange={(e) =>
-                  setEmpresaDadosMunicipio(
-                    e.value ? { id: e.value.id ?? '', nome: e.value.nome ?? '' } : { id: '', nome: '' },
-                  )
-                }
-                optionLabel="nome"
-                dataKey="id"
-                placeholder="Selecione o município do cliente"
-                emptyMessage="Nenhum município encontrado"
-                disabled={!podeEditarDadosComplementares}
-                className="w-full"
-                showClear
-              />
-              <small className="text-600">Obrigatório para regras municipais, compromissos e processo operacional.</small>
-            </div>
-            <div className="field">
-              <label htmlFor="edcnpj">CNPJ</label>
+              <label htmlFor="cep_">CEP</label>
               <InputText
-                id="edcnpj"
-                value={empresaDadosForm.cnpj ?? ''}
-                onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, cnpj: e.target.value }))}
-                disabled={!podeEditarDadosComplementares}
-                className="w-full"
-                maxLength={18}
+                id="cep_"
+                value={clienteExtra.cep}
+                inputMode="numeric"
+                maxLength={9}
+                onChange={(e) => setClienteExtra((x) => ({ ...x, cep: e.target.value }))}
+                disabled={empresa?.iniciado === true}
+                placeholder="00000000 ou 00000-000"
               />
             </div>
-            <div className="field">
-              <label htmlFor="edendereco">Endereço</label>
-              <InputTextarea
-                id="edendereco"
-                value={empresaDadosForm.endereco ?? ''}
-                onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, endereco: e.target.value }))}
-                disabled={!podeEditarDadosComplementares}
-                rows={3}
-                className="w-full"
-                autoResize
-              />
-            </div>
+
             <div className="field">
               <label htmlFor="edemail">E-mail de contato</label>
               <InputText
                 id="edemail"
                 type="email"
-                value={empresaDadosForm.email_contato ?? ''}
-                onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, email_contato: e.target.value }))}
-                disabled={!podeEditarDadosComplementares}
+                value={clienteExtra.email_contato}
+                onChange={(e) => setClienteExtra((x) => ({ ...x, email_contato: e.target.value }))}
+                disabled={empresa?.iniciado === true}
                 className="w-full"
               />
             </div>
+
             <div className="formgrid grid">
               <div className="field col-12 md:col-6">
                 <label htmlFor="edtel1">Telefone</label>
                 <InputText
                   id="edtel1"
-                  value={empresaDadosForm.telefone ?? ''}
-                  onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, telefone: e.target.value }))}
-                  disabled={!podeEditarDadosComplementares}
-                  className="w-full"
+                  value={clienteExtra.telefone}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, telefone: e.target.value }))}
+                  disabled={empresa?.iniciado === true}
                   maxLength={40}
                 />
               </div>
@@ -934,14 +1094,14 @@ const Clientes = ({ dados }) => {
                 <label htmlFor="edtel2">Telefone 2</label>
                 <InputText
                   id="edtel2"
-                  value={empresaDadosForm.telefone2 ?? ''}
-                  onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, telefone2: e.target.value }))}
-                  disabled={!podeEditarDadosComplementares}
-                  className="w-full"
+                  value={clienteExtra.telefone2}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, telefone2: e.target.value }))}
+                  disabled={empresa?.iniciado === true}
                   maxLength={40}
                 />
               </div>
             </div>
+
             <div className="formgrid grid">
               <div className="field col-12 md:col-6">
                 <label htmlFor="edaber">Data de abertura</label>
@@ -949,12 +1109,11 @@ const Clientes = ({ dados }) => {
                   id="edaber"
                   type="date"
                   className="p-inputtext p-component w-full"
-                  value={empresaDadosForm.data_abertura ?? ''}
-                  disabled={!podeEditarDadosComplementares}
-                  onChange={(e) =>
-                    setEmpresaDadosForm((f) => ({ ...f, data_abertura: e.target.value }))
-                  }
+                  value={clienteExtra.data_abertura}
+                  disabled={empresa?.iniciado === true}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, data_abertura: e.target.value }))}
                 />
+                <small className="text-600">Formato conforme o navegador (aaaa-mm-dd enviado à API).</small>
               </div>
               <div className="field col-12 md:col-6">
                 <label htmlFor="edenc">Data de encerramento</label>
@@ -962,21 +1121,20 @@ const Clientes = ({ dados }) => {
                   id="edenc"
                   type="date"
                   className="p-inputtext p-component w-full"
-                  value={empresaDadosForm.data_encerramento ?? ''}
-                  disabled={!podeEditarDadosComplementares}
-                  onChange={(e) =>
-                    setEmpresaDadosForm((f) => ({ ...f, data_encerramento: e.target.value }))
-                  }
+                  value={clienteExtra.data_encerramento}
+                  disabled={empresa?.iniciado === true}
+                  onChange={(e) => setClienteExtra((x) => ({ ...x, data_encerramento: e.target.value }))}
                 />
               </div>
             </div>
+
             <div className="field">
               <label htmlFor="edobs">Observações</label>
               <InputTextarea
                 id="edobs"
-                value={empresaDadosForm.observacao ?? ''}
-                onChange={(e) => setEmpresaDadosForm((f) => ({ ...f, observacao: e.target.value }))}
-                disabled={!podeEditarDadosComplementares}
+                value={clienteExtra.observacao}
+                onChange={(e) => setClienteExtra((x) => ({ ...x, observacao: e.target.value }))}
+                disabled={empresa?.iniciado === true}
                 rows={3}
                 className="w-full"
                 autoResize

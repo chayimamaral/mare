@@ -11,6 +11,7 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/config"
 	"github.com/chayimamaral/vecontab/backend/internal/db"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi"
+	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/worker"
 )
 
@@ -41,7 +42,8 @@ func main() {
 	errCh := make(chan error, 1)
 
 	if cfg.CompromissosWorkerEnabled {
-		w, err := worker.NewCompromissosWorker(pool, cfg)
+		monRepo := repository.NewMonitorOperacaoRepository(pool)
+		w, err := worker.NewCompromissosWorker(pool, cfg, monRepo)
 		if err != nil {
 			log.Fatalf("init compromissos worker: %v", err)
 		}

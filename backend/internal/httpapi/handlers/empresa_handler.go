@@ -85,15 +85,20 @@ func (h *EmpresaHandler) Create(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
 		return
 	}
+	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {
+		render.WriteError(w, http.StatusBadRequest, "Municipio e obrigatorio")
+		return
+	}
 
 	response, err := h.service.Create(r.Context(), service.EmpresaInput{
-		Nome:       payload.Params.Nome,
-		TenantID:   tenantID,
-		RotinaID:   payload.Params.Rotina.ID,
-		Cnaes:      payload.Params.Cnaes,
-		Bairro:     payload.Params.Bairro,
-		TipoPessoa: tp,
-		Documento:  payload.Params.Documento,
+		Nome:        payload.Params.Nome,
+		TenantID:    tenantID,
+		MunicipioID: strings.TrimSpace(payload.Params.Municipio.ID),
+		RotinaID:    payload.Params.Rotina.ID,
+		Cnaes:       payload.Params.Cnaes,
+		Bairro:      payload.Params.Bairro,
+		TipoPessoa:  tp,
+		Documento:   payload.Params.Documento,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
@@ -124,16 +129,21 @@ func (h *EmpresaHandler) Update(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
 		return
 	}
+	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {
+		render.WriteError(w, http.StatusBadRequest, "Municipio e obrigatorio")
+		return
+	}
 
 	response, err := h.service.Update(r.Context(), service.EmpresaInput{
-		ID:         payload.Params.ID,
-		Nome:       payload.Params.Nome,
-		TenantID:   tenantID,
-		RotinaID:   payload.Params.Rotina.ID,
-		Cnaes:      payload.Params.Cnaes,
-		Bairro:     payload.Params.Bairro,
-		TipoPessoa: tp,
-		Documento:  payload.Params.Documento,
+		ID:          payload.Params.ID,
+		Nome:        payload.Params.Nome,
+		TenantID:    tenantID,
+		MunicipioID: strings.TrimSpace(payload.Params.Municipio.ID),
+		RotinaID:    payload.Params.Rotina.ID,
+		Cnaes:       payload.Params.Cnaes,
+		Bairro:      payload.Params.Bairro,
+		TipoPessoa:  tp,
+		Documento:   payload.Params.Documento,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())

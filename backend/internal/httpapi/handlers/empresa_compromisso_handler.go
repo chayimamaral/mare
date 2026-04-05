@@ -6,17 +6,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
 )
 
 type EmpresaCompromissoHandler struct {
 	service *service.EmpresaCompromissoService
+	monitor *service.MonitorOperacaoService
 }
 
-func NewEmpresaCompromissoHandler(s *service.EmpresaCompromissoService) *EmpresaCompromissoHandler {
-	return &EmpresaCompromissoHandler{service: s}
+func NewEmpresaCompromissoHandler(s *service.EmpresaCompromissoService, m *service.MonitorOperacaoService) *EmpresaCompromissoHandler {
+	return &EmpresaCompromissoHandler{service: s, monitor: m}
 }
 
 func (h *EmpresaCompromissoHandler) Acompanhamento(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +96,36 @@ func (h *EmpresaCompromissoHandler) Gerar(w http.ResponseWriter, r *http.Request
 	}
 
 	resp, err := h.service.Gerar(r.Context(), payload.Params.EmpresaID, tenantID, dataInicio)
+	if h.monitor != nil {
+		tid := tenantID
+		uid := strings.TrimSpace(middleware.UserID(r.Context()))
+		var uidPtr *string
+		if uid != "" {
+			uidPtr = &uid
+		}
+		det := map[string]any{
+			"empresa_id":  strings.TrimSpace(payload.Params.EmpresaID),
+			"data_inicio": dataInicio.Format("2006-01-02"),
+		}
+		st := domain.MonitorOperacaoStatusSucesso
+		var msg string
+		if err != nil {
+			st = domain.MonitorOperacaoStatusErro
+			msg = err.Error()
+		} else {
+			msg = resp.Message
+			det["quantidade"] = resp.Quantidade
+		}
+		_ = h.monitor.Registrar(r.Context(), repository.MonitorOperacaoInsert{
+			TenantID: tid,
+			UserID:   uidPtr,
+			Origem:   domain.MonitorOperacaoOrigemManual,
+			Tipo:     domain.MonitorOperacaoTipoGeracaoCompromissos,
+			Status:   st,
+			Mensagem: &msg,
+			Detalhe:  det,
+		})
+	}
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

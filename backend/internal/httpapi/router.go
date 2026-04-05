@@ -54,6 +54,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	)
 	empresaDadosService := service.NewEmpresaDadosService(repository.NewEmpresaDadosRepository(pool))
 	clienteService := service.NewClienteService(repository.NewClienteRepository(pool))
+	monitorOperacaoRepo := repository.NewMonitorOperacaoRepository(pool)
+	monitorOperacaoService := service.NewMonitorOperacaoService(monitorOperacaoRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -71,8 +73,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	registroHandler := handlers.NewRegistroHandler(registroService)
 	nodeHandler := handlers.NewNodeHandler(nodeService)
 	obrigacaoHandler := handlers.NewObrigacaoHandler(obrigacaoService)
-	empresaAgendaHandler := handlers.NewEmpresaAgendaHandler(empresaAgendaService)
-	empresaCompromissoHandler := handlers.NewEmpresaCompromissoHandler(empresaCompromissoService)
+	empresaAgendaHandler := handlers.NewEmpresaAgendaHandler(empresaAgendaService, monitorOperacaoService)
+	empresaCompromissoHandler := handlers.NewEmpresaCompromissoHandler(empresaCompromissoService, monitorOperacaoService)
+	monitorOperacaoHandler := handlers.NewMonitorOperacaoHandler(monitorOperacaoService)
 	empresaDadosHandler := handlers.NewEmpresaDadosHandler(empresaDadosService)
 	clienteHandler := handlers.NewClienteHandler(clienteService)
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
@@ -84,9 +87,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
+	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, requireAuth, requireAdmin, requireAdminOrUser, requireSuper)
 	})
 
 	return r
@@ -114,6 +117,7 @@ func registerRoutes(
 	empresaAgendaHandler *handlers.EmpresaAgendaHandler,
 	empresaCompromissoHandler *handlers.EmpresaCompromissoHandler,
 	clienteHandler *handlers.ClienteHandler,
+	monitorOperacaoHandler *handlers.MonitorOperacaoHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOrUser func(http.Handler) http.Handler,
@@ -199,7 +203,8 @@ func registerRoutes(
 	r.With(requireAuth, requireAdmin).Put("/iniciarprocesso", empresaHandler.IniciarProcesso)
 
 	r.With(requireAuth).Get("/empresadados", empresaDadosHandler.Get)
-	r.With(requireAuth, requireAdminOrUser).Put("/empresadados", empresaDadosHandler.Upsert)
+	// ADMIN/USER/SUPER: cadastro unificado de cliente (issue #59) grava empresa + empresa_dados.
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "USER", "SUPER")).Put("/empresadados", empresaDadosHandler.Upsert)
 
 	r.With(requireAuth).Get("/cnaes", cnaeHandler.List)
 	r.With(requireAuth, requireAdmin).Post("/cnae", cnaeHandler.Create)
@@ -234,6 +239,7 @@ func registerRoutes(
 	r.With(requireAuth).Get("/empresacompromissos/form-options", empresaCompromissoHandler.FormOptions)
 	r.With(requireAuth).Get("/empresacompromissos/obrigacoes", empresaCompromissoHandler.ObrigacoesByEmpresa)
 	r.With(requireAuth, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
+	r.With(requireAuth, requireAdmin).Get("/monitor/operacoes", monitorOperacaoHandler.List)
 	r.With(requireAuth).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
 	r.With(requireAuth).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)
 	r.With(requireAuth).Put("/empresacompromissos/item", empresaCompromissoHandler.UpdateItem)
