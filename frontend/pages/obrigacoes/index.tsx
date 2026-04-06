@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { GetServerSidePropsContext } from 'next';
 import { classNames } from 'primereact/utils';
 import { withAuthServerSideProps } from '../../components/utils/crudUtils';
@@ -141,16 +142,15 @@ const ObrigacoesLegaisPage = () => {
   const [obrigacaoDialog, setObrigacaoDialog] = useState(false);
   const [deleteObrigacaoDialog, setDeleteObrigacaoDialog] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInputTooltip, setPageInputTooltip] = useState('');
 
-  const [municipios, setMunicipios] = useState<GeoRef[]>([]);
-  const [estados, setEstados] = useState<GeoRef[]>([]);
-  const [tiposEmpresa, setTiposEmpresa] = useState<TipoEmpresaRef[]>([]);
+  const [municipiosFallback, setMunicipiosFallback] = useState<GeoRef[]>([]);
+  const [estadosFallback, setEstadosFallback] = useState<GeoRef[]>([]);
+  const [tiposEmpresaFallback, setTiposEmpresaFallback] = useState<TipoEmpresaRef[]>([]);
 
   // Dialog-level selected geo values
   const [selectedEstado, setSelectedEstado] = useState<GeoRef | undefined>();
@@ -222,47 +222,53 @@ const ObrigacoesLegaisPage = () => {
     });
   };
 
-  useEffect(() => {
-    loadObrigacoes();
-  }, [lazyState]);
-
-  useEffect(() => {
-    loadGeoData();
-  }, []);
-
-  const loadObrigacoes = () => {
-    setLoading(true);
-    obrigacaoLegaisService
-      .getObrigacoes({ lazyEvent: JSON.stringify(lazyState) })
-      .then(({ data }) => {
-        setObrigacoes(sortObrigacoesLocal(data.obrigacoes ?? []));
-        setTotalRecords(data.totalRecords ?? 0);
-      })
-      .catch((err: unknown) => {
-        const detail = err instanceof Error ? err.message : 'Erro ao carregar obrigações legais';
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail, life: 8000 });
-      })
-      .finally(() => setLoading(false));
+  const loadObrigacoes = async () => {
+    const { data } = await obrigacaoLegaisService.getObrigacoes({ lazyEvent: JSON.stringify(lazyState) });
+    return {
+      obrigacoes: sortObrigacoesLocal(data?.obrigacoes ?? []),
+      totalRecords: data?.totalRecords ?? 0,
+    };
   };
 
-  const loadGeoData = () => {
-    MunicipioService()
-      .getMunicipiosLite()
-      .then(({ data }) => setMunicipios(data?.municipios ?? []));
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['obrigacoes', lazyState],
+    queryFn: () => loadObrigacoes(),
+  });
 
-    EstadoService()
-      .getUFCidade()
-      .then(({ data }) => setEstados(data?.estados ?? []));
+  const { data: municipios = municipiosFallback } = useQuery<GeoRef[]>({
+    queryKey: ['municipios-lite'],
+    queryFn: async () => {
+      const { data } = await MunicipioService().getMunicipiosLite();
+      const lista = data?.municipios ?? [];
+      setMunicipiosFallback(lista);
+      return lista;
+    },
+  });
 
-    TipoEmpresaService()
-      .getTiposEmpresaLite()
-      .then(({ data }) => setTiposEmpresa(data?.tiposEmpresa ?? []));
-  };
+  const { data: estados = estadosFallback } = useQuery<GeoRef[]>({
+    queryKey: ['estados-uf-cidade'],
+    queryFn: async () => {
+      const { data } = await EstadoService().getUFCidade();
+      const lista = data?.estados ?? [];
+      setEstadosFallback(lista);
+      return lista;
+    },
+  });
+
+  const { data: tiposEmpresa = tiposEmpresaFallback } = useQuery<TipoEmpresaRef[]>({
+    queryKey: ['tiposempresa-lite'],
+    queryFn: async () => {
+      const { data } = await TipoEmpresaService().getTiposEmpresaLite();
+      const lista = data?.tiposEmpresa ?? [];
+      setTiposEmpresaFallback(lista);
+      return lista;
+    },
+  });
 
   // ── paginator ────────────────────────────────────────────────────────────
 
   const paginatorLeft = (
-    <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={loadObrigacoes} />
+    <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={() => refetch()} />
   );
 
   const onPage = (event: DataTableStateEvent) => {
@@ -443,7 +449,7 @@ const ObrigacoesLegaisPage = () => {
         setObrigacaoDialog(false);
         setObrigacao({ ...emptyObrigacao });
         setSubmitted(false);
-        loadObrigacoes();
+        refetch();
       });
   };
 
@@ -460,7 +466,7 @@ const ObrigacoesLegaisPage = () => {
       .finally(() => {
         setDeleteObrigacaoDialog(false);
         setObrigacao({ ...emptyObrigacao });
-        loadObrigacoes();
+        refetch();
       });
   };
 
@@ -691,7 +697,7 @@ const ObrigacoesLegaisPage = () => {
             <Toolbar className="mb-4" left={leftToolbarTemplate} />
 
             <DataTable
-              value={obrigacoes}
+              value={data?.obrigacoes ?? obrigacoes}
               lazy
               dataKey="id"
               paginator
@@ -709,8 +715,8 @@ const ObrigacoesLegaisPage = () => {
               onSort={onSort}
               sortField={lazyState.sortField}
               sortOrder={(lazyState.sortOrder ?? 1) as 1 | 0 | -1 | null}
-              loading={loading}
-              totalRecords={totalRecords}
+              loading={isFetching}
+              totalRecords={data?.totalRecords ?? totalRecords}
               paginatorLeft={paginatorLeft}
             >
               <Column field="descricao" header="Descrição" sortable headerStyle={{ minWidth: '16rem' }} />

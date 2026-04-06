@@ -14,6 +14,7 @@ import { FilterMatchMode } from 'primereact/api';
 import { Calendar } from 'primereact/calendar';
 import { Dropdown } from 'primereact/dropdown';
 import { InputTextarea } from 'primereact/inputtextarea';
+import { useQuery } from '@tanstack/react-query';
 import EmpresaCompromissoService from '../../services/cruds/EmpresaCompromissoService';
 import type { Vec } from '../../types/types';
 
@@ -164,7 +165,7 @@ function emitFieldFilter(
 export default function CompromissosEmpresasPage() {
     const [nodes, setNodes] = useState<TreeNode[]>([]);
     const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
-    const [loading, setLoading] = useState(false);
+    const [empresaOptionsFallback, setEmpresaOptionsFallback] = useState<SelectOption[]>([]);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(10);
     const [sortField, setSortField] = useState('nome');
@@ -284,44 +285,40 @@ export default function CompromissosEmpresasPage() {
         });
     };
 
-    const load = () => {
-        setLoading(true);
-        svc.getAcompanhamento()
-            .then(({ data }) => {
-                const itens = (data.itens ?? []) as Vec.EmpresaAgendaAcompanhamentoItem[];
-                const tree = buildTree(itens);
-                setNodes(tree);
-                setExpandedKeys(defaultExpandedKeys(tree));
-                setFirst(0);
-            })
-            .catch((error: unknown) => {
-                setNodes([]);
-                toast.current?.show({
-                    severity: 'error',
-                    summary: 'Erro',
-                    detail: error instanceof Error ? error.message : 'Erro ao carregar compromissos',
-                    life: 3000,
-                });
-            })
-            .finally(() => setLoading(false));
+    const load = async () => {
+        const { data } = await svc.getAcompanhamento();
+        const itens = (data.itens ?? []) as Vec.EmpresaAgendaAcompanhamentoItem[];
+        return buildTree(itens);
     };
 
-    const loadFormOptions = () => {
-        svc.getFormOptions()
-            .then(({ data }) => {
-                const empresas: Array<{ id?: string; nome?: string }> = Array.isArray(data?.empresas) ? data.empresas : [];
-                const opts: SelectOption[] = empresas
-                    .map((e: { id?: string; nome?: string }) => ({
-                        value: String(e.id || '').trim(),
-                        label: String(e.nome || '').trim() || 'Empresa sem nome',
-                    }))
-                    .filter((e: SelectOption) => e.value !== '');
-                setEmpresaOptions(opts);
-            })
-            .catch(() => {
-                setEmpresaOptions([]);
-            });
+    const loadFormOptions = async () => {
+        const { data } = await svc.getFormOptions();
+        const empresas: Array<{ id?: string; nome?: string }> = Array.isArray(data?.empresas) ? data.empresas : [];
+        return empresas
+            .map((e: { id?: string; nome?: string }) => ({
+                value: String(e.id || '').trim(),
+                label: String(e.nome || '').trim() || 'Empresa sem nome',
+            }))
+            .filter((e: SelectOption) => e.value !== '');
     };
+
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['compromissos-empresas-acompanhamento'],
+        queryFn: load,
+    });
+
+    const { data: empresaOptionsQuery = empresaOptionsFallback } = useQuery<SelectOption[]>({
+        queryKey: ['compromissos-empresas-form-options'],
+        queryFn: async () => {
+            const options = await loadFormOptions();
+            setEmpresaOptionsFallback(options);
+            return options;
+        },
+    });
+
+    useEffect(() => {
+        setEmpresaOptions(empresaOptionsQuery);
+    }, [empresaOptionsQuery]);
 
     const loadObrigacoesByEmpresa = (empresaID: string) => {
         if (!empresaID) {
@@ -388,9 +385,11 @@ export default function CompromissosEmpresasPage() {
     }, [first, rows, sortField, sortOrder]);
 
     useEffect(() => {
-        load();
-        loadFormOptions();
-    }, []);
+        const tree = data ?? [];
+        setNodes(tree);
+        setExpandedKeys(defaultExpandedKeys(tree));
+        setFirst(0);
+    }, [data]);
 
     const onGlobalFilterChange = (value: string) => {
         setGlobalFilterDraft(value);
@@ -576,7 +575,7 @@ export default function CompromissosEmpresasPage() {
             .then(() => {
                 toast.current?.show({ severity: 'success', summary: 'Salvo', detail: 'Compromisso atualizado.', life: 2500 });
                 setEditDialog(false);
-                load();
+                refetch();
             })
             .catch(() => {
                 toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar.', life: 3500 });
@@ -625,7 +624,7 @@ export default function CompromissosEmpresasPage() {
             .then(() => {
                 toast.current?.show({ severity: 'success', summary: 'Incluído', detail: 'Compromisso incluído manualmente.', life: 2500 });
                 setCreateDialog(false);
-                load();
+                refetch();
             })
             .catch((error: unknown) => {
                 toast.current?.show({
@@ -647,7 +646,7 @@ export default function CompromissosEmpresasPage() {
         const st = statusNorm(d?.status || '');
         const next = st === 'concluido' ? 'pendente' : 'concluido';
         svc.updateStatus({ id, status: next })
-            .then(() => load())
+            .then(() => refetch())
             .catch(() => {
                 toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Não foi possível alterar o status.', life: 3500 });
             });
@@ -786,7 +785,7 @@ export default function CompromissosEmpresasPage() {
 
             <TreeTable
                 value={nodesFiltradosPorPrazo}
-                loading={loading}
+                loading={isFetching}
                 expandedKeys={expandedKeys}
                 onToggle={(e: { value: Record<string, boolean> }) => setExpandedKeys(e.value)}
                 rowClassName={rowClassName}
@@ -989,7 +988,7 @@ export default function CompromissosEmpresasPage() {
             </Dialog>
 
             <div className="flex align-items-center justify-content-start mt-3">
-                <Button icon="pi pi-refresh" className="p-button-text" tooltip="Atualizar" onClick={load} loading={loading} />
+                <Button icon="pi pi-refresh" className="p-button-text" tooltip="Atualizar" onClick={() => refetch()} loading={isFetching} />
             </div>
 
             <style jsx>{`

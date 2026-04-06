@@ -9,6 +9,7 @@ import { PickList, PickListEvent } from 'primereact/picklist';
 import { PrimeIcons } from 'primereact/api';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
@@ -156,49 +157,46 @@ const Rotinas = () => {
             descricao: { value: '', matchMode: 'contains' }
         }
     });
-
-    useEffect(() => {
-        loadLazyMunicipios();
-        loadTiposEmpresa();
-    }, []);
-
-    useEffect(() => {
-        fetchRotinasList(lazyState);
-    }, [lazyState]);
-
     useEffect(() => {
     }, [deletarItem]);
 
     const rotinaService = RotinaService();
 
     const fetchRotinasList = async (st: LazyTableState) => {
-        try {
-            setLoading(true);
-            const { data } = await rotinaService.getRotinas({ lazyEvent: JSON.stringify(st) });
-            setRotinas(data.rotinas);
-            setTotalRecords(data.totalRecords);
-        } catch (error) {
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar os Rotinas', life: 3000 });
-        } finally {
-            setLoading(false);
-        }
+        const { data } = await rotinaService.getRotinas({ lazyEvent: JSON.stringify(st) });
+        return {
+            rotinas: data?.rotinas ?? [],
+            totalRecords: data?.totalRecords ?? 0,
+        };
     };
 
-    const loadLazyRotina = async () => fetchRotinasList(lazyState);
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['rotinas', lazyState],
+        queryFn: () => fetchRotinasList(lazyState),
+    });
+    const rotinaRows = data?.rotinas ?? rotinas;
 
-    const loadLazyMunicipios = () => {
-        const municipioService = MunicipioService();
-        municipioService.getMunicipiosLite().then(({ data }) => {
-            setMunicipios(data?.municipios);
-        })
-    }
-
-    const loadTiposEmpresa = () => {
-        const tipoEmpresaService = TipoEmpresaService();
-        tipoEmpresaService.getTiposEmpresaLite().then(({ data }) => {
-            setTiposEmpresa(data?.tiposEmpresa ?? []);
-        });
+    const loadLazyRotina = async () => {
+        await refetch();
     };
+
+    const { data: municipiosQuery = [] } = useQuery<MunicipioLite[]>({
+        queryKey: ['municipios-lite'],
+        queryFn: async () => {
+            const municipioService = MunicipioService();
+            const { data } = await municipioService.getMunicipiosLite();
+            return data?.municipios ?? [];
+        },
+    });
+
+    const { data: tiposEmpresaQuery = [] } = useQuery<Vec.TipoEmpresaLite[]>({
+        queryKey: ['tiposempresa-lite'],
+        queryFn: async () => {
+            const tipoEmpresaService = TipoEmpresaService();
+            const { data } = await tipoEmpresaService.getTiposEmpresaLite();
+            return data?.tiposEmpresa ?? [];
+        },
+    });
 
     const loadLazyPassosPorCidade = async (rotinas: Rotinas) => {
         try {
@@ -390,7 +388,7 @@ const Rotinas = () => {
                     setMunicipio(undefined);
                     setTipoEmpresa(undefined);
                     setSource([]);
-                    fetchRotinasList(lazyState);
+                    refetch();
                 });
         } else {
             rotinaService.createRotina(_rotina)
@@ -446,7 +444,7 @@ const Rotinas = () => {
                     .finally(() => {
                         setDeleteRotinaDialog(false);
                         setRotina(emptyRotinas);
-                        loadLazyRotina();
+                        refetch();
                     });
             }
         }
@@ -474,7 +472,7 @@ const Rotinas = () => {
     const expandAll = () => {
         let _expandedRows: DataTableExpandedRows = {};
 
-        rotinas.forEach((p) => (_expandedRows[p.id as string] = true as boolean));
+        rotinaRows.forEach((p) => (_expandedRows[p.id as string] = true as boolean));
 
         setExpandedRows(_expandedRows);
     };
@@ -814,7 +812,7 @@ const Rotinas = () => {
 
                     <DataTable
                         ref={dt}
-                        value={rotinas}
+                        value={rotinaRows}
                         lazy
                         dataKey="id"
                         paginator
@@ -834,8 +832,8 @@ const Rotinas = () => {
                         sortField={lazyState.sortField || undefined}
                         sortOrder={lazyState.sortOrder === -1 ? -1 : 1}
                         onFilter={onFilter}
-                        loading={loading}
-                        totalRecords={totalRecords}
+                        loading={isFetching}
+                        totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}
 
                     // expandedRows={expandedRows}
@@ -888,14 +886,14 @@ const Rotinas = () => {
                         <div className="field">
                             <label htmlFor="dropdownCidade">Município</label>
                             <span className="p-float-label">
-                                <Dropdown id="dropdownCidade" options={municipios} value={municipio} onChange={(e) => setMunicipio(e.value)} optionLabel="nome"></Dropdown>
+                                <Dropdown id="dropdownCidade" options={municipiosQuery} value={municipio} onChange={(e) => setMunicipio(e.value)} optionLabel="nome"></Dropdown>
                             </span>
                         </div>
                         <div className="field">
                             <label htmlFor="dropdownTipoEmpresa">Tipo de Empresa</label>
                             <Dropdown
                                 id="dropdownTipoEmpresa"
-                                options={tiposEmpresa}
+                                options={tiposEmpresaQuery}
                                 value={tipoEmpresa}
                                 onChange={(e) => setTipoEmpresa(e.value)}
                                 optionLabel="descricao"

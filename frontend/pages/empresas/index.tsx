@@ -6,10 +6,11 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
+import { useQuery } from '@tanstack/react-query';
 
 import { Dropdown } from 'primereact/dropdown';
 import EmpresaService from '../../services/cruds/EmpresaService';
@@ -61,8 +62,6 @@ const Empresas = ({ dados }) => {
     compromissos_gerados: false,
   };
 
-  const [empresas, setEmpresas] = useState([]);
-
   const [gerarCompromissosDialog, setGerarCompromissosDialog] = useState(false);
   const [dataBaseGeracao, setDataBaseGeracao] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -70,7 +69,6 @@ const Empresas = ({ dados }) => {
   const [globalFilter, setGlobalFilter] = useState<string>('');
   const toast = useRef<Toast>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,7 +77,7 @@ const Empresas = ({ dados }) => {
   const paginatorRight = <Button type="button" icon="pi pi-cloud" className="p-button-text" />;
   const [pageInputTooltip, setPageInputTooltip] = useState('');
   const [value, setValue] = useState('');
-  const [totalRecords, setTotalRecords] = useState<number>(0);
+  const [totalRecords] = useState<number>(0);
   const [logado, setLogado] = useState<boolean>(false);
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
@@ -98,32 +96,27 @@ const Empresas = ({ dados }) => {
   const lazyStateRef = useRef(lazyState);
   lazyStateRef.current = lazyState;
 
-  useEffect(() => {
-    loadLazyEmpresa();
-  }, []);
-
   const empresaService = EmpresaService();
   const empresaCompromissoService = EmpresaCompromissoService();
 
-  const fetchEmpresasPayload = (payload: LazyTableState) => {
-    setLoading(true);
+  const fetchEmpresasPayload = async (payload: LazyTableState) => {
     const body = { ...payload, tenantid };
-    empresaService
-      .getEmpresas({ lazyEvent: JSON.stringify(body) })
-      .then(({ data }) => {
-        setEmpresas(data.empresas);
-        setTotalRecords(data.totalRecords);
-      })
-      .catch(() => {
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar as Empresas', life: 3000 });
-      })
-      .finally(() => setLoading(false));
+    const { data } = await empresaService.getEmpresas({ lazyEvent: JSON.stringify(body) });
+    return {
+      empresas: data?.empresas ?? [],
+      totalRecords: data?.totalRecords ?? 0,
+    };
   };
+
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['empresas', tenantid, lazyState],
+    queryFn: () => fetchEmpresasPayload(lazyState),
+  });
 
   const loadLazyEmpresa = () => {
     const next: LazyTableState = { ...lazyStateRef.current, tenantid };
     setLazyState(next);
-    fetchEmpresasPayload(next);
+    refetch();
   };
 
   const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyEmpresa} />;
@@ -146,7 +139,6 @@ const Empresas = ({ dados }) => {
       filters: event.filters ?? prev.filters,
     };
     setLazyState(next);
-    fetchEmpresasPayload(next);
   };
 
   //const onPageInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, options: { totalPages: number; rows: React.SetStateAction<number>; first: React.SetStateAction<number>; }) => {
@@ -172,7 +164,6 @@ const Empresas = ({ dados }) => {
           page: pageNum,
         };
         setLazyState(next);
-        fetchEmpresasPayload(next);
       }
     }
 
@@ -194,7 +185,6 @@ const Empresas = ({ dados }) => {
       first: event.first ?? prev.first,
     };
     setLazyState(next);
-    fetchEmpresasPayload(next);
   };
 
   const onFilter = (event) => {
@@ -212,7 +202,6 @@ const Empresas = ({ dados }) => {
     setFirst(0);
     setCurrentPage(1);
     setLazyState(next);
-    fetchEmpresasPayload(next);
   };
 
   function handleBuscaEmpresa(event, value: string): void {
@@ -228,7 +217,6 @@ const Empresas = ({ dados }) => {
       setFirst(0);
       setCurrentPage(1);
       setLazyState(next);
-      fetchEmpresasPayload(next);
     }
   }
 
@@ -245,7 +233,6 @@ const Empresas = ({ dados }) => {
       setFirst(0);
       setCurrentPage(1);
       setLazyState(next);
-      fetchEmpresasPayload(next);
     }
   }
 
@@ -363,7 +350,7 @@ const Empresas = ({ dados }) => {
         .finally(() => {
           //setLoading(false);
           setEmpresa(emptyEmpresa);
-          loadLazyEmpresa();
+          refetch();
         });
     }
   }
@@ -409,7 +396,7 @@ const Empresas = ({ dados }) => {
       })
       .finally(() => {
         setGerarCompromissosDialog(false);
-        loadLazyEmpresa();
+        refetch();
       });
   }
 
@@ -460,7 +447,7 @@ const Empresas = ({ dados }) => {
           <Toolbar className="mb-4" left={leftToolbarTemplate} ></Toolbar>
 
           <DataTable
-            value={empresas}
+            value={data?.empresas ?? []}
             lazy
             dataKey="id"
             paginator
@@ -481,8 +468,8 @@ const Empresas = ({ dados }) => {
             //atenção para o padrão abaixo...sempre tem que ser assim senão não funciona
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
             onFilter={onFilter}
-            loading={loading}
-            totalRecords={totalRecords}
+            loading={isFetching}
+            totalRecords={data?.totalRecords ?? 0}
             paginatorLeft={paginatorLeft}
           >
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>

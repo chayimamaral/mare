@@ -6,7 +6,8 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import GrupoPassoService from '../../services/cruds/GrupoPassosService';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
@@ -41,10 +42,8 @@ const GrupoPassos = () => {
   const [grupopassos, setGrupoPassos] = useState([]);
   const [grupopassoDialog, setGrupoPassoDialog] = useState(false);
 
-  const [municipios, setMunicipios] = useState<Vec.MunicipioLite[]>([]);
   const [municipio, setMunicipio] = useState<Vec.MunicipioLite>();
 
-  const [tipoempresas, setTipoempresas] = useState<Vec.TipoEmpresaLite[]>([]);
   const [tipoempresa, setTipoempresa] = useState<Vec.TipoEmpresaLite>();
 
   const [deleteGrupoPassoDialog, setDeleteGrupoPassoDialog] = useState(false);
@@ -54,7 +53,6 @@ const GrupoPassos = () => {
   const toast = useRef<Toast>(null);
   const dt = useRef<DataTable<Vec.GrupoPasso[]>>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,38 +77,38 @@ const GrupoPassos = () => {
     }
   });
 
-
-  useEffect(() => {
-    loadLazyMunicipios();
-    loadLazyTipoEmpresas();
-    loadLazyGrupoPasso();
-  }, [lazyState]);
-
   const grupopassoService = GrupoPassoService();
 
-  const loadLazyGrupoPasso = () => {
-    setLoading(true);
+  const fetchGrupoPassos = async (st: LazyTableState) => {
+    const { data } = await grupopassoService.getGrupoPassos({ lazyEvent: JSON.stringify(st) });
+    return {
+      grupopassos: data?.grupopassos ?? [],
+      totalRecords: data?.totalRecords ?? 0,
+    };
+  };
 
-    grupopassoService.getGrupoPassos({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-      setGrupoPassos(data.grupopassos);
-      setTotalRecords(data.totalRecords);
-    }).finally(() => setLoading(false));
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['grupopassos', lazyState],
+    queryFn: () => fetchGrupoPassos(lazyState),
+  });
 
-  }
+  const { data: municipios = [] } = useQuery<Vec.MunicipioLite[]>({
+    queryKey: ['municipios-lite'],
+    queryFn: async () => {
+      const municipioService = MunicipioService();
+      const { data } = await municipioService.getMunicipiosLite();
+      return data?.municipios ?? [];
+    },
+  });
 
-  const loadLazyMunicipios = () => {
-    const municipioService = MunicipioService();
-    municipioService.getMunicipiosLite().then(({ data }) => {
-      setMunicipios(data?.municipios);
-    })
-  }
-
-  const loadLazyTipoEmpresas = () => {
-    const tipoempresaService = TipoEmpresaService();
-    tipoempresaService.getTiposEmpresaLite().then(({ data }) => {
-      setTipoempresas(data?.tiposEmpresa);
-    })
-  }
+  const { data: tipoempresas = [] } = useQuery<Vec.TipoEmpresaLite[]>({
+    queryKey: ['tiposempresa-lite'],
+    queryFn: async () => {
+      const tipoempresaService = TipoEmpresaService();
+      const { data } = await tipoempresaService.getTiposEmpresaLite();
+      return data?.tiposEmpresa ?? [];
+    },
+  });
 
 
   function handleClear(e): void {
@@ -119,7 +117,7 @@ const GrupoPassos = () => {
     }
   }
 
-  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyGrupoPasso} />;
+  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
   const onPage = (event) => {
     setFirst(event.first);
@@ -255,7 +253,7 @@ const GrupoPassos = () => {
             //setLoading(false);
             setGrupoPassoDialog(false);
             setGrupoPasso(emptyGrupoPasso);
-            loadLazyGrupoPasso();
+            refetch();
           });
       } else {
         grupopassoService.createGrupoPassos(_grupopasso)
@@ -270,7 +268,7 @@ const GrupoPassos = () => {
             //setLoading(false);
             setGrupoPassoDialog(false);
             setGrupoPasso(emptyGrupoPasso);
-            loadLazyGrupoPasso();
+            refetch();
           });
       }
     }
@@ -307,7 +305,7 @@ const GrupoPassos = () => {
           .finally(() => {
             setDeleteGrupoPassoDialog(false);
             setGrupoPasso(emptyGrupoPasso);
-            loadLazyGrupoPasso();
+            refetch();
           });
       }
     }
@@ -414,7 +412,7 @@ const GrupoPassos = () => {
 
           <DataTable
             ref={dt}
-            value={grupopassos}
+            value={data?.grupopassos ?? grupopassos}
             lazy
             dataKey="id"
             paginator
@@ -435,8 +433,8 @@ const GrupoPassos = () => {
             //sortOrder={lazyState.sortOrder? 1 : -1}
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
             onFilter={onFilter}
-            loading={loading}
-            totalRecords={totalRecords}
+            loading={isFetching}
+            totalRecords={data?.totalRecords ?? totalRecords}
             paginatorLeft={paginatorLeft}
           //paginatorRight={paginatorRight}
           >

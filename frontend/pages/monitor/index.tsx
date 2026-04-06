@@ -2,7 +2,8 @@ import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { DataTable } from 'primereact/datatable';
 import { Toast } from 'primereact/toast';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import setupAPIClient from '../../components/api/api';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import MonitorOperacaoService from '../../services/cruds/MonitorOperacaoService';
@@ -20,37 +21,40 @@ const fmtDetalhe = (d?: Record<string, unknown>) => {
 };
 
 const MonitorPage = () => {
-  const [loading, setLoading] = useState(false);
-  const [itens, setItens] = useState<Vec.MonitorOperacaoItem[]>([]);
-  const [totalRecords, setTotalRecords] = useState(0);
+  const [itensFallback, setItensFallback] = useState<Vec.MonitorOperacaoItem[]>([]);
+  const [totalRecordsFallback, setTotalRecordsFallback] = useState(0);
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(25);
   const toast = useRef<Toast>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { itens: lista, total } = await MonitorOperacaoService().list(rows, first);
-      setItens(lista ?? []);
-      setTotalRecords(typeof total === 'number' ? total : 0);
-    } catch (e: unknown) {
-      const ax = e as { response?: { data?: { error?: string } } };
-      toast.current?.show({
-        severity: 'error',
-        summary: 'Erro',
-        detail: ax?.response?.data?.error ?? 'Falha ao carregar o monitor',
-        life: 5000,
-      });
-      setItens([]);
-      setTotalRecords(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [first, rows]);
+  const load = async () => {
+    const { itens: lista, total } = await MonitorOperacaoService().list(rows, first);
+    return {
+      itens: lista ?? [],
+      totalRecords: typeof total === 'number' ? total : 0,
+    };
+  };
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['monitor-operacoes', rows, first],
+    queryFn: async () => {
+      try {
+        const next = await load();
+        setItensFallback(next.itens);
+        setTotalRecordsFallback(next.totalRecords);
+        return next;
+      } catch (e: unknown) {
+        const ax = e as { response?: { data?: { error?: string } } };
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Erro',
+          detail: ax?.response?.data?.error ?? 'Falha ao carregar o monitor',
+          life: 5000,
+        });
+        return { itens: [], totalRecords: 0 };
+      }
+    },
+  });
 
   const paginatorLeft = (
     <Button
@@ -58,8 +62,8 @@ const MonitorPage = () => {
       icon="pi pi-refresh"
       tooltip="Atualizar"
       className="p-button-text"
-      onClick={() => void load()}
-      loading={loading}
+      onClick={() => refetch()}
+      loading={isFetching}
     />
   );
 
@@ -78,13 +82,13 @@ const MonitorPage = () => {
           </p>
           <Toast ref={toast} />
           <DataTable
-            value={itens}
-            loading={loading}
+            value={data?.itens ?? itensFallback}
+            loading={isFetching}
             dataKey="id"
             paginator
             rows={rows}
             first={first}
-            totalRecords={totalRecords}
+            totalRecords={data?.totalRecords ?? totalRecordsFallback}
             lazy
             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
             currentPageReportTemplate="{first} a {last} de {totalRecords}"

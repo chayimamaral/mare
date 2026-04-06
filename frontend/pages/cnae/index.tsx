@@ -8,7 +8,8 @@ import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import { InputMask } from "primereact/inputmask";
-import React, { SyntheticEvent, lazy, useEffect, useRef, useState } from 'react';
+import React, { SyntheticEvent, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -54,7 +55,6 @@ const Cnae = () => {
   const [buscaTexto, setBuscaTexto] = useState('');
   const toast = useRef<Toast>(null);
 
-  const [loading, setLoading] = useState<boolean>(false);
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -77,25 +77,22 @@ const Cnae = () => {
     filters: {},
   });
 
-  useEffect(() => {
-    loadLazyCnae();
-  }, [lazyState]);
-
   const cnaeService = CnaeService();
 
-  const loadLazyCnae = () => {
-    setLoading(true);
-    cnaeService.getCnaes({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-      setCnaes(data.cnaes);
-      setTotalRecords(data.totalRecords);
-    })
-      .catch((error) => {
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar CNAEs', life: 3000 });
-      })
-      .finally(() => setLoading(false));
+  const fetchCnaes = async (st: LazyTableState) => {
+    const { data } = await cnaeService.getCnaes({ lazyEvent: JSON.stringify(st) });
+    return {
+      cnaes: data?.cnaes ?? [],
+      totalRecords: data?.totalRecords ?? 0,
+    };
+  };
 
-  }
-  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyCnae} />;
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['cnaes', lazyState],
+    queryFn: () => fetchCnaes(lazyState),
+  });
+
+  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
   const onPage = (event) => {
     setFirst(event.first);
@@ -260,7 +257,7 @@ const Cnae = () => {
           setCnaeDialog(false);
           setCnae(emptyCnae);
           setHierarquiaIbge(false);
-          loadLazyCnae();
+          refetch();
           setSubmitted(false);
         });
     } else {
@@ -276,7 +273,7 @@ const Cnae = () => {
           setCnaeDialog(false);
           setCnae(emptyCnae);
           setHierarquiaIbge(false);
-          loadLazyCnae();
+          refetch();
           setSubmitted(false);
         });
     }
@@ -300,7 +297,7 @@ const Cnae = () => {
         .finally(() => {
           setDeleteCnaeDialog(false);
           setCnae(emptyCnae);
-          loadLazyCnae();
+          refetch();
         });
     }
   };
@@ -488,7 +485,7 @@ const Cnae = () => {
           <Toolbar className="mb-4" left={leftToolbarTemplate} ></Toolbar>
 
           <DataTable
-            value={cnaes}
+            value={data?.cnaes ?? cnaes}
             lazy
             dataKey="id"
             paginator
@@ -507,8 +504,8 @@ const Cnae = () => {
             sortField={lazyState.sortField}
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
             onFilter={onFilter}
-            loading={loading}
-            totalRecords={totalRecords}
+            loading={isFetching}
+            totalRecords={data?.totalRecords ?? totalRecords}
             paginatorLeft={paginatorLeft}
           //paginatorRight={paginatorRight}
           >

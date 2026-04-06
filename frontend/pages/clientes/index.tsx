@@ -8,6 +8,7 @@ import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
@@ -98,7 +99,6 @@ const Clientes = ({ dados }) => {
   const [rotina, setRotina] = useState<Vec.RotinaLite>(emptyRotina);
   const [rotinasPF, setRotinasPF] = useState<Vec.RotinaPFLite[]>([]);
   const [rotinaPF, setRotinaPF] = useState<Vec.RotinaPFLite>(emptyRotinaPF);
-  const [userRole, setUserRole] = useState<string | null>(null);
 
   type ClienteExtraForm = {
     logradouro: string;
@@ -194,13 +194,18 @@ const Clientes = ({ dados }) => {
     loadRotinasPF();
   }, [empresaDialog, empresa.tipo_pessoa]);
 
-  useEffect(() => {
-    const api = setupAPIClient(undefined);
-    api
-      .get('/api/usuariorole')
-      .then((r) => setUserRole(r.data?.logado?.role ?? null))
-      .catch(() => setUserRole(null));
-  }, []);
+  const { data: userRole = null } = useQuery<string | null>({
+    queryKey: ['user-role'],
+    queryFn: async () => {
+      try {
+        const api = setupAPIClient(undefined);
+        const r = await api.get('/api/usuariorole');
+        return r.data?.logado?.role ?? null;
+      } catch {
+        return null;
+      }
+    },
+  });
 
   const empresaService = EmpresaService();
   const empresaDadosService = EmpresaDadosService();

@@ -6,7 +6,8 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { SyntheticEvent, lazy, useEffect, useRef, useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -14,7 +15,6 @@ import UsuarioService from '../../services/cruds/UsuarioService';
 import EmptyPage from '../pages/empty';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
-import { ct } from '@fullcalendar/core/internal-common';
 import { RadioButton, RadioButtonChangeEvent } from 'primereact/radiobutton';
 
 interface Role {
@@ -68,7 +68,6 @@ const Usuarios = ({ user_id }) => {
   const [sortField, setSortField] = useState('nome');
   const [first, setFirst] = useState(0);
   const [rows, setRows] = useState(20);
-  const [loading, setLoading] = useState<boolean>(false);
   const toast = useRef<Toast>(null);
   const [pageInputTooltip, setPageInputTooltip] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -77,8 +76,8 @@ const Usuarios = ({ user_id }) => {
   const [novaSenha, setNovaSenha] = useState<string>('');
   const [confirmSenha, setConfirmSenha] = useState<string>('');
 
-  const [logado, setLogado] = useState<Logado>();
-  const [tenants, setTenants] = useState<TenantOption[]>([]);
+  const [logadoFallback, setLogadoFallback] = useState<Logado | undefined>();
+  const [tenantsFallback, setTenantsFallback] = useState<TenantOption[]>([]);
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
     totalRecords: totalRecords,
@@ -99,6 +98,20 @@ const Usuarios = ({ user_id }) => {
     { name: 'Super', key: 'SUPER' }
   ];
 
+  const [selectedRole, setSelectedRole] = useState(roles[1]);
+
+  const usuarioService = UsuarioService();
+
+  const { data: logado = logadoFallback } = useQuery<Logado | undefined>({
+    queryKey: ['logado', user_id],
+    queryFn: async () => {
+      const { data } = await usuarioService.getUserRole(user_id);
+      const u = data?.logado as Logado | undefined;
+      setLogadoFallback(u);
+      return u;
+    },
+  });
+
   const availableRoles = logado?.role === 'SUPER'
     ? roles
     : logado?.role === 'ADMIN'
@@ -107,44 +120,11 @@ const Usuarios = ({ user_id }) => {
 
   const canChangeRole = logado?.role === 'SUPER' || logado?.role === 'ADMIN';
 
-  const [selectedRole, setSelectedRole] = useState(roles[1]);
-
-  const usuarioService = UsuarioService();
-
-  useEffect(() => {
-    loadLazyLogado();
-  }, []);
-
-  useEffect(() => {
-    loadLazyUsuario();
-  }, [lazyState]);
-
-  useEffect(() => {
-    if (logado?.role === 'SUPER') {
-      loadTenants();
-    }
-  }, [logado?.role]);
-
-  const loadLazyUsuario = () => {
-    setLoading(true);
-    usuarioService.getUsuarios({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-      setUsuarios(data.usuarios);
-      setTotalRecords(data.totalRecords);
-    })
-      .catch((error) => {
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar usuários', life: 3000 });
-      })
-      .finally(() => setLoading(false));
-  }
-
-  const loadLazyLogado = () => {
-    usuarioService.getUserRole(user_id).then(({ data }) => {
-      setLogado(data.logado);
-    })
-  }
-
-  const loadTenants = () => {
-    usuarioService.getTenants().then(({ data }) => {
+  const { data: tenants = tenantsFallback } = useQuery<TenantOption[]>({
+    queryKey: ['tenants', logado?.role, logado?.tenantid],
+    enabled: logado?.role === 'SUPER',
+    queryFn: async () => {
+      const { data } = await usuarioService.getTenants();
       const parsed = Array.isArray(data) ? data : [];
       let normalized = parsed
         .map((tenant: any) => {
@@ -163,14 +143,25 @@ const Usuarios = ({ user_id }) => {
       if (logado?.tenantid && !normalized.some((tenant) => tenant.id === logado.tenantid)) {
         normalized = [{ id: logado.tenantid, nome: 'Meu tenant' }, ...normalized];
       }
+      setTenantsFallback(normalized);
+      return normalized;
+    },
+  });
 
-      setTenants(normalized);
-    }).catch(() => {
-      toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar tenants', life: 3000 });
-    });
-  }
+  const fetchUsuarios = async (st: LazyTableState) => {
+    const { data } = await usuarioService.getUsuarios({ lazyEvent: JSON.stringify(st) });
+    return {
+      usuarios: data?.usuarios ?? [],
+      totalRecords: data?.totalRecords ?? 0,
+    };
+  };
 
-  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyUsuario} />;
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['usuarios', lazyState],
+    queryFn: () => fetchUsuarios(lazyState),
+  });
+
+  const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
   const onPage = (event) => {
     setFirst(event.first);
@@ -331,7 +322,7 @@ const Usuarios = ({ user_id }) => {
         .finally(() => {
           setUsuarioDialog(false);
           setUsuario(emptyUsuario);
-          loadLazyUsuario();
+          refetch();
           setSubmitted(false);
         });
       return;
@@ -358,7 +349,7 @@ const Usuarios = ({ user_id }) => {
       .finally(() => {
         setUsuarioDialog(false);
         setUsuario(emptyUsuario);
-        loadLazyUsuario();
+        refetch();
         setSubmitted(false);
       });
   };
@@ -397,7 +388,7 @@ const Usuarios = ({ user_id }) => {
           .finally(() => {
             setDeleteUsuarioDialog(false);
             setUsuario(emptyUsuario);
-            loadLazyUsuario();
+            refetch();
           });
       }
     }
@@ -526,7 +517,7 @@ const Usuarios = ({ user_id }) => {
           <Toast ref={toast} />
           <Toolbar className="mb-4" left={leftToolbarTemplate}></Toolbar>
           <DataTable
-            value={usuarios}
+            value={data?.usuarios ?? usuarios}
             lazy
             dataKey="id"
             paginator
@@ -547,8 +538,8 @@ const Usuarios = ({ user_id }) => {
             //atenção para o padrão abaixo...sempre tem que ser assim senão não funcionayk
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
             onFilter={onFilter}
-            loading={loading}
-            totalRecords={totalRecords}
+            loading={isFetching}
+            totalRecords={data?.totalRecords ?? totalRecords}
             paginatorLeft={paginatorLeft}
           >
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>

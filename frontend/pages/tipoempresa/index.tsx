@@ -6,7 +6,8 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
 import { Vec } from '../../types/types';
 
@@ -40,7 +41,6 @@ const TipoEmpresa = () => {
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<Vec.TipoEmpresa[]>>(null);
 
-    const [loading, setLoading] = useState<boolean>(false);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -63,25 +63,22 @@ const TipoEmpresa = () => {
         }
     });
 
-    useEffect(() => {
-        loadLazyTipoEmpresa();
-    }, [lazyState]);
-
     const tipoEmpresaService = TipoEmpresaService();
 
-    const loadLazyTipoEmpresa = () => {
-        setLoading(true);
-        tipoEmpresaService.getTiposEmpresa({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-            setTiposEmpresa(data.tiposEmpresa);
-            setTotalRecords(data.totalRecords);
-        })
-            .catch((error) => {
-                toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar os tiposempresa', life: 3000 });
-            })
-            .finally(() => setLoading(false));
+    const fetchTiposEmpresa = async (st: LazyTableState) => {
+        const { data } = await tipoEmpresaService.getTiposEmpresa({ lazyEvent: JSON.stringify(st) });
+        return {
+            tiposEmpresa: data?.tiposEmpresa ?? [],
+            totalRecords: data?.totalRecords ?? 0,
+        };
+    };
 
-    }
-    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyTipoEmpresa} />;
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['tipos-empresa', lazyState],
+        queryFn: () => fetchTiposEmpresa(lazyState),
+    });
+
+    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
 
     const onPage = (event) => {
@@ -210,7 +207,7 @@ const TipoEmpresa = () => {
                     .finally(() => {
                         setTipoEmpresaDialog(false);
                         setTipoEmpresa(emptyTipoEmpresa);
-                        loadLazyTipoEmpresa();
+                        refetch();
                     });
             } else {
                 tipoEmpresaService.createTipoEmpresa(_tipoEmpresa)
@@ -226,7 +223,7 @@ const TipoEmpresa = () => {
                     .finally(() => {
                         setTipoEmpresaDialog(false);
                         setTipoEmpresa(emptyTipoEmpresa);
-                        loadLazyTipoEmpresa();
+                        refetch();
                     });
             }
         }
@@ -251,7 +248,7 @@ const TipoEmpresa = () => {
                 .finally(() => {
                     setDeleteTipoEmpresaDialog(false);
                     setTipoEmpresa(emptyTipoEmpresa);
-                    loadLazyTipoEmpresa();
+                    refetch();
                 });
         }
     };
@@ -397,7 +394,7 @@ const TipoEmpresa = () => {
 
                     <DataTable
                         ref={dt}
-                        value={tiposempresa}
+                        value={data?.tiposEmpresa ?? tiposempresa}
                         lazy
                         dataKey="id"
                         paginator
@@ -417,8 +414,8 @@ const TipoEmpresa = () => {
                         sortField={lazyState.sortField}
                         sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
                         onFilter={onFilter}
-                        loading={loading}
-                        totalRecords={totalRecords}
+                        loading={isFetching}
+                        totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}
                     //paginatorRight={paginatorRight}
                     >

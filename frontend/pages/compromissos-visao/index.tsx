@@ -13,6 +13,7 @@ import { FilterMatchMode } from 'primereact/api';
 import { Calendar } from 'primereact/calendar';
 import { Dropdown } from 'primereact/dropdown';
 import { InputTextarea } from 'primereact/inputtextarea';
+import { useQuery } from '@tanstack/react-query';
 import EmpresaCompromissoService from '../../services/cruds/EmpresaCompromissoService';
 import type { Vec } from '../../types/types';
 
@@ -117,7 +118,6 @@ function emitFieldFilter(
 
 export default function CompromissosVisaoPage() {
     const [rowsData, setRowsData] = useState<RowData[]>([]);
-    const [loading, setLoading] = useState(false);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(10);
     const [sortField, setSortField] = useState('empresaNome');
@@ -134,7 +134,7 @@ export default function CompromissosVisaoPage() {
     const [editVenc, setEditVenc] = useState('');
     const [editValor, setEditValor] = useState<number | null>(null);
     const [createDialog, setCreateDialog] = useState(false);
-    const [empresaOptions, setEmpresaOptions] = useState<SelectOption[]>([]);
+    const [empresaOptionsFallback, setEmpresaOptionsFallback] = useState<SelectOption[]>([]);
     const [obrigacaoOptions, setObrigacaoOptions] = useState<SelectOption[]>([]);
     const [createEmpresaID, setCreateEmpresaID] = useState('');
     const [createObrigacaoID, setCreateObrigacaoID] = useState('');
@@ -145,58 +145,53 @@ export default function CompromissosVisaoPage() {
     const [createStatus, setCreateStatus] = useState<'pendente' | 'concluido'>('pendente');
     const [createLoading, setCreateLoading] = useState(false);
 
-    const load = () => {
-        setLoading(true);
-        svc.getAcompanhamento()
-            .then(({ data }) => {
-                const itens = (data.itens ?? []) as Vec.EmpresaAgendaAcompanhamentoItem[];
-                const mapped: RowData[] = itens.map((item) => {
-                    const aid = (item.agenda_item_id || '').trim();
-                    const st = statusNorm(item.status || '');
-                    const vencIso = (item.data_vencimento || '').trim();
-                    const cls = (item.classificacao || '').toUpperCase();
-                    const categoria = cls === 'FINANCEIRO' ? 'Tributária' : 'Informativa';
-                    return {
-                        id: aid,
-                        empresaNome: item.empresa_nome || 'Empresa sem nome',
-                        nome: item.descricao || 'Compromisso sem descrição',
-                        categoria,
-                        vencimento: formatDate(vencIso),
-                        vencimentoOrdem: vencIso || '9999-12-31',
-                        status: item.status || '',
-                        valorText: formatBRL(item.valor_estimado ?? null),
-                        dataVencimentoISO: vencIso,
-                        valorNum: item.valor_estimado ?? null,
-                        pendenteUrgencia: st === 'pendente' && vencIso.length >= 10 ? pendenteUrgenciaPorVencimento(vencIso) : 'ok',
-                    };
-                }).filter((r) => r.id);
-                setRowsData(mapped);
-                setFirst(0);
-            })
-            .catch((error: unknown) => {
-                setRowsData([]);
-                toast.current?.show({
-                    severity: 'error',
-                    summary: 'Erro',
-                    detail: error instanceof Error ? error.message : 'Erro ao carregar compromissos',
-                    life: 3000,
-                });
-            })
-            .finally(() => setLoading(false));
+    const load = async () => {
+        const { data } = await svc.getAcompanhamento();
+        const itens = (data.itens ?? []) as Vec.EmpresaAgendaAcompanhamentoItem[];
+        const mapped: RowData[] = itens.map((item) => {
+            const aid = (item.agenda_item_id || '').trim();
+            const st = statusNorm(item.status || '');
+            const vencIso = (item.data_vencimento || '').trim();
+            const cls = (item.classificacao || '').toUpperCase();
+            const categoria = cls === 'FINANCEIRO' ? 'Tributária' : 'Informativa';
+            return {
+                id: aid,
+                empresaNome: item.empresa_nome || 'Empresa sem nome',
+                nome: item.descricao || 'Compromisso sem descrição',
+                categoria,
+                vencimento: formatDate(vencIso),
+                vencimentoOrdem: vencIso || '9999-12-31',
+                status: item.status || '',
+                valorText: formatBRL(item.valor_estimado ?? null),
+                dataVencimentoISO: vencIso,
+                valorNum: item.valor_estimado ?? null,
+                pendenteUrgencia: st === 'pendente' && vencIso.length >= 10 ? pendenteUrgenciaPorVencimento(vencIso) : 'ok',
+            };
+        }).filter((r) => r.id);
+        return mapped;
     };
 
-    const loadFormOptions = () => {
-        svc.getFormOptions()
-            .then(({ data }) => {
-                const empresas: Array<{ id?: string; nome?: string }> = Array.isArray(data?.empresas) ? data.empresas : [];
-                setEmpresaOptions(
-                    empresas
-                        .map((e) => ({ value: String(e.id || '').trim(), label: String(e.nome || '').trim() || 'Empresa sem nome' }))
-                        .filter((e) => e.value !== ''),
-                );
-            })
-            .catch(() => setEmpresaOptions([]));
+    const loadFormOptions = async () => {
+        const { data } = await svc.getFormOptions();
+        const empresas: Array<{ id?: string; nome?: string }> = Array.isArray(data?.empresas) ? data.empresas : [];
+        return empresas
+            .map((e) => ({ value: String(e.id || '').trim(), label: String(e.nome || '').trim() || 'Empresa sem nome' }))
+            .filter((e) => e.value !== '');
     };
+
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['compromissos-visao-acompanhamento'],
+        queryFn: load,
+    });
+
+    const { data: empresaOptions = empresaOptionsFallback } = useQuery<SelectOption[]>({
+        queryKey: ['compromissos-visao-form-options'],
+        queryFn: async () => {
+            const opts = await loadFormOptions();
+            setEmpresaOptionsFallback(opts);
+            return opts;
+        },
+    });
 
     const loadObrigacoesByEmpresa = (empresaID: string) => {
         if (!empresaID) {
@@ -237,9 +232,8 @@ export default function CompromissosVisaoPage() {
     }, [first, rows, sortField, sortOrder]);
 
     useEffect(() => {
-        load();
-        loadFormOptions();
-    }, []);
+        setRowsData(data ?? []);
+    }, [data]);
 
     const rowsFiltradosPrazo = useMemo(() => {
         if (prazoFiltro === 'TODOS') return rowsData;
@@ -299,7 +293,7 @@ export default function CompromissosVisaoPage() {
             .then(() => {
                 toast.current?.show({ severity: 'success', summary: 'Salvo', detail: 'Compromisso atualizado.', life: 2500 });
                 setEditDialog(false);
-                load();
+                refetch();
             })
             .catch(() => toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Não foi possível salvar.', life: 3500 }));
     };
@@ -307,7 +301,7 @@ export default function CompromissosVisaoPage() {
     const toggleConcluido = (d: RowData) => {
         const next = statusNorm(d.status || '') === 'concluido' ? 'pendente' : 'concluido';
         svc.updateStatus({ id: d.id, status: next })
-            .then(() => load())
+            .then(() => refetch())
             .catch(() => toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Não foi possível alterar o status.', life: 3500 }));
     };
 
@@ -348,7 +342,7 @@ export default function CompromissosVisaoPage() {
             .then(() => {
                 toast.current?.show({ severity: 'success', summary: 'Incluído', detail: 'Compromisso incluído manualmente.', life: 2500 });
                 setCreateDialog(false);
-                load();
+                refetch();
             })
             .catch((error: unknown) => toast.current?.show({
                 severity: 'error',
@@ -433,7 +427,7 @@ export default function CompromissosVisaoPage() {
 
             <DataTable
                 value={rowsFiltradosPrazo}
-                loading={loading}
+                loading={isFetching}
                 rowClassName={rowClassName}
                 paginator
                 rows={rows}

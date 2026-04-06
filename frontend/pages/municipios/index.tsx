@@ -7,6 +7,7 @@ import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
@@ -51,7 +52,6 @@ const Municipios = () => {
 
     const [estado, setEstado] = useState<Vec.Estado>();
 
-    const [loading, setLoading] = useState<boolean>(false);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -76,15 +76,6 @@ const Municipios = () => {
         }
     });
 
-
-    useEffect(() => {
-        loadLazyEstados();
-    }, []);
-
-    useEffect(() => {
-        loadLazyMunicipio();
-    }, [lazyState]);
-
     const municipioService = MunicipioService();
 
     const resolveEstadoFromCidade = (c: Vec.Cidade, lista: Vec.Estado[]) => {
@@ -95,27 +86,35 @@ const Municipios = () => {
         return lista.find((e) => e.id === ufId);
     };
 
-    const loadLazyMunicipio = () => {
-        setLoading(true);
+    const fetchMunicipios = async (st: LazyTableState) => {
+        const { data } = await municipioService.getMunicipios({ lazyEvent: JSON.stringify(st) });
+        return {
+            municipios: data?.municipios ?? [],
+            totalRecords: data?.totalRecords ?? 0,
+        };
+    };
 
-        municipioService.getMunicipios({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-            setMunicipios(data.municipios);
-            setTotalRecords(data.totalRecords);
-        }).finally(() => setLoading(false));
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['municipios', lazyState],
+        queryFn: () => fetchMunicipios(lazyState),
+    });
 
-    }
-
-    const loadLazyEstados = () => {
-        const estadoService = EstadoService();
-        estadoService.getUFCidade().then((res) => {
+    const { data: estadosData = [] } = useQuery<Vec.Estado[]>({
+        queryKey: ['estados-uf-cidade'],
+        queryFn: async () => {
+            const estadoService = EstadoService();
+            const res = await estadoService.getUFCidade();
             if (res && typeof res === 'object' && 'redirect' in res) {
-                setEstados([]);
-                return;
+                return [];
             }
-            const data = (res as { data?: { estados?: Vec.Estado[] } }).data;
-            setEstados(data?.estados ?? []);
-        });
-    }
+            const raw = (res as { data?: { estados?: Vec.Estado[] } }).data;
+            return raw?.estados ?? [];
+        },
+    });
+
+    useEffect(() => {
+        setEstados(estadosData);
+    }, [estadosData]);
 
     function handleClear(e): void {
         if (!e.target.value) {
@@ -123,7 +122,7 @@ const Municipios = () => {
         }
     }
 
-    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyMunicipio} />;
+    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
 
     const onPage = (event) => {
@@ -285,7 +284,7 @@ const Municipios = () => {
                     setMunicipioDialog(false);
                     setMunicipio(emptyMunicipio);
                     setEstado(undefined);
-                    loadLazyMunicipio();
+                    refetch();
                 })
                 .catch((err) => {
                     toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
@@ -302,7 +301,7 @@ const Municipios = () => {
                     setMunicipioDialog(false);
                     setMunicipio(emptyMunicipio);
                     setEstado(undefined);
-                    loadLazyMunicipio();
+                    refetch();
                 })
                 .catch((err) => {
                     toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
@@ -346,7 +345,7 @@ const Municipios = () => {
                         toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Municipio Excluído', life: 3000 });
                         setDeleteMunicipioDialog(false);
                         setMunicipio(emptyMunicipio);
-                        loadLazyMunicipio();
+                        refetch();
                     })
                     .catch((err) => {
                         toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 });
@@ -456,7 +455,7 @@ const Municipios = () => {
 
                     <DataTable
                         ref={dt}
-                        value={municipios}
+                        value={data?.municipios ?? municipios}
                         lazy
                         dataKey="id"
                         paginator
@@ -477,8 +476,8 @@ const Municipios = () => {
                         //sortOrder={lazyState.sortOrder? 1 : -1}
                         sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
                         onFilter={onFilter}
-                        loading={loading}
-                        totalRecords={totalRecords}
+                        loading={isFetching}
+                        totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}
                     //paginatorRight={paginatorRight}
                     >

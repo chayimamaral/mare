@@ -6,7 +6,8 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
@@ -42,7 +43,6 @@ const Passos = () => {
 
     const [passos, setPassos] = useState([]);
 
-    const [municipios, setMunicipios] = useState<Vec.MunicipioLite[]>([]);
     const [municipio, setMunicipio] = useState<Vec.MunicipioLite>();
 
     const [passoDialog, setPassoDialog] = useState(false);
@@ -53,7 +53,6 @@ const Passos = () => {
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<Vec.Passo[]>>(null);
 
-    const [loading, setLoading] = useState<boolean>(false);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -91,33 +90,31 @@ const Passos = () => {
 
     const [selectedTipoPasso, setSelectedTipoPasso] = useState(tipospasso[0]);
 
-    useEffect(() => {
-        loadLazyMunicipios();
-        loadLazyPasso();
-    }, [lazyState]);
-
     const passoService = PassoService();
 
-    const loadLazyPasso = () => {
-        passoService.getPassos({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-            setPassos(data.passos);
-            setTotalRecords(data.totalRecords);
-        })
-            .catch((error) => {
-                toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar os Passos', life: 3000 });
-            })
-            .finally(() => setLoading(false));
+    const fetchPassos = async (st: LazyTableState) => {
+        const { data } = await passoService.getPassos({ lazyEvent: JSON.stringify(st) });
+        return {
+            passos: data?.passos ?? [],
+            totalRecords: data?.totalRecords ?? 0,
+        };
+    };
 
-    }
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['passos', lazyState],
+        queryFn: () => fetchPassos(lazyState),
+    });
 
-    const loadLazyMunicipios = () => {
-        const municipioService = MunicipioService();
-        municipioService.getMunicipiosLite().then(({ data }) => {
-            setMunicipios(data?.municipios);
-        })
-    }
+    const { data: municipios = [] } = useQuery<Vec.MunicipioLite[]>({
+        queryKey: ['municipios-lite'],
+        queryFn: async () => {
+            const municipioService = MunicipioService();
+            const { data } = await municipioService.getMunicipiosLite();
+            return data?.municipios ?? [];
+        },
+    });
 
-    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyPasso} />;
+    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
     const onPage = (event) => {
         setFirst(event.first);
@@ -217,7 +214,7 @@ const Passos = () => {
                         //setLoading(false);
                         setPassoDialog(false);
                         setPasso(emptyPasso);
-                        loadLazyPasso();
+                        refetch();
                     });
             } else {
                 passoService.createPasso(_passo)
@@ -235,7 +232,7 @@ const Passos = () => {
                         //setLoading(false);
                         setPassoDialog(false);
                         setPasso(emptyPasso);
-                        loadLazyPasso();
+                        refetch();
                     });
             }
         }
@@ -270,7 +267,7 @@ const Passos = () => {
                     .finally(() => {
                         setDeletePassoDialog(false);
                         setPasso(emptyPasso);
-                        loadLazyPasso();
+                        refetch();
                     });
             }
         }
@@ -461,7 +458,7 @@ const Passos = () => {
 
                     <DataTable
                         ref={dt}
-                        value={passos}
+                        value={data?.passos ?? passos}
                         lazy
                         dataKey="id"
                         paginator
@@ -482,8 +479,8 @@ const Passos = () => {
                         //atenção para o padrão abaixo...sempre tem que ser assim senão não funcionayk
                         sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
                         onFilter={onFilter}
-                        loading={loading}
-                        totalRecords={totalRecords}
+                        loading={isFetching}
+                        totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}
                     >
                         <Column field="descricao" header="Descricao" sortable body={descricaoBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>

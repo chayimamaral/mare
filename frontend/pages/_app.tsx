@@ -1,13 +1,14 @@
 import type { AppProps } from 'next/app';
 import { LayoutConfig, type Page } from '../types/types';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { LayoutProvider } from '../layout/context/layoutcontext';
 import Layout from '../layout/layout';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import 'primereact/resources/primereact.css';
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import '../styles/layout/layout.scss';
-import  AuthContext, { AuthProvider } from '../components/context/AuthContext';
+import { AuthProvider } from '../components/context/AuthContext';
 // import userPersistedState from '../components/utils/usePersistedState';
 
 type Props = AppProps & {
@@ -15,6 +16,17 @@ type Props = AppProps & {
 };
 
 export default function App({ Component, pageProps }: Props) {
+    const [queryClient] = React.useState(
+        () =>
+            new QueryClient({
+                defaultOptions: {
+                    queries: {
+                        refetchOnWindowFocus: false,
+                        retry: 1
+                    }
+                }
+            })
+    );
 
     const defaultLayoutConfig: LayoutConfig = {
         theme: 'dark',
@@ -45,19 +57,23 @@ export default function App({ Component, pageProps }: Props) {
 
     if (Component.getLayout) {
         return (
-            <AuthProvider>
-                <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;
-            </AuthProvider>
+            <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                    <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;
+                </AuthProvider>
+            </QueryClientProvider>
         )
     } else {
         return (
-            <AuthProvider>
-                <LayoutProvider>
-                    <Layout>
-                        <Component {...pageProps} />
-                    </Layout>
-                </LayoutProvider>
-            </AuthProvider>
+            <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                    <LayoutProvider>
+                        <Layout>
+                            <Component {...pageProps} />
+                        </Layout>
+                    </LayoutProvider>
+                </AuthProvider>
+            </QueryClientProvider>
         );
     }
 }

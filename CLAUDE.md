@@ -48,6 +48,8 @@ Layout: botão "Atualizar" será sempre um ícone no canto inferior da página, 
   Exemplo: const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazy_Rotina_Tal}
 Os botões nas linhas das tables ou treetables, deverão seguir o modelo em Municípios (quando aplicável).
 
+Frontend: sempre que possível, dar preferência ao useQuery em lugar de useEffect.
+
 Usuários: temos 3 tipos de usuários:
   SUPER: sou eu, chayimamaral, o dono do vecontab, que é um aplicativo SaaS que será alugado;
   ADMIN: o usuário administrador da empresa de contabilidade, com maiores poderes de usuário, sempre separado por tenant, e que incluirá novos usuário no mesmo tenant que o próprio;

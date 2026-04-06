@@ -10,6 +10,7 @@ import { InputTextarea } from 'primereact/inputtextarea';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import React, { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import { GetServerSidePropsContext } from 'next';
 import RotinaPFService from '../../services/cruds/RotinaPFService';
@@ -54,11 +55,7 @@ const categorias = [
 ];
 
 const RotinasPF = () => {
-  const [rows, setRows] = useState<Vec.RotinaPFListRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalRecords, setTotalRecords] = useState(0);
   const toast = useRef<Toast>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
     totalRecords: 0,
@@ -78,56 +75,66 @@ const RotinasPF = () => {
 
   const [itemDialog, setItemDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<Vec.RotinaPFItemRow>(emptyItem);
-  const [passos, setPassos] = useState<Vec.Passo[]>([]);
+  const [passosFallback, setPassosFallback] = useState<Vec.Passo[]>([]);
 
   const svc = RotinaPFService();
+
+  const { data: userRole = null } = useQuery<string | null>({
+    queryKey: ['user-role'],
+    queryFn: async () => {
+      try {
+        const api = setupAPIClient(undefined);
+        const r = await api.get('/api/usuariorole');
+        return r.data?.logado?.role ?? null;
+      } catch {
+        return null;
+      }
+    },
+  });
+
   const podeAdmin = userRole === 'ADMIN' || userRole === 'SUPER';
 
-  useEffect(() => {
-    const api = setupAPIClient(undefined);
-    api
-      .get('/api/usuariorole')
-      .then((r) => setUserRole(r.data?.logado?.role ?? null))
-      .catch(() => setUserRole(null));
-  }, []);
-
-  useEffect(() => {
-    const ps = PassoService();
-    const st = {
-      totalRecords: 0,
-      first: 0,
-      rows: 400,
-      page: 1,
-      sortField: 'descricao',
-      sortOrder: 1,
-      filters: { descricao: { value: '', matchMode: 'contains' } },
-    };
-    ps.getPassos({ lazyEvent: JSON.stringify(st) }).then(({ data }) => {
-      setPassos(Array.isArray(data?.passos) ? data.passos : []);
-    }).catch(() => setPassos([]));
-  }, []);
-
-  const loadList = () => {
-    setLoading(true);
+  const loadList = async () => {
     const body = { ...lazyState };
-    svc
-      .getRotinasPFAdmin({ lazyEvent: JSON.stringify(body) })
-      .then(({ data }) => {
-        setRows(data.rotinas_pf ?? []);
-        setTotalRecords(data.totalRecords ?? 0);
-      })
-      .catch(() => {
-        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Falha ao carregar rotinas PF', life: 4000 });
-      })
-      .finally(() => setLoading(false));
+    const { data } = await svc.getRotinasPFAdmin({ lazyEvent: JSON.stringify(body) });
+    return {
+      rows: data?.rotinas_pf ?? [],
+      totalRecords: data?.totalRecords ?? 0,
+    };
   };
 
-  useEffect(() => {
-    loadList();
-  }, [lazyState]);
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['rotinas-pf-admin', lazyState],
+    queryFn: () => loadList(),
+  });
+
+  const { data: passos = passosFallback } = useQuery<Vec.Passo[]>({
+    queryKey: ['passos-lite-rotinas-pf'],
+    queryFn: async () => {
+      try {
+        const ps = PassoService();
+        const st = {
+          totalRecords: 0,
+          first: 0,
+          rows: 400,
+          page: 1,
+          sortField: 'descricao',
+          sortOrder: 1,
+          filters: { descricao: { value: '', matchMode: 'contains' } },
+        };
+        const { data } = await ps.getPassos({ lazyEvent: JSON.stringify(st) });
+        const lista = Array.isArray(data?.passos) ? data.passos : [];
+        setPassosFallback(lista);
+        return lista;
+      } catch {
+        setPassosFallback([]);
+        return [];
+      }
+    },
+  });
 
   const paginatorLeft = (
-    <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={loadList} />
+    <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={() => refetch()} />
   );
 
   const onPage = (event: any) => {
@@ -203,7 +210,7 @@ const RotinasPF = () => {
     };
     const done = () => {
       toast.current?.show({ severity: 'success', summary: 'Salvo', detail: 'Rotina PF atualizada', life: 2500 });
-      loadList();
+      refetch();
       setDialogVisible(false);
     };
     if (editing.id) {
@@ -224,7 +231,7 @@ const RotinasPF = () => {
             loadItens(nid);
           }
           toast.current?.show({ severity: 'success', summary: 'Criado', detail: 'Inclua os passos abaixo', life: 3500 });
-          loadList();
+          refetch();
         })
         .catch((e) => {
           const msg = e?.response?.data?.error ?? 'Erro ao criar';
@@ -246,7 +253,7 @@ const RotinasPF = () => {
       .then(() => {
         toast.current?.show({ severity: 'success', summary: 'Desativada', detail: 'A rotina não aparece mais no cadastro de clientes PF', life: 4000 });
         setDeleteVisible(false);
-        loadList();
+        refetch();
       })
       .catch((e) => {
         const msg = e?.response?.data?.error ?? 'Erro';
@@ -326,7 +333,7 @@ const RotinasPF = () => {
       .deleteItem(it.id, rid)
       .then(() => {
         loadItens(rid);
-        loadList();
+        refetch();
       })
       .catch((e) => {
         const msg = e?.response?.data?.error ?? 'Erro ao excluir';
@@ -407,18 +414,18 @@ const RotinasPF = () => {
             Templates por tenant para clientes pessoa física (Carnê-Leão, IRPF, etc.). Itens podem referenciar passos globais ou só texto livre.
           </p>
           <DataTable
-            value={rows}
+            value={data?.rows ?? []}
             lazy
             dataKey="id"
             paginator
             rows={lazyState.rows}
-            totalRecords={totalRecords}
+            totalRecords={data?.totalRecords ?? 0}
             first={lazyState.first}
             onPage={onPage}
             onSort={onSort}
             sortField={lazyState.sortField}
             sortOrder={lazyState.sortOrder === -1 ? -1 : 1}
-            loading={loading}
+            loading={isFetching}
             emptyMessage="Nenhuma rotina PF cadastrada."
             header={header}
             paginatorLeft={paginatorLeft}

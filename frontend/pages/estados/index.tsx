@@ -6,7 +6,8 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
-import React, { SyntheticEvent, lazy, useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import EstadoService from '../../services/cruds/EstadoService';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
@@ -41,7 +42,6 @@ const Estados = () => {
     const toast = useRef<Toast>(null);
     const dt = useRef<DataTable<Vec.Estado[]>>(null);
 
-    const [loading, setLoading] = useState<boolean>(false);
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -65,26 +65,22 @@ const Estados = () => {
         }
     });
 
-    useEffect(() => {
-        loadLazyEstado();
-    }, [lazyState]);
-
     const estadoService = EstadoService();
 
-    const loadLazyEstado = () => {
-        setLoading(true);
-        estadoService.getEstados({ lazyEvent: JSON.stringify(lazyState) }).then(({ data }) => {
-            setEstados(data.estados);
-            setTotalRecords(data.totalRecords);
-        })
-            .catch((error) => {
-                toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao carregar os estados', life: 3000 });
-            })
-            .finally(() => setLoading(false));
+    const fetchEstados = async (st: LazyTableState) => {
+        const { data } = await estadoService.getEstados({ lazyEvent: JSON.stringify(st) });
+        return {
+            estados: data?.estados ?? [],
+            totalRecords: data?.totalRecords ?? 0,
+        };
+    };
 
-    }
+    const { data, isFetching, refetch } = useQuery({
+        queryKey: ['estados', lazyState],
+        queryFn: () => fetchEstados(lazyState),
+    });
 
-    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyEstado} />;
+    const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={() => refetch()} />;
 
     const onPage = (event) => {
         setFirst(event.first);
@@ -224,7 +220,7 @@ const Estados = () => {
                         //setLoading(false);
                         setEstadoDialog(false);
                         setEstado(emptyEstado);
-                        loadLazyEstado();
+                        refetch();
                     });
             } else {
                 estadoService.createEstado(_estado)
@@ -242,7 +238,7 @@ const Estados = () => {
                         //setLoading(false);
                         setEstadoDialog(false);
                         setEstado(emptyEstado);
-                        loadLazyEstado();
+                        refetch();
                     });
             }
         }
@@ -276,7 +272,7 @@ const Estados = () => {
                     .finally(() => {
                         setDeleteEstadoDialog(false);
                         setEstado(emptyEstado);
-                        loadLazyEstado();
+                        refetch();
                     });
             }
         }
@@ -379,7 +375,7 @@ const Estados = () => {
 
                     <DataTable
                         ref={dt}
-                        value={estados}
+                        value={data?.estados ?? estados}
                         lazy
                         dataKey="id"
                         paginator
@@ -400,8 +396,8 @@ const Estados = () => {
                         //atenção para o padrão abaixo...sempre tem que ser assim senão não funcionayk
                         sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
                         onFilter={onFilter}
-                        loading={loading}
-                        totalRecords={totalRecords}
+                        loading={isFetching}
+                        totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}
                     >
                         <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
