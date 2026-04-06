@@ -95,6 +95,11 @@ const AppMenu = () => {
                                         icon: 'pi pi-fw pi-id-card',
                                         to: '/clientes',
                                     },
+                                    {
+                                        label: 'Feriados',
+                                        icon: 'pi pi-fw pi-table',
+                                        to: '/feriados',
+                                    },
                                 ],
                             },
                             {
@@ -139,16 +144,11 @@ const AppMenu = () => {
                                         icon: 'pi pi-fw pi-user',
                                         to: '/rotinas-pf',
                                     },
-                                    {
-                                        label: 'Feriados',
-                                        icon: 'pi pi-fw pi-table',
-                                        to: '/feriados',
-                                    },
 
                                 ],
                             },
                             {
-                                label: 'Cadastros Contábeis (Legais)',
+                                label: 'Cadastros Contábeis',
                                 icon: 'pi pi-fw pi-sitemap',
                                 items: [
 

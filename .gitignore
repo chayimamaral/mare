@@ -8,4 +8,5 @@ public-api/public-api
 backup/
 docs/
 migrations/
+vec_prospect/
 gitsave.sh
