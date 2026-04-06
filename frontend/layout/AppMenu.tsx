@@ -102,19 +102,42 @@ const AppMenu = () => {
                                 icon: 'pi pi-fw pi-sitemap',
                                 items: [
                                     {
-                                        label: 'Rotinas para Empresas',
-                                        icon: 'pi pi-fw pi-bookmark',
-                                        to: '/rotinas',
+                                        label: 'Configurações Fiscais',
+                                        icon: 'pi pi-fw pi-table',
+                                        items: [
+                                            {
+                                                label: 'Enquadramento Jurídico',
+                                                icon: 'pi pi-fw pi-table',
+                                                to: '/tipoempresa',
+                                            },
+                                            {
+                                                label: 'Regras de Obrigações',
+                                                icon: 'pi pi-fw pi-money-bill',
+                                                to: '/obrigacoes',
+                                            },
+                                        ],
+                                    },
+                                    {
+
+                                        label: 'Processos para Empresas', // O item pai agora agrupa os dois
+                                        icon: 'pi pi-fw pi-briefcase',
+                                        items: [
+                                            {
+                                                label: 'Processos',
+                                                icon: 'pi pi-fw pi-list',
+                                                to: '/rotinas', // Mantive o path atual para não quebrar seus links
+                                            },
+                                            {
+                                                label: 'Etapas',
+                                                icon: 'pi pi-fw pi-check-square',
+                                                to: '/passos',
+                                            },
+                                        ]
                                     },
                                     {
                                         label: 'Rotinas PF (IRPF / Carnê-Leão)',
                                         icon: 'pi pi-fw pi-user',
                                         to: '/rotinas-pf',
-                                    },
-                                    {
-                                        label: 'Passos das Rotinas',
-                                        icon: 'pi pi-fw pi-bookmark',
-                                        to: '/passos',
                                     },
                                     {
                                         label: 'Feriados',
@@ -128,26 +151,11 @@ const AppMenu = () => {
                                 label: 'Cadastros Contábeis (Legais)',
                                 icon: 'pi pi-fw pi-sitemap',
                                 items: [
+
                                     {
                                         label: 'CNAE',
                                         icon: 'pi pi-fw pi-table',
                                         to: '/cnae',
-                                    },
-                                    {
-                                        label: 'Tipos de Empresas',
-                                        icon: 'pi pi-fw pi-table',
-                                        items: [
-                                            {
-                                                label: 'Cadastro de Tipos de Empresas',
-                                                icon: 'pi pi-fw pi-table',
-                                                to: '/tipoempresa',
-                                            },
-                                            {
-                                                label: 'Obrigações Legais',
-                                                icon: 'pi pi-fw pi-money-bill',
-                                                to: '/obrigacoes',
-                                            },
-                                        ],
                                     },
                                 ],
                             },

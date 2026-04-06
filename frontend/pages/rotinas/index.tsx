@@ -705,7 +705,7 @@ const Rotinas = () => {
     const tipoEmpresaBodyTemplate = (rowData: Rotinas) => {
         return (
             <>
-                <span className="p-column-title">Tipo de Empresa</span>
+                <span className="p-column-title">Enquadramento Jurídico</span>
                 {rowData.tipo_empresa?.descricao ?? '—'}
             </>
         );
@@ -845,7 +845,7 @@ const Rotinas = () => {
                         {/* <Column expander={allowExpansion} style={{ width: '5rem' }} /> */}
                         <Column field="descricao" header="Descrição" sortable body={descricaoBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
                         <Column field="municipio" header="Municipio" sortable body={municipioBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
-                        <Column field="tipo_empresa" header="Tipo de Empresa" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
+                        <Column field="tipo_empresa" header="Enquadramento Jurídico" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
                         <Column body={actionBodyTemplate} headerStyle={{ minWidth: '10rem' }}></Column>
                     </DataTable>
 
@@ -890,7 +890,7 @@ const Rotinas = () => {
                             </span>
                         </div>
                         <div className="field">
-                            <label htmlFor="dropdownTipoEmpresa">Tipo de Empresa</label>
+                            <label htmlFor="dropdownTipoEmpresa">Enquadramento Jurídico</label>
                             <Dropdown
                                 id="dropdownTipoEmpresa"
                                 options={tiposEmpresaQuery}

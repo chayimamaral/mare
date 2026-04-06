@@ -1,25 +1,31 @@
 CLAUDE.md - Diretrizes do Projeto vecontab
+
 📌 Contexto do Projeto
-Nome: vecontab (ou vecontab_go)
+Nome: vecontab 
 
 Objetivo: Sistema de Controle de Passos para Manutenção de Empresas (abertura, alterações, manutenções, encerramento, etc), Controle de Compromissos (Tributos, Taxas, Obrigações Financeiras, etc), Controle de PF (IRRF, etc).
 Objetivo a curto prazo: consumir API's para geração de Boletos, DARF's, DAS'S, etc.
 
 Stack: Backend em Go (Golang), Frontend em React.
 
+Pastas Principais:
+  Backend: vecontab/backend
+  Frontend: vecontab/frontend
+
 Ambiente de Desenvolvimento: Fedora 43 (utilizar dnf para pacotes).
 
 Banco de Dados: PostgreSQL 18.3 (utilizando driver pgx); Claude tem permissão para executar migrations quando pertinente.
-Banco: psql -h localhost -U [camaral] -d vecontab
 
-Migrations: sempre na pasta raiz do vecontab.
+Acesso a Dados: Proibido o uso de ORMs. O controle deve ser total via SQL puro e drivers nativos para garantir otimização.
+
+Comandos para o Banco de Dados: psql -h localhost -U [camaral] -d vecontab
+
+Migrations: sempre na pasta raiz do vecontab: vecontab/migrations
 
 🛠 Princípios de Engenharia
 Arquitetura: Clean Architecture, SOLID e Domain-Driven Design (DDD).
 
 Performance: Prioridade absoluta. Go é escolhido especificamente pela velocidade (benchmark de referência: 4.5x superior ao Python).
-
-Acesso a Dados: Proibido o uso de ORMs. O controle deve ser total via SQL puro e drivers nativos para garantir otimização.
 
 Segurança: Basear estratégias de proteção de código no projeto VECONTAB.
 

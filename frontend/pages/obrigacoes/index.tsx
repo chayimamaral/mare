@@ -77,11 +77,6 @@ interface PageInputOptions {
   totalPages: number;
 }
 
-const tipoEmpresaFiltroTodos: TipoEmpresaRef = {
-  id: '',
-  descricao: 'Todos os tipos',
-};
-
 const abrangencias: AbrangenciaOpcao[] = [
   { name: 'Todos', code: 'TODOS' },
   { name: 'Federal', code: 'FEDERAL' },
@@ -164,7 +159,7 @@ const ObrigacoesLegaisPage = () => {
 
   // Filter in header (list view)
   const [filterAbrangencia, setFilterAbrangencia] = useState<AbrangenciaOpcao>(abrangencias[0]); // TODOS
-  const [filterTipoEmpresa, setFilterTipoEmpresa] = useState<TipoEmpresaRef>(tipoEmpresaFiltroTodos);
+  const [filterTipoEmpresa, setFilterTipoEmpresa] = useState<TipoEmpresaRef | undefined>(undefined);
   const [filterTipoClassificacao, setFilterTipoClassificacao] = useState<AbrangenciaOpcao>(tipoClassificacaoFiltroTodos);
   const [filterPeriodicidade, setFilterPeriodicidade] = useState<AbrangenciaOpcao>(periodicidadeFiltroTodas);
   const [filterLocalizacao, setFilterLocalizacao] = useState('');
@@ -230,9 +225,12 @@ const ObrigacoesLegaisPage = () => {
     };
   };
 
+  const tipoEmpresaSelecionado = Boolean((lazyState.tipo_empresa_id ?? '').trim());
+
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['obrigacoes', lazyState],
     queryFn: () => loadObrigacoes(),
+    enabled: tipoEmpresaSelecionado,
   });
 
   const { data: municipios = municipiosFallback } = useQuery<GeoRef[]>({
@@ -477,13 +475,16 @@ const ObrigacoesLegaisPage = () => {
     setLazyState((prev) => ({ ...prev, abrangencia: selected, first: 0 }));
   };
 
-  const handleFilterTipoEmpresaChange = (selected: TipoEmpresaRef) => {
+  const handleFilterTipoEmpresaChange = (selected: TipoEmpresaRef | undefined) => {
     setFilterTipoEmpresa(selected);
     setLazyState((prev) => ({
       ...prev,
-      tipo_empresa_id: selected?.id ?? '',
+      tipo_empresa_id: selected?.id?.trim() ?? '',
       first: 0,
+      page: 1,
     }));
+    setFirst(0);
+    setCurrentPage(1);
   };
 
   const handleFilterTipoClassificacaoChange = (selected: AbrangenciaOpcao) => {
@@ -624,23 +625,24 @@ const ObrigacoesLegaisPage = () => {
       <h5 className="m-0">Obrigações Legais</h5>
       <div className="flex justify-content-center">
         <Dropdown
+          value={filterTipoEmpresa}
+          onChange={(e) => handleFilterTipoEmpresaChange(e.value)}
+          options={tiposEmpresa}
+          optionLabel="descricao"
+          dataKey="id"
+          className="w-full md:w-16rem"
+          placeholder="Filtre por Enquadramento Jurídico"
+          filter
+          showClear
+        />
+      </div>
+      <div className="flex justify-content-center">
+        <Dropdown
           value={filterAbrangencia}
           onChange={(e) => handleFilterAbrangenciaChange(e.value)}
           options={abrangencias}
           optionLabel="name"
           className="w-full md:w-14rem"
-        />
-      </div>
-      <div className="flex justify-content-center">
-        <Dropdown
-          value={filterTipoEmpresa}
-          onChange={(e) => handleFilterTipoEmpresaChange(e.value)}
-          options={[tipoEmpresaFiltroTodos, ...tiposEmpresa]}
-          optionLabel="descricao"
-          dataKey="id"
-          className="w-full md:w-16rem"
-          placeholder="Tipo de Empresa"
-          filter
         />
       </div>
       <div className="flex justify-content-center">
@@ -697,7 +699,7 @@ const ObrigacoesLegaisPage = () => {
             <Toolbar className="mb-4" left={leftToolbarTemplate} />
 
             <DataTable
-              value={data?.obrigacoes ?? obrigacoes}
+              value={tipoEmpresaSelecionado ? (data?.obrigacoes ?? obrigacoes) : []}
               lazy
               dataKey="id"
               paginator
@@ -705,7 +707,7 @@ const ObrigacoesLegaisPage = () => {
               rowsPerPageOptions={[10, 20, 50]}
               className="datatable-responsive"
               paginatorTemplate={template}
-              emptyMessage="Nenhuma obrigação legal encontrada."
+              emptyMessage={tipoEmpresaSelecionado ? 'Nenhuma obrigação legal encontrada.' : 'Selecione um Enquadramento Jurídico para listar.'}
               header={header}
               size="small"
               stripedRows
@@ -716,11 +718,11 @@ const ObrigacoesLegaisPage = () => {
               sortField={lazyState.sortField}
               sortOrder={(lazyState.sortOrder ?? 1) as 1 | 0 | -1 | null}
               loading={isFetching}
-              totalRecords={data?.totalRecords ?? totalRecords}
+              totalRecords={tipoEmpresaSelecionado ? (data?.totalRecords ?? totalRecords) : 0}
               paginatorLeft={paginatorLeft}
             >
               <Column field="descricao" header="Descrição" sortable headerStyle={{ minWidth: '16rem' }} />
-              <Column field="tipoempresa.nome" header="Tipo de Empresa" sortable headerStyle={{ minWidth: '14rem' }} />
+              <Column field="tipoempresa.nome" header="Enquadramento Jurídico" sortable headerStyle={{ minWidth: '14rem' }} />
               <Column
                 field="tipo_classificacao"
                 header="Tipo de Classificação"
@@ -746,7 +748,7 @@ const ObrigacoesLegaisPage = () => {
               onHide={hideDialog}
             >
               <div className="field">
-                <label htmlFor="ddtipoempresa">Tipo de Empresa *</label>
+                <label htmlFor="ddtipoempresa">Enquadramento Jurídico *</label>
                 <Dropdown
                   id="ddtipoempresa"
                   value={selectedTipoEmpresa}
@@ -754,7 +756,7 @@ const ObrigacoesLegaisPage = () => {
                   onChange={(e) => setSelectedTipoEmpresa(e.value)}
                   optionLabel="descricao"
                   dataKey="id"
-                  placeholder="Selecione um Tipo de Empresa"
+                  placeholder="Selecione um Enquadramento Jurídico"
                   filter
                   className={classNames({ 'p-invalid': submitted && !selectedTipoEmpresa })}
                 />

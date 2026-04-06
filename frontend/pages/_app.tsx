@@ -22,7 +22,11 @@ export default function App({ Component, pageProps }: Props) {
                 defaultOptions: {
                     queries: {
                         refetchOnWindowFocus: false,
-                        retry: 1
+                        retry: 1,
+                        // Adicionando os 5 minutos de cache "fresco"
+                        staleTime: 1000 * 60 * 5, 
+                        // Opcional: tempo que o dado fica em memória após sumir da tela (v5)
+                        gcTime: 1000 * 60 * 10,
                     }
                 }
             })

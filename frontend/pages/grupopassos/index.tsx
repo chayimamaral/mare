@@ -363,7 +363,7 @@ const GrupoPassos = () => {
   const tipoempresaBodyTemplate = (rowData: Vec.GrupoPasso) => {
     return (
       <>
-        <span className="p-column-title">Tipo de Empresa</span>
+        <span className="p-column-title">Enquadramento Jurídico</span>
         {rowData.tipoempresa?.descricao}
       </>
     );
@@ -459,7 +459,7 @@ const GrupoPassos = () => {
             </div>
 
             <div className="field">
-              <label htmlFor="dropdownTipo">Tipo de Empresa</label>
+              <label htmlFor="dropdownTipo">Enquadramento Jurídico</label>
               <span className="p-float-label">
                 <Dropdown id="dropdownTipo" options={tipoempresas} value={tipoempresa} onChange={(e) => setTipoempresa(e.value)} optionLabel="descricao"></Dropdown>
               </span>

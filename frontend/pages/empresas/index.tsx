@@ -276,7 +276,7 @@ const Empresas = ({ dados }) => {
   const tipoEmpresaBodyTemplate = (rowData: Vec.Empresa) => {
     return (
       <>
-        <span className="p-column-title">Tipo de Empresa</span>
+        <span className="p-column-title">Enquadramento Jurídico</span>
         {rowData.tipo_empresa?.descricao ?? '—'}
       </>
     );
@@ -475,7 +475,7 @@ const Empresas = ({ dados }) => {
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column field="municipio" header="Municipio" body={municipioBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column field="rotina" header="Rotina" body={rotinaBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
-            <Column field="tipo_empresa" header="Tipo de Empresa" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
+            <Column field="tipo_empresa" header="Enquadramento Jurídico" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
             <Column body={actionBodyTemplate} header="Ações" headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
 
