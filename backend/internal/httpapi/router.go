@@ -58,6 +58,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	monitorOperacaoService := service.NewMonitorOperacaoService(monitorOperacaoRepo)
 	rotinaPFService := service.NewRotinaPFService(repository.NewRotinaPFRepository(pool))
 	configuracaoIntegracaoService := service.NewConfiguracaoIntegracaoService(repository.NewConfiguracaoIntegracaoRepository(pool))
+	certificadoService, _ := service.NewCertificadoService(repository.NewCertificadoRepository(pool), cfg.CertCryptoKeyHex)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -81,7 +82,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	empresaDadosHandler := handlers.NewEmpresaDadosHandler(empresaDadosService)
 	clienteHandler := handlers.NewClienteHandler(clienteService)
 	rotinaPFHandler := handlers.NewRotinaPFHandler(rotinaPFService)
-	configuracaoIntegracaoHandler := handlers.NewConfiguracaoIntegracaoHandler(configuracaoIntegracaoService)
+	configuracaoIntegracaoHandler := handlers.NewConfiguracaoIntegracaoHandler(configuracaoIntegracaoService, certificadoService)
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
 	requireAdminOnly := apiMiddleware.RequireAnyRole("ADMIN")
@@ -265,4 +266,5 @@ func registerRoutes(
 	r.With(requireAuth).Put("/chavessuper", configuracaoIntegracaoHandler.SaveChavesSuper)
 	r.With(requireAuth).Get("/tenant-configuracoes", configuracaoIntegracaoHandler.GetTenantConfiguracoes)
 	r.With(requireAuth).Put("/tenant-configuracoes", configuracaoIntegracaoHandler.SaveTenantConfiguracoes)
+	r.With(requireAuth, requireAdmin).Post("/certificado-digital/upload", configuracaoIntegracaoHandler.UploadCertificadoDigital)
 }

@@ -40,6 +40,10 @@ func (s *ConfiguracaoIntegracaoService) SaveTenantConfiguracoes(ctx context.Cont
 		return fmt.Errorf("tipo_certificado deve ser A1 ou A3")
 	}
 	item.TipoCertificado = tipo
+	// Certificado agora e por upload em certificado_cliente (PFX/senha cifrados).
+	// Nao persistir caminho local nem senha em texto.
+	item.LocalArquivoCertificado = ""
+	item.SenhaCertificado = ""
 	return s.repo.UpsertTenantConfiguracoes(ctx, item)
 }
 

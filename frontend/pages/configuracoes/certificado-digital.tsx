@@ -11,8 +11,8 @@ import { GetServerSidePropsContext } from 'next';
 
 type CertConfig = {
     tipo_certificado: string;
-    local_arquivo_certificado: string;
     senha_certificado: string;
+    empresa_id: string;
     nome_certificado: string;
     emitido_para: string;
     emitido_por: string;
@@ -27,19 +27,19 @@ const tipos = [
 
 export default function CertificadoDigitalPage() {
     const toast = useRef<Toast>(null);
-    const folderInputRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const api = setupAPIClient(undefined);
+    const [certFile, setCertFile] = useState<File | null>(null);
     const [form, setForm] = useState<CertConfig>({
         tipo_certificado: '',
-        local_arquivo_certificado: '',
         senha_certificado: '',
+        empresa_id: '',
         nome_certificado: '',
         emitido_para: '',
         emitido_por: '',
         validade_de: '',
         validade_ate: '',
     });
-    const folderInputAttrs = { webkitdirectory: 'true', directory: 'true' } as any;
 
     const { refetch, isFetching } = useQuery({
         queryKey: ['tenant-config-certificado-digital'],
@@ -49,8 +49,8 @@ export default function CertificadoDigitalPage() {
             setForm((prev) => ({
                 ...prev,
                 tipo_certificado: cfg.tipo_certificado ?? '',
-                local_arquivo_certificado: cfg.local_arquivo_certificado ?? '',
                 senha_certificado: cfg.senha_certificado ?? '',
+                empresa_id: '',
                 nome_certificado: cfg.nome_certificado ?? '',
                 emitido_para: cfg.emitido_para ?? '',
                 emitido_por: cfg.emitido_por ?? '',
@@ -63,6 +63,18 @@ export default function CertificadoDigitalPage() {
 
     const save = async () => {
         try {
+            if (certFile) {
+                const body = new FormData();
+                body.append('arquivo', certFile);
+                body.append('empresa_id', form.empresa_id.trim());
+                body.append('senha_certificado', form.senha_certificado);
+                if (form.emitido_para.trim()) {
+                    body.append('titular_nome', form.emitido_para.trim());
+                }
+                await api.post('/api/certificado-digital/upload', body, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
             await api.put('/api/tenant-configuracoes', form);
             toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Certificado salvo', life: 3000 });
             await refetch();
@@ -71,16 +83,14 @@ export default function CertificadoDigitalPage() {
         }
     };
 
-    const openFolderPicker = () => {
-        folderInputRef.current?.click();
+    const openFilePicker = () => {
+        fileInputRef.current?.click();
     };
 
-    const onFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const rel = (file as File & { webkitRelativePath?: string }).webkitRelativePath || '';
-        const folder = rel.split('/')[0] || file.name;
-        setForm((prev) => ({ ...prev, local_arquivo_certificado: folder }));
+        setCertFile(file);
     };
 
     const onValidadeDeChange = (value: string) => {
@@ -111,7 +121,13 @@ export default function CertificadoDigitalPage() {
             <div className="col-12 md:col-10 lg:col-8">
                 <Toast ref={toast} />
                 <Card>
-                    <h3 className="text-right mt-0 mb-4">Certificado Digital (ADMIN)</h3>
+                    <h3 className="text-left mt-0 mb-4">Certificado Digital (ADMIN)</h3>
+                    <div className="grid align-items-center mb-3">
+                        <div className="col-12 md:col-4 text-right"><label htmlFor="empresa_id">ID do Cliente</label></div>
+                        <div className="col-12 md:col-6">
+                            <InputText id="empresa_id" value={form.empresa_id} onChange={(e) => setForm((prev) => ({ ...prev, empresa_id: e.target.value }))} placeholder="UUID da empresa para vincular o certificado" className="w-full p-inputtext-sm" />
+                        </div>
+                    </div>
                     <div className="grid align-items-center mb-3">
                         <div className="col-12 md:col-4 text-right"><label htmlFor="tipo">Tipo de Certificado</label></div>
                         <div className="col-12 md:col-6">
@@ -119,13 +135,13 @@ export default function CertificadoDigitalPage() {
                         </div>
                     </div>
                     <div className="grid align-items-center mb-3">
-                        <div className="col-12 md:col-4 text-right"><label htmlFor="local">Local do Arquivo</label></div>
+                        <div className="col-12 md:col-4 text-right"><label htmlFor="arquivo_nome">Arquivo .pfx</label></div>
                         <div className="col-12 md:col-6">
                             <div className="p-inputgroup">
-                                <InputText id="local" value={form.local_arquivo_certificado} onChange={(e) => setForm((prev) => ({ ...prev, local_arquivo_certificado: e.target.value }))} placeholder="Selecione a pasta no computador do cliente" className="p-inputtext-sm" />
-                                <Button icon="pi pi-folder-open" type="button" onClick={openFolderPicker} tooltip="Selecionar pasta" size="small" />
+                                <InputText id="arquivo_nome" value={certFile?.name ?? ''} readOnly placeholder="Selecione o arquivo PFX" className="p-inputtext-sm" />
+                                <Button icon="pi pi-upload" type="button" onClick={openFilePicker} tooltip="Selecionar arquivo PFX" size="small" />
                             </div>
-                            <input ref={folderInputRef} type="file" style={{ display: 'none' }} onChange={onFolderChange} {...folderInputAttrs} />
+                            <input ref={fileInputRef} type="file" accept=".pfx,application/x-pkcs12" style={{ display: 'none' }} onChange={onFileChange} />
                         </div>
                     </div>
                     <div className="grid align-items-center mb-3">

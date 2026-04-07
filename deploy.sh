@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # No início do deploy.sh
-./backup.sh
+#./backup.sh
+
+./bkp_db.sh || { echo "Backup do banco de dados falhou, deploy cancelado"; exit 1; }
 
 # Se o backup falhar e você quiser parar o deploy:
 ./backup.sh || { echo "Backup falhou, deploy cancelado"; exit 1; }
