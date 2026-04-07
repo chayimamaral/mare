@@ -94,7 +94,7 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 		return domain.DadosComplementaresRecord{}, nil
 	}
 
-	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.dadoscomplementares WHERE tenantid::text = $1 LIMIT 1`
+	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.tenant_dados WHERE tenantid::text = $1 LIMIT 1`
 
 	record, err := scanDadosComplementares("", func(dest ...any) error {
 		return r.pool.QueryRow(ctx, query, tenantID).Scan(dest...)
@@ -116,7 +116,7 @@ func (r *RegistroRepository) UpdateByUser(ctx context.Context, userID string, in
 	}
 
 	const query = `
-		UPDATE public.dadoscomplementares
+		UPDATE public.tenant_dados
 		SET cnpj = $1,
 			cep = $2,
 			endereco = $3,
@@ -185,10 +185,10 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 	}
 
 	const dadosQuery = `
-		INSERT INTO public.dadoscomplementares (tenantid)
+		INSERT INTO public.tenant_dados (tenantid)
 		VALUES ($1)`
 	if _, err := tx.Exec(ctx, dadosQuery, tenantID); err != nil {
-		return domain.RegistroUserRecord{}, fmt.Errorf("create dadoscomplementares: %w", err)
+		return domain.RegistroUserRecord{}, fmt.Errorf("create tenant_dados: %w", err)
 	}
 
 	const userQuery = `

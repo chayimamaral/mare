@@ -21,9 +21,9 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]d
 	const query = `
 		SELECT
 			a.id,
-			COALESCE(e.nome, ''),
+			COALESCE(cli.nome, ''),
 			COALESCE(r.descricao, ''),
-			COALESCE(e.rotina_id, ''),
+			COALESCE(a.rotina_id::text, ''),
 			a.inicio::text,
 			COALESCE(a.termino::text, a.inicio::text),
 			CASE
@@ -49,6 +49,7 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]d
 			END AS border_color
 		FROM public.agenda a
 		LEFT JOIN public.empresa e ON e.id = a.empresa_id
+		LEFT JOIN public.cliente cli ON cli.id = e.cliente_id
 		LEFT JOIN public.rotinas r ON r.id = a.rotina_id
 		WHERE a.tenant_id = $1`
 

@@ -96,12 +96,13 @@ func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Contex
 func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, empresaID, tenantID string) (empresaGeracaoContext, error) {
 	var out empresaGeracaoContext
 	err := r.pool.QueryRow(ctx, `
-		SELECT e.id, e.tenant_id, COALESCE(e.municipio_id, ed.municipio_id), m.ufid, COALESCE(NULLIF(TRIM(e.bairro), ''), ''),
+		SELECT e.id, e.tenant_id, COALESCE(c.municipio_id, ed.municipio_id), m.ufid, COALESCE(NULLIF(TRIM(c.bairro), ''), ''),
 		       COALESCE(NULLIF(TRIM(r.tipo_empresa_id), ''), '')
 		FROM public.empresa e
-		LEFT JOIN public.empresa_dados ed ON ed.empresa_id = e.id
-		INNER JOIN public.municipio m ON m.id = COALESCE(e.municipio_id, ed.municipio_id)
-		INNER JOIN public.rotinas r ON r.id = e.rotina_id AND r.ativo = true
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		INNER JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
+		INNER JOIN public.rotinas r ON r.id = c.rotina_id AND r.ativo = true
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`,
 		empresaID, tenantID,
 	).Scan(&out.EmpresaID, &out.TenantID, &out.MunicipioID, &out.EstadoID, &out.Bairro, &out.TipoEmpresaID)
@@ -277,7 +278,7 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 	const q = `
 		SELECT
 			e.id,
-			e.nome,
+			c.nome,
 			ec.id::text,
 			ec.descricao,
 			ec.vencimento::date::text,
@@ -291,9 +292,10 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 			ec.valor
 		FROM public.empresa_compromissos ec
 		INNER JOIN public.empresa e ON e.id = ec.empresa_id
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		INNER JOIN public.tipoempresa_obrigacao cf ON cf.id = ec.tipoempresa_obrigacao_id
 		WHERE e.ativo = true AND e.tenant_id = $1
-		ORDER BY e.nome ASC, ec.vencimento ASC, ec.descricao ASC`
+		ORDER BY c.nome ASC, ec.vencimento ASC, ec.descricao ASC`
 
 	rows, err := r.pool.Query(ctx, q, tenantID)
 	if err != nil {
@@ -319,10 +321,11 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 
 func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoEmpresaOption, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT e.id, e.nome
+		SELECT e.id, c.nome
 		FROM public.empresa e
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		WHERE e.ativo = true AND e.tenant_id = $1
-		ORDER BY e.nome ASC`, strings.TrimSpace(tenantID))
+		ORDER BY c.nome ASC`, strings.TrimSpace(tenantID))
 	if err != nil {
 		return nil, fmt.Errorf("listar empresas para compromissos: %w", err)
 	}

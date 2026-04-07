@@ -1,6 +1,8 @@
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
+import { Chips } from 'primereact/chips';
 import { DataTable, DataTableFilterMeta } from 'primereact/datatable';
+import type { PaginatorTemplate } from 'primereact/paginator';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { InputTextarea } from 'primereact/inputtextarea';
@@ -19,7 +21,6 @@ import EmpresaService from '../../services/cruds/EmpresaService';
 import RotinaService from '../../services/cruds/RotinaService';
 import RotinaPFService from '../../services/cruds/RotinaPFService';
 import EmpresaDadosService from '../../services/cruds/EmpresaDadosService';
-import { Chips } from "primereact/chips";
 
 interface LazyTableState {
   totalRecords: number;
@@ -31,7 +32,41 @@ interface LazyTableState {
   filters: DataTableFilterMeta;
   tenantid: string;
 }
-const Clientes = ({ dados }) => {
+
+type ClientesDataTablePageEvent = Parameters<
+  NonNullable<React.ComponentProps<typeof DataTable<Vec.Empresa[]>>['onPage']>
+>[0];
+type ClientesDataTableSortEvent = Parameters<
+  NonNullable<React.ComponentProps<typeof DataTable<Vec.Empresa[]>>['onSort']>
+>[0];
+type ClientesDataTableFilterEvent = Parameters<
+  NonNullable<React.ComponentProps<typeof DataTable<Vec.Empresa[]>>['onFilter']>
+>[0];
+type ClientesChipsChangeEvent = Parameters<NonNullable<React.ComponentProps<typeof Chips>['onChange']>>[0];
+
+type PaginatorPrevNextLinkOptions = {
+  className: string;
+  onClick: (e: React.SyntheticEvent) => void;
+  disabled: boolean;
+};
+type PaginatorPageLinksOptions = {
+  className: string;
+  onClick: (e: React.SyntheticEvent) => void;
+  page: number;
+  view: { startPage: number; endPage: number };
+  totalPages: number;
+};
+type PaginatorRowsPerPageOptions = {
+  value: number;
+  options: { label: number; value: number }[];
+  onChange: (e: { value: number }) => void;
+};
+type PaginatorCurrentPageReportOptions = {
+  totalPages: number;
+  rows: number;
+};
+
+const Clientes = ({ dados }: { dados: string }) => {
 
   const tenantid = dados
 
@@ -212,6 +247,7 @@ const Clientes = ({ dados }) => {
 
   const podeCadastrarClientes = userRole === 'ADMIN';
   const podeEditarDadosComplementares = userRole === 'ADMIN' || userRole === 'USER';
+  const podeEditarComplementosCliente = podeCadastrarClientes || podeEditarDadosComplementares;
 
   const fetchEmpresasPayload = (payload: LazyTableState) => {
     setLoading(true);
@@ -234,7 +270,7 @@ const Clientes = ({ dados }) => {
     fetchEmpresasPayload(next);
   };
 
-  async function handleCnaesChange(event): Promise<void> {
+  async function handleCnaesChange(event: ClientesChipsChangeEvent): Promise<void> {
     const value: string[] = Array.isArray(event.value) ? [...event.value] : [];
 
     let prevLen = 0;
@@ -281,10 +317,11 @@ const Clientes = ({ dados }) => {
 
   const paginatorLeft = <Button type="button" icon="pi pi-refresh" tooltip='Atualizar' className="p-button-text" onClick={loadLazyEmpresa} />;
 
-  const onPage = (event) => {
+  const onPage = (event: ClientesDataTablePageEvent) => {
     setFirst(event.first);
     setRows(event.rows);
-    setCurrentPage(event.page + 1);
+    const pageIndex = (event.page ?? 0) + 1;
+    setCurrentPage(pageIndex);
     setSortOrder(event.sortOrder ?? 1);
     setSortField(event.sortField ?? '');
     const prev = lazyStateRef.current;
@@ -293,7 +330,7 @@ const Clientes = ({ dados }) => {
       tenantid,
       first: event.first,
       rows: event.rows,
-      page: event.page + 1,
+      page: pageIndex,
       sortField: event.sortField ?? prev.sortField,
       sortOrder: event.sortOrder ?? prev.sortOrder,
       filters: event.filters ?? prev.filters,
@@ -303,7 +340,10 @@ const Clientes = ({ dados }) => {
   };
 
   //const onPageInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, options: { totalPages: number; rows: React.SetStateAction<number>; first: React.SetStateAction<number>; }) => {
-  const onPageInputKeyDown = (event, options) => {
+  const onPageInputKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    options: PaginatorCurrentPageReportOptions,
+  ) => {
     if (event.key === 'Enter') {
       const page = currentPage;
       if (page < 1 || page > options.totalPages) {
@@ -331,12 +371,11 @@ const Clientes = ({ dados }) => {
 
   }
 
-  const onPageInputChange = (event) => {
-    setCurrentPage(event.target.value);
-  }
+  const onPageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentPage(event.target.value as unknown as number);
+  };
 
-
-  const onSort = (event) => {
+  const onSort = (event: ClientesDataTableSortEvent) => {
     const prev = lazyStateRef.current;
     const next: LazyTableState = {
       ...prev,
@@ -350,7 +389,7 @@ const Clientes = ({ dados }) => {
     fetchEmpresasPayload(next);
   };
 
-  const onFilter = (event) => {
+  const onFilter = (event: ClientesDataTableFilterEvent) => {
     const prev = lazyStateRef.current;
     const next: LazyTableState = {
       ...prev,
@@ -389,7 +428,7 @@ const Clientes = ({ dados }) => {
     setDeleteEmpresaDialog(false);
   };
 
-  function handleBuscaEmpresa(event, value: string): void {
+  function handleBuscaEmpresa(event: React.KeyboardEvent<HTMLInputElement>, value: string): void {
     if (event.key === 'Enter') {
       const prev = lazyStateRef.current;
       const next: LazyTableState = {
@@ -406,7 +445,7 @@ const Clientes = ({ dados }) => {
     }
   }
 
-  function handleClear(e): void {
+  function handleClear(e: React.ChangeEvent<HTMLInputElement>): void {
     if (!e.target.value) {
       const prev = lazyStateRef.current;
       const next: LazyTableState = {
@@ -493,6 +532,7 @@ const Clientes = ({ dados }) => {
   const buildPayloadDados = (empresaId: string) => ({
     id: empresaId,
     municipio_id: (empresa.municipio?.id ?? '').trim(),
+    bairro: (empresa.bairro ?? '').trim(),
     cnpj: '',
     endereco: clienteExtra.logradouro.trim(),
     numero: clienteExtra.numero.trim(),
@@ -518,10 +558,12 @@ const Clientes = ({ dados }) => {
     const rotinaOk = (empresa.rotina?.id ?? '').trim() !== '';
     const rotinaPfOk = (empresa.rotina_pf?.id ?? '').trim() !== '';
 
-    const salvarSoDadosUsuario =
-      !podeCadastrarClientes && podeEditarDadosComplementares && !!empresa.id;
+    const salvarSomenteClientesDados =
+      !!empresa.id &&
+      podeEditarComplementosCliente &&
+      (empresa.iniciado === true || !podeCadastrarClientes);
 
-    if (salvarSoDadosUsuario) {
+    if (salvarSomenteClientesDados) {
       if (!munOk) {
         toast.current?.show({ severity: 'warn', summary: 'Alerta', detail: 'Selecione o município.', life: 3500 });
         setSubmitted(false);
@@ -706,7 +748,7 @@ const Clientes = ({ dados }) => {
             loadRotinasPorMunicipio(m.id);
           }
         }
-      }).catch(() => { /* sem linha empresa_dados */ });
+      }).catch(() => { /* sem linha clientes_dados */ });
     }
   };
 
@@ -738,12 +780,12 @@ const Clientes = ({ dados }) => {
     }
   };
 
-  const onInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, campo: string) => {
-    const val = (e.target && e.target.value) || '';
-    let _empresa = { ...empresa };
-    _empresa[`${campo}`] = val;
-
-    setEmpresa(_empresa);
+  const onInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    campo: keyof Vec.Empresa,
+  ) => {
+    const val = e.target?.value ?? '';
+    setEmpresa((prev) => ({ ...prev, [campo]: val }));
   };
 
   function onTipoPessoaChange(value: string) {
@@ -861,21 +903,21 @@ const Clientes = ({ dados }) => {
 
   const template = {
     layout: 'PrevPageLink PageLinks NextPageLink RowsPerPageDropdown CurrentPageReport',
-    'PrevPageLink': (options) => {
+    'PrevPageLink': (options: PaginatorPrevNextLinkOptions) => {
       return (
         <button type="button" className={options.className} onClick={options.onClick} disabled={options.disabled}>
           <span className="p-3">Página anterior</span>
         </button>
       )
     },
-    'NextPageLink': (options) => {
+    'NextPageLink': (options: PaginatorPrevNextLinkOptions) => {
       return (
         <button type="button" className={options.className} onClick={options.onClick} disabled={options.disabled}>
           <span className="p-3">Próxima página</span>
         </button>
       )
     },
-    'PageLinks': (options) => {
+    'PageLinks': (options: PaginatorPageLinksOptions) => {
       if ((options.view.startPage === options.page && options.view.startPage !== 0) || (options.view.endPage === options.page && options.page + 1 !== options.totalPages)) {
         const className = classNames(options.className, { 'p-disabled': true });
 
@@ -888,7 +930,7 @@ const Clientes = ({ dados }) => {
         </button>
       )
     },
-    'RowsPerPageDropdown': (options) => {
+    'RowsPerPageDropdown': (options: PaginatorRowsPerPageOptions) => {
       const dropdownOptions = [
         { label: 10, value: 10 },
         { label: 20, value: 20 },
@@ -897,7 +939,7 @@ const Clientes = ({ dados }) => {
 
       return <Dropdown value={options.value} options={dropdownOptions} onChange={options.onChange} />;
     },
-    'CurrentPageReport': (options) => {
+    'CurrentPageReport': (options: PaginatorCurrentPageReportOptions) => {
       return (
         <span className="mx-3" style={{ color: 'var(--text-color)', userSelect: 'none' }}>
           Página <InputText className="ml-1" value={currentPage.toString()} tooltip={pageInputTooltip} tooltipOptions={{ position: 'left' }}
@@ -975,7 +1017,7 @@ const Clientes = ({ dados }) => {
             rows={rows}
             rowsPerPageOptions={[10, 20, 30]}
             className="datatable-responsive"
-            paginatorTemplate={template}
+            paginatorTemplate={template as unknown as PaginatorTemplate}
             globalFilter={globalFilter}
             emptyMessage="Nenhum cliente encontrado."
             header={header}
@@ -1022,7 +1064,7 @@ const Clientes = ({ dados }) => {
           >
             {coreCamposBloqueados && (
               <p className="text-600 text-sm mb-3">
-                Você pode alterar município, endereço e contatos. Demais campos do cadastro são mantidos pelo administrador.
+                Você pode alterar município, bairro, endereço e contatos (dados complementares em clientes_dados), mesmo após o processo ter sido iniciado na Manutenção de Empresas.
               </p>
             )}
 
@@ -1066,7 +1108,7 @@ const Clientes = ({ dados }) => {
                 dataKey="id"
                 placeholder="Selecione o município"
                 emptyMessage="Nenhum município encontrado"
-                disabled={empresa?.iniciado === true}
+                disabled={!podeEditarComplementosCliente}
                 className="w-full"
                 showClear
               />
@@ -1166,7 +1208,7 @@ const Clientes = ({ dados }) => {
                   id="logr_"
                   value={clienteExtra.logradouro}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, logradouro: e.target.value }))}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   className="w-full"
                 />
               </div>
@@ -1176,7 +1218,7 @@ const Clientes = ({ dados }) => {
                   id="num_"
                   value={clienteExtra.numero}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, numero: e.target.value }))}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   className="w-full"
                   maxLength={40}
                 />
@@ -1190,7 +1232,7 @@ const Clientes = ({ dados }) => {
                 value={empresa.bairro ?? ''}
                 type="text"
                 onChange={(e) => onInputChange(e, 'bairro')}
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                disabled={!podeEditarComplementosCliente}
                 placeholder="Obrigatório quando houver compromissos por bairro"
               />
             </div>
@@ -1203,7 +1245,7 @@ const Clientes = ({ dados }) => {
                 inputMode="numeric"
                 maxLength={9}
                 onChange={(e) => setClienteExtra((x) => ({ ...x, cep: e.target.value }))}
-                disabled={empresa?.iniciado === true}
+                disabled={!podeEditarComplementosCliente}
                 placeholder="00000000 ou 00000-000"
               />
             </div>
@@ -1215,7 +1257,7 @@ const Clientes = ({ dados }) => {
                 type="email"
                 value={clienteExtra.email_contato}
                 onChange={(e) => setClienteExtra((x) => ({ ...x, email_contato: e.target.value }))}
-                disabled={empresa?.iniciado === true}
+                disabled={!podeEditarComplementosCliente}
                 className="w-full"
               />
             </div>
@@ -1227,7 +1269,7 @@ const Clientes = ({ dados }) => {
                   id="edtel1"
                   value={clienteExtra.telefone}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, telefone: e.target.value }))}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   maxLength={40}
                 />
               </div>
@@ -1237,7 +1279,7 @@ const Clientes = ({ dados }) => {
                   id="edtel2"
                   value={clienteExtra.telefone2}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, telefone2: e.target.value }))}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   maxLength={40}
                 />
               </div>
@@ -1251,7 +1293,7 @@ const Clientes = ({ dados }) => {
                   type="date"
                   className="p-inputtext p-component w-full"
                   value={clienteExtra.data_abertura}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, data_abertura: e.target.value }))}
                 />
                 <small className="text-600">Formato conforme o navegador (aaaa-mm-dd enviado à API).</small>
@@ -1263,7 +1305,7 @@ const Clientes = ({ dados }) => {
                   type="date"
                   className="p-inputtext p-component w-full"
                   value={clienteExtra.data_encerramento}
-                  disabled={empresa?.iniciado === true}
+                  disabled={!podeEditarComplementosCliente}
                   onChange={(e) => setClienteExtra((x) => ({ ...x, data_encerramento: e.target.value }))}
                 />
               </div>
@@ -1275,7 +1317,7 @@ const Clientes = ({ dados }) => {
                 id="edobs"
                 value={clienteExtra.observacao}
                 onChange={(e) => setClienteExtra((x) => ({ ...x, observacao: e.target.value }))}
-                disabled={empresa?.iniciado === true}
+                disabled={!podeEditarComplementosCliente}
                 rows={3}
                 className="w-full"
                 autoResize

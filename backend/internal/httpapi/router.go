@@ -221,7 +221,7 @@ func registerRoutes(
 	r.With(requireAuth, requireAdminOnly).Put("/iniciarprocesso", empresaHandler.IniciarProcesso)
 
 	r.With(requireAuth).Get("/empresadados", empresaDadosHandler.Get)
-	// ADMIN/USER: cadastro unificado de cliente (issue #59) grava empresa + empresa_dados.
+	// ADMIN/USER: cadastro unificado de cliente (issue #59) grava empresa + clientes_dados.
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "USER")).Put("/empresadados", empresaDadosHandler.Upsert)
 
 	r.With(requireAuth).Get("/cnaes", cnaeHandler.List)

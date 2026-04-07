@@ -61,3 +61,4 @@ Usuários: temos 3 tipos de usuários:
   ADMIN: o usuário administrador da empresa de contabilidade, com maiores poderes de usuário, sempre separado por tenant, e que incluirá novos usuário no mesmo tenant que o próprio;
   USER: serão os usuários do mesmo escritório de contabilidade, mas com poderes restritos;
 
+Campos 'id' sempre criar como uuid.

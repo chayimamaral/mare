@@ -19,6 +19,7 @@ type empresaDadosEnvelope struct {
 	Params struct {
 		ID               string `json:"id"`
 		MunicipioID      string `json:"municipio_id"`
+		Bairro           string `json:"bairro"`
 		CNPJ             string `json:"cnpj"`
 		Endereco         string `json:"endereco"`
 		Numero           string `json:"numero"`
@@ -70,6 +71,7 @@ func (h *EmpresaDadosHandler) Upsert(w http.ResponseWriter, r *http.Request) {
 		EmpresaID:        id,
 		TenantID:         middleware.TenantID(r.Context()),
 		MunicipioID:      strings.TrimSpace(payload.Params.MunicipioID),
+		Bairro:           payload.Params.Bairro,
 		CNPJ:             payload.Params.CNPJ,
 		Endereco:         payload.Params.Endereco,
 		Numero:           payload.Params.Numero,

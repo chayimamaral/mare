@@ -12,6 +12,7 @@ export default function EmpresaDadosService() {
   const save = async (params: {
     id: string;
     municipio_id?: string;
+    bairro?: string;
     cnpj?: string;
     endereco?: string;
     numero?: string;

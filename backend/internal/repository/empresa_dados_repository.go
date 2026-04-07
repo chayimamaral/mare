@@ -16,6 +16,7 @@ type EmpresaDadosUpsertInput struct {
 	EmpresaID        string
 	TenantID         string
 	MunicipioID      string
+	Bairro           string
 	CNPJ             string
 	Endereco         string
 	Numero           string
@@ -85,18 +86,19 @@ func (r *EmpresaDadosRepository) GetByEmpresa(ctx context.Context, empresaID, te
 			ed.data_abertura, ed.data_encerramento, ed.observacao,
 			COALESCE(m.id::text, ''), COALESCE(m.nome, '')
 		FROM public.empresa e
-		LEFT JOIN public.empresa_dados ed ON ed.empresa_id = e.id
-		LEFT JOIN public.municipio m ON m.id = COALESCE(e.municipio_id, ed.municipio_id)
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		LEFT JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`
 
 	row := r.pool.QueryRow(ctx, q, empresaID, tenantID)
 
 	var (
-		id                                        string
+		id                                             string
 		cnpj, endereco, numero, cep, email, tel1, tel2 pgtype.Text
-		dataAber, dataEnc                         pgtype.Date
-		obs                                       pgtype.Text
-		mID, mNome                                string
+		dataAber, dataEnc                              pgtype.Date
+		obs                                            pgtype.Text
+		mID, mNome                                     string
 	)
 	if err := row.Scan(&id, &cnpj, &endereco, &numero, &cep, &email, &tel1, &tel2, &dataAber, &dataEnc, &obs, &mID, &mNome); err != nil {
 		if err == pgx.ErrNoRows {
@@ -153,14 +155,14 @@ func (r *EmpresaDadosRepository) Upsert(ctx context.Context, in EmpresaDadosUpse
 	defer tx.Rollback(ctx)
 
 	const q = `
-		INSERT INTO public.empresa_dados (
-			empresa_id, municipio_id, cnpj, endereco, numero, cep, email_contato, telefone, telefone2,
+		INSERT INTO public.clientes_dados (
+			cliente_id, municipio_id, cnpj, endereco, numero, cep, email_contato, telefone, telefone2,
 			data_abertura, data_encerramento, observacao, atualizado_em
 		)
-		SELECT $1::text, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12, NOW()
+		SELECT e.cliente_id, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12, NOW()
 		FROM public.empresa e
 		WHERE e.id = $1 AND e.tenant_id = $13 AND e.ativo = true
-		ON CONFLICT (empresa_id) DO UPDATE SET
+		ON CONFLICT (cliente_id) DO UPDATE SET
 			municipio_id = EXCLUDED.municipio_id,
 			cnpj = EXCLUDED.cnpj,
 			endereco = EXCLUDED.endereco,
@@ -197,12 +199,15 @@ func (r *EmpresaDadosRepository) Upsert(ctx context.Context, in EmpresaDadosUpse
 	}
 
 	if _, err := tx.Exec(ctx, `
-		UPDATE public.empresa e
-		SET municipio_id = $2
-		WHERE e.id = $1 AND e.tenant_id = $3 AND e.ativo = true`,
-		in.EmpresaID, mid, in.TenantID,
+		UPDATE public.cliente c
+		SET municipio_id = $2,
+		    bairro = NULLIF(TRIM($4), ''),
+		    atualizado_em = NOW()
+		FROM public.empresa e
+		WHERE c.id = e.cliente_id AND e.id = $1 AND e.tenant_id = $3 AND e.ativo = true`,
+		in.EmpresaID, mid, in.TenantID, in.Bairro,
 	); err != nil {
-		return fmt.Errorf("espelhar municipio na empresa: %w", err)
+		return fmt.Errorf("espelhar municipio e bairro no cliente: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

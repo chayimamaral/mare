@@ -9,7 +9,7 @@ const (
 )
 
 // Cliente unifica o cadastro de PF e PJ no domínio.
-// Persistência atual: linha em public.empresa (mesmo UUID) + opcional public.empresa_dados.
+// Persistência: public.cliente + public.empresa (operação); ID exposto nas rotas de cliente = empresa.id; opcional public.clientes_dados.
 // RotinaID e Cnaes são obrigatórios na regra de negócio para PJ; para PF permanecem nulos.
 type Cliente struct {
 	ID          string     `json:"id"`

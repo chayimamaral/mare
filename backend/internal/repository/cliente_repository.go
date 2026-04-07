@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ClienteRepository acesso unificado a clientes PF/PJ persistidos em public.empresa
-// (mesmos UUIDs usados por empresa_agenda e empresa_compromissos).
+// ClienteRepository acesso unificado a clientes PF/PJ: cadastro em public.cliente,
+// operação em public.empresa; o ID exposto na API permanece empresa.id (agenda/compromissos).
 // Validação PJ (rotina/CNAEs) e PF (documento) fica na camada de serviço.
 type ClienteRepository struct {
 	pool *pgxpool.Pool
@@ -22,28 +22,29 @@ func NewClienteRepository(pool *pgxpool.Pool) *ClienteRepository {
 	return &ClienteRepository{pool: pool}
 }
 
-// GetByID carrega um cliente ativo do tenant. Documento usa e.documento ou fallback em empresa_dados.cnpj (PJ legado).
+// GetByID carrega um cliente ativo do tenant (id = empresa.id). Documento: c.documento ou fallback em clientes_dados.cnpj.
 func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (domain.Cliente, error) {
 	const q = `
 		SELECT
 			e.id,
-			e.tenant_id,
-			COALESCE(NULLIF(BTRIM(e.tipo_pessoa::text), ''), 'PJ')::text,
-			e.nome,
-			COALESCE(NULLIF(BTRIM(e.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
-			COALESCE(e.municipio_id, ed.municipio_id)::text,
-			e.rotina_id::text,
-			e.rotina_pf_id::text,
+			c.tenant_id,
+			COALESCE(NULLIF(BTRIM(c.tipo_pessoa::text), ''), 'PJ')::text,
+			c.nome,
+			COALESCE(NULLIF(BTRIM(c.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
+			COALESCE(c.municipio_id, ed.municipio_id)::text,
+			c.rotina_id::text,
+			c.rotina_pf_id::text,
 			COALESCE(rpf.nome, ''),
 			COALESCE(rpf.categoria, ''),
-			e.cnaes,
-			COALESCE(e.bairro, ''),
+			c.cnaes,
+			COALESCE(c.bairro, ''),
 			e.iniciado,
 			e.ativo
 		FROM public.empresa e
-		LEFT JOIN public.empresa_dados ed ON ed.empresa_id = e.id
-		LEFT JOIN public.rotina_pf rpf ON rpf.id = e.rotina_pf_id
-		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		LEFT JOIN public.rotina_pf rpf ON rpf.id = c.rotina_pf_id
+		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true AND c.ativo = true`
 
 	var c domain.Cliente
 	var doc, munID, rotID, rpfID sql.NullString
@@ -100,24 +101,25 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 	const q = `
 		SELECT
 			e.id,
-			e.tenant_id,
-			COALESCE(NULLIF(BTRIM(e.tipo_pessoa::text), ''), 'PJ')::text,
-			e.nome,
-			COALESCE(NULLIF(BTRIM(e.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
-			COALESCE(e.municipio_id, ed.municipio_id)::text,
-			e.rotina_id::text,
-			e.rotina_pf_id::text,
+			c.tenant_id,
+			COALESCE(NULLIF(BTRIM(c.tipo_pessoa::text), ''), 'PJ')::text,
+			c.nome,
+			COALESCE(NULLIF(BTRIM(c.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
+			COALESCE(c.municipio_id, ed.municipio_id)::text,
+			c.rotina_id::text,
+			c.rotina_pf_id::text,
 			COALESCE(rpf.nome, ''),
 			COALESCE(rpf.categoria, ''),
-			e.cnaes,
-			COALESCE(e.bairro, ''),
+			c.cnaes,
+			COALESCE(c.bairro, ''),
 			e.iniciado,
 			e.ativo
 		FROM public.empresa e
-		LEFT JOIN public.empresa_dados ed ON ed.empresa_id = e.id
-		LEFT JOIN public.rotina_pf rpf ON rpf.id = e.rotina_pf_id
-		WHERE e.tenant_id = $1 AND e.ativo = true
-		ORDER BY e.nome ASC
+		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		LEFT JOIN public.rotina_pf rpf ON rpf.id = c.rotina_pf_id
+		WHERE e.tenant_id = $1 AND e.ativo = true AND c.ativo = true
+		ORDER BY c.nome ASC
 		LIMIT $2 OFFSET $3`
 
 	rows, err := r.pool.Query(ctx, q, tenantID, limit, offset)

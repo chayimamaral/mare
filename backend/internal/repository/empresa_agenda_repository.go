@@ -131,7 +131,7 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 	const queryAgenda = `
 		SELECT
 			e.id,
-			e.nome,
+			cli.nome,
 			COALESCE(ea.id::text, ''),
 			COALESCE(ea.descricao, ''),
 			COALESCE(ea.data_vencimento::text, ''),
@@ -145,11 +145,12 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 			CASE WHEN ea.id IS NOT NULL THEN ea.id::text ELSE '' END,
 			ea.valor_estimado
 		FROM public.empresa e
+		INNER JOIN public.cliente cli ON cli.id = e.cliente_id
 		LEFT JOIN public.empresa_agenda ea ON ea.empresa_id = e.id
 		LEFT JOIN public.tipoempresa_obrigacao teo ON teo.id = ea.template_id
 		WHERE e.ativo = true
 		  AND e.tenant_id = $1
-		ORDER BY e.nome ASC, ea.data_vencimento ASC NULLS LAST, ea.descricao ASC`
+		ORDER BY cli.nome ASC, ea.data_vencimento ASC NULLS LAST, ea.descricao ASC`
 
 	items, err := scanAcompanhamentoRows(ctx, r.pool, queryAgenda, tenantID)
 	if err != nil {
@@ -160,7 +161,7 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 	const queryCatalog = `
 		SELECT
 			e.id,
-			e.nome,
+			cli.nome,
 			c.id::text,
 			c.descricao,
 			'',
@@ -173,7 +174,8 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 			'',
 			NULL::numeric
 		FROM public.empresa e
-		INNER JOIN public.rotinas r ON r.id = e.rotina_id
+		INNER JOIN public.cliente cli ON cli.id = e.cliente_id
+		INNER JOIN public.rotinas r ON r.id = cli.rotina_id
 		INNER JOIN public.tipoempresa_obrigacao c
 			ON c.tipo_empresa_id = r.tipo_empresa_id AND c.ativo = true
 		WHERE e.ativo = true
@@ -185,7 +187,7 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 		  	SELECT 1 FROM public.empresa_agenda ea
 		  	WHERE ea.empresa_id = e.id AND ea.descricao = c.descricao
 		  )
-		ORDER BY e.nome ASC, c.descricao ASC`
+		ORDER BY cli.nome ASC, c.descricao ASC`
 
 	catalog, err := scanAcompanhamentoRows(ctx, r.pool, queryCatalog, tenantID)
 	if err != nil {

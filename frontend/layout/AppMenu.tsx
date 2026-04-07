@@ -26,39 +26,39 @@ const AppMenu = () => {
                 items: [
                     { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
                     {
-                        label: 'Compromissos',
+                        label: 'Rotinas Fiscais',
                         icon: 'pi pi-fw pi-list',
                         items: [
                             {
-                                label: 'Compromissos por empresas',
+                                label: 'Rotinas por empresas',
                                 icon: 'pi pi-fw pi-list',
                                 to: '/compromissos-empresas',
                             },
                             {
-                                label: 'Compromissos por natureza',
+                                label: 'Rotinas por natureza',
                                 icon: 'pi pi-fw pi-sitemap',
                                 to: '/compromissos-por-natureza',
                             },
                             {
-                                label: 'Compromissos (visão corrida)',
+                                label: 'Rotinas (visão corrida)',
                                 icon: 'pi pi-fw pi-table',
                                 to: '/compromissos-visao',
                             },
                         ],
                     },
                     {
-                        label: 'Agenda',
+                        label: 'Fluxos de Processos',
                         icon: 'pi pi-fw pi-calendar',
                         items: [
                             {
-                                label: 'Agenda (calendário)',
-                                icon: 'pi pi-fw pi-calendar',
-                                to: '/agenda',
-                            },
-                            {
-                                label: 'Agenda em Árvore',
+                                label: 'Fluxo em Árvore',
                                 icon: 'pi pi-fw pi-sitemap',
                                 to: '/agenda-arvore',
+                            },
+                            {
+                                label: 'Fluxo em Agenda (calendário)',
+                                icon: 'pi pi-fw pi-calendar',
+                                to: '/agenda',
                             },
                         ],
                     },

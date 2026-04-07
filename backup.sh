@@ -7,7 +7,7 @@ RAIZ_PROJETO=$(cd "$(dirname "$0")" && pwd)
 # Configurações de Destino
 BACKUP_DIR="$HOME/backups/vecontab"
 mkdir -p "$BACKUP_DIR"
-BACKUP_FILE="vecontab_$(date +%Y%m%d_%H%M%S).tar.gz"
+BACKUP_FILE="vecontab_source_$(date +%Y%m%d_%H%M%S).tar.gz"
 
 echo "-------------------------------------------"
 echo "💾 GERANDO BACKUP EM: $RAIZ_PROJETO"
@@ -26,9 +26,14 @@ tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
 if [ $? -eq 0 ]; then
     echo "✅ Backup completo criado: $BACKUP_FILE"
     # Limpeza: mantém os 10 mais recentes
-    (cd "$BACKUP_DIR" && ls -t vecontab_*.tar.gz | tail -n +11 | xargs rm -f 2>/dev/null)
+    (cd "$BACKUP_DIR" && ls -t vecontab_source_*.tar.gz | tail -n +11 | xargs rm -f 2>/dev/null)
 else
     echo "⚠️ Falha ao gerar o arquivo de backup."
     exit 1
 fi
+echo "-------------------------------------------"
+echo ""
+echo "🧹 Faxina final: Removendo caches de build antigos (liberando espaço)..."
+docker builder prune -f
+echo ""
 echo "-------------------------------------------"

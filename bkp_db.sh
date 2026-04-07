@@ -6,7 +6,7 @@ DB_NAME="vecontab"
 DB_USER="postgres"
 DB_HOST="localhost"
 BKP_DIR="docs/bkp_bd"
-BKP_NAME="vecontab_bkp_geral.sql"
+BKP_NAME="bkp_vecontab_db.sql"
 BKP_PATH="$BKP_DIR/$BKP_NAME"
 TIMESTAMP=$(date +%Y%m%d_%H%M)
 
@@ -37,7 +37,7 @@ unset PGPASSWORD
 
 if [ $STATUS -eq 0 ]; then
     # Se o dump funcionou, cria a cópia de histórico
-    cp "$BKP_PATH" "$BKP_DIR/vecontab_bkp_$TIMESTAMP.sql"
+    cp "$BKP_PATH" "$BKP_DIR/bkp_vecontab_db_$TIMESTAMP.sql"
     echo "✅ Backup realizado com sucesso em: $BKP_PATH"
     echo "📦 Histórico: vecontab_bkp_$TIMESTAMP.sql"
     exit 0
