@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { TreeTable } from 'primereact/treetable';
+import { TreeTable, type TreeTableProps } from 'primereact/treetable';
 import { TreeNode } from 'primereact/treenode';
 import { Column } from 'primereact/column';
 import { Button } from 'primereact/button';
@@ -9,6 +9,8 @@ import { InputText } from 'primereact/inputtext';
 import { Dropdown } from 'primereact/dropdown';
 import { Toast } from 'primereact/toast';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import { Checkbox } from 'primereact/checkbox';
+import { Tag } from 'primereact/tag';
 import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/CatalogoServicoService';
 import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import setupAPIClient from '../../components/api/api';
@@ -36,7 +38,6 @@ const emptyForm: FormState = {
     codigo: '',
     id_sistema: '',
     id_servico: '',
-    situacao_implantacao: '',
     data_implantacao: '',
     tipo: '',
     descricao: '',
@@ -54,9 +55,14 @@ function toNodes(items: CatalogoServico[]): TreeNode[] {
     const secoesOrdenadas = Array.from(agrupado.keys()).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
     return secoesOrdenadas.map((secao) => {
         const children = (agrupado.get(secao) ?? [])
-            .sort((a, b) => a.sequencial - b.sequencial)
+            .sort((a, b) => {
+                const sa = Number(a.sequencial) || 0;
+                const sb = Number(b.sequencial) || 0;
+                if (sa !== sb) return sa - sb;
+                return String(a.codigo ?? '').localeCompare(String(b.codigo ?? ''), 'pt-BR', { numeric: true, sensitivity: 'base' });
+            })
             .map((s) => ({
-                key: s.id,
+                key: String(s.id),
                 leaf: true,
                 data: {
                     ...s,
@@ -67,8 +73,16 @@ function toNodes(items: CatalogoServico[]): TreeNode[] {
             key: `secao:${secao}`,
             leaf: false,
             data: {
+                id: '',
                 secao,
+                sequencial: 0,
+                codigo: '',
+                id_sistema: '',
+                id_servico: '',
+                data_implantacao: '',
+                tipo: '',
                 descricao: `${children.length} serviço(s)`,
+                ativo: true,
                 isSecao: true,
             },
             children,
@@ -80,6 +94,7 @@ export default function CatalogoServicosPage() {
     const toast = useRef<Toast>(null);
     const svc = useMemo(() => CatalogoServicoService(), []);
     const [secaoFiltro, setSecaoFiltro] = useState<string>('TODAS');
+    const [incluirInativos, setIncluirInativos] = useState(false);
     const [dialogVisible, setDialogVisible] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -99,10 +114,28 @@ export default function CatalogoServicosPage() {
     });
     const podeManter = !isFetchingRole && roleData === 'SUPER';
 
-    const { data, isFetching, refetch } = useQuery<CatalogoServico[]>({
-        queryKey: ['catalogo-servicos', secaoFiltro],
-        queryFn: () => svc.list(secaoFiltro === 'TODAS' ? '' : secaoFiltro),
+    const { data, isFetching, refetch, isError, error } = useQuery<CatalogoServico[]>({
+        queryKey: ['catalogo-servicos', secaoFiltro, incluirInativos],
+        queryFn: () =>
+            svc.list({
+                secao: secaoFiltro === 'TODAS' ? '' : secaoFiltro,
+                incluirInativos,
+            }),
+        staleTime: 0,
+        gcTime: 0,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
     });
+
+    useEffect(() => {
+        if (!isError || !error) return;
+        const msg =
+            (error as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error ||
+            (error as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.message ||
+            (error as Error)?.message ||
+            'Falha ao carregar catálogo.';
+        toast.current?.show({ severity: 'error', summary: 'Erro', detail: msg, life: 7000 });
+    }, [isError, error]);
 
     const nodes = useMemo(() => toNodes(data ?? []), [data]);
 
@@ -128,7 +161,6 @@ export default function CatalogoServicosPage() {
             codigo: row.codigo,
             id_sistema: row.id_sistema,
             id_servico: row.id_servico,
-            situacao_implantacao: row.situacao_implantacao,
             data_implantacao: row.data_implantacao || '',
             tipo: row.tipo,
             descricao: row.descricao,
@@ -161,7 +193,7 @@ export default function CatalogoServicosPage() {
     const salvar = async () => {
         if (!podeManter) return;
         setSubmitted(true);
-        if (!form.secao.trim() || form.sequencial <= 0 || !form.codigo.trim() || !form.id_sistema.trim() || !form.id_servico.trim() || !form.situacao_implantacao.trim() || !form.tipo.trim() || !form.descricao.trim()) {
+        if (!form.secao.trim() || form.sequencial <= 0 || !form.codigo.trim() || !form.id_sistema.trim() || !form.id_servico.trim() || !form.tipo.trim() || !form.descricao.trim()) {
             return;
         }
         try {
@@ -185,12 +217,28 @@ export default function CatalogoServicosPage() {
 
     const descricaoTemplate = (node: TreeNode) => {
         const d = node.data as any;
-        return d.isSecao ? <strong>{d.descricao}</strong> : d.descricao;
+        if (d.isSecao) {
+            return <strong>{d.descricao}</strong>;
+        }
+        return (
+            <span className="flex align-items-center gap-2 flex-wrap">
+                <span>{d.descricao}</span>
+                {d.ativo === false && <Tag value="Inativo" severity="secondary" className="text-xs" />}
+            </span>
+        );
+    };
+
+    const rowClassCatalogo: TreeTableProps['rowClassName'] = (node) => {
+        const d = node.data as { isSecao?: boolean; ativo?: boolean } | undefined;
+        if (d?.isSecao || d?.ativo !== false) {
+            return '';
+        }
+        return 'vecontab-catalogo-linha-inativa';
     };
 
     const acoesTemplate = (node: TreeNode) => {
         const d = node.data as any;
-        if (d.isSecao || !podeManter) return null;
+        if (d.isSecao || !podeManter || d.ativo === false) return null;
         return (
             <div className="flex gap-2">
                 <Button type="button" icon="pi pi-pencil" rounded severity="success" onClick={() => abrirEditar(d as CatalogoServico)} />
@@ -219,19 +267,41 @@ export default function CatalogoServicosPage() {
                                 className="w-full"
                             />
                         </div>
+                        <div className="flex align-items-center gap-2">
+                            <Checkbox
+                                inputId="catalogo-incluir-inativos"
+                                checked={incluirInativos}
+                                onChange={(e) => setIncluirInativos(Boolean(e.checked))}
+                            />
+                            <label htmlFor="catalogo-incluir-inativos" className="text-sm cursor-pointer m-0">
+                                Incluir inativos (excluídos logicamente)
+                            </label>
+                        </div>
                         {podeManter && (
                             <Button type="button" label="Incluir" icon="pi pi-plus" severity="success" onClick={abrirNovo} />
                         )}
                     </div>
-                    <TreeTable value={nodes} stripedRows loading={isFetching} tableStyle={{ minWidth: '72rem' }}>
-                        <Column field="secao" header="Seção" expander sortable style={{ minWidth: '14rem' }} />
+                    <p className="text-600 text-sm mt-0 mb-3">
+                        Por padrão a lista mostra apenas serviços ativos. Marque a opção acima para ver também registros com{' '}
+                        <code className="text-sm">ativo = false</code> (exclusão lógica).
+                    </p>
+                    <TreeTable
+                        value={nodes}
+                        stripedRows
+                        loading={isFetching}
+                        sortMode="single"
+                        defaultSortOrder={1}
+                        tableStyle={{ minWidth: '72rem' }}
+                        rowClassName={rowClassCatalogo}
+                    >
+                        <Column field="secao" header="Seção" expander style={{ minWidth: '14rem' }} />
                         <Column field="sequencial" header="Sequencial" sortable style={{ width: '8rem' }} />
-                        <Column field="codigo" header="Código" sortable style={{ width: '8rem' }} />
-                        <Column field="id_sistema" header="idSistema" sortable style={{ minWidth: '10rem' }} />
-                        <Column field="id_servico" header="idServico" sortable style={{ minWidth: '12rem' }} />
-                        <Column field="situacao_implantacao" header="Situação e Data" sortable style={{ minWidth: '12rem' }} />
-                        <Column field="tipo" header="Tipo" sortable style={{ width: '9rem' }} />
-                        <Column header="Descrição" body={descricaoTemplate} sortable field="descricao" style={{ minWidth: '16rem' }} />
+                        <Column field="codigo" header="Código" style={{ width: '8rem' }} />
+                        <Column field="id_sistema" header="idSistema" style={{ minWidth: '10rem' }} />
+                        <Column field="id_servico" header="idServico" style={{ minWidth: '12rem' }} />
+                        <Column field="data_implantacao" header="Data implantação" style={{ minWidth: '10rem' }} />
+                        <Column field="tipo" header="Tipo" style={{ width: '9rem' }} />
+                        <Column header="Descrição" body={descricaoTemplate} field="descricao" style={{ minWidth: '16rem' }} />
                         {podeManter && <Column header="Ações" body={acoesTemplate} style={{ width: '8rem' }} />}
                     </TreeTable>
                     <Dialog
@@ -281,12 +351,8 @@ export default function CatalogoServicosPage() {
                                 <InputText id="idservico" value={form.id_servico} onChange={(e) => setForm((p) => ({ ...p, id_servico: e.target.value }))} className={isInvalid(form.id_servico) ? 'p-invalid' : ''} />
                             </div>
                             <div className="col-12 md:col-4">
-                                <label htmlFor="data_implantacao">Data de Implantação</label>
+                                <label htmlFor="data_implantacao">Data de implantação</label>
                                 <InputText id="data_implantacao" type="date" value={form.data_implantacao || ''} onChange={(e) => setForm((p) => ({ ...p, data_implantacao: e.target.value }))} />
-                            </div>
-                            <div className="col-12">
-                                <label htmlFor="situacao">Situação e Data da Implantação</label>
-                                <InputText id="situacao" value={form.situacao_implantacao} onChange={(e) => setForm((p) => ({ ...p, situacao_implantacao: e.target.value }))} className={isInvalid(form.situacao_implantacao) ? 'p-invalid' : ''} />
                             </div>
                             <div className="col-12">
                                 <label htmlFor="descricao">Descrição</label>
@@ -317,6 +383,10 @@ export default function CatalogoServicosPage() {
                     right: 1rem;
                     bottom: 0.75rem;
                     z-index: 2;
+                }
+                :global(.p-treetable .p-treetable-tbody > tr.vecontab-catalogo-linha-inativa > td) {
+                    opacity: 0.72;
+                    background: var(--surface-100, #f1f5f9) !important;
                 }
             `}</style>
         </div>

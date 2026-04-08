@@ -7,18 +7,19 @@ export type CatalogoServico = {
     codigo: string;
     id_sistema: string;
     id_servico: string;
-    situacao_implantacao: string;
     data_implantacao?: string;
     tipo: string;
     descricao: string;
+    ativo?: boolean;
 };
 
 export default function CatalogoServicoService() {
-    const list = async (secao?: string) => {
+    const list = async (opts?: { secao?: string; incluirInativos?: boolean }) => {
         const api = setupAPIClient(undefined);
         const { data } = await api.get('/api/catalogo-servicos', {
             params: {
-                secao: secao || '',
+                secao: opts?.secao ?? '',
+                incluir_inativos: opts?.incluirInativos ? '1' : '',
             },
         });
         return data?.servicos ?? [];

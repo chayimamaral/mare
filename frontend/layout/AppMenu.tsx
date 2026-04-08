@@ -7,245 +7,251 @@ import { AppMenuItem } from '../types/types';
 import setupAPIClient from '../components/api/api';
 
 const AppMenu = () => {
-    const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-    useEffect(() => {
-        const api = setupAPIClient(undefined);
-        api.get('/api/usuariorole')
-            .then((r) => setUserRole(r.data?.logado?.role ?? null))
-            .catch(() => setUserRole(null));
-    }, []);
+  useEffect(() => {
+    const api = setupAPIClient(undefined);
+    api.get('/api/usuariorole')
+      .then((r) => setUserRole(r.data?.logado?.role ?? null))
+      .catch(() => setUserRole(null));
+  }, []);
 
-    const podeGerenciarUsuarios = userRole === 'ADMIN' || userRole === 'SUPER';
-    const podeVerMonitor = userRole === 'ADMIN' || userRole === 'SUPER';
+  const podeGerenciarUsuarios = userRole === 'ADMIN' || userRole === 'SUPER';
+  const podeVerMonitor = userRole === 'ADMIN' || userRole === 'SUPER';
 
-    const model: AppMenuItem[] = useMemo(
-        () => [
-            {
-                label: 'Home',
-                items: [
-                    { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
-                    {
-                        label: 'Rotinas Fiscais',
-                        icon: 'pi pi-fw pi-list',
-                        items: [
-                            {
-                                label: 'Rotinas por empresas',
-                                icon: 'pi pi-fw pi-list',
-                                to: '/compromissos-empresas',
-                            },
-                            {
-                                label: 'Rotinas por natureza',
-                                icon: 'pi pi-fw pi-sitemap',
-                                to: '/compromissos-por-natureza',
-                            },
-                            {
-                                label: 'Rotinas (visão corrida)',
-                                icon: 'pi pi-fw pi-table',
-                                to: '/compromissos-visao',
-                            },
-                        ],
-                    },
-                    {
-                        label: 'Fluxos de Processos',
-                        icon: 'pi pi-fw pi-calendar',
-                        items: [
-                            {
-                                label: 'Fluxo em Árvore',
-                                icon: 'pi pi-fw pi-sitemap',
-                                to: '/agenda-arvore',
-                            },
-                            {
-                                label: 'Fluxo em Agenda (calendário)',
-                                icon: 'pi pi-fw pi-calendar',
-                                to: '/agenda',
-                            },
-                        ],
-                    },
-                    {
-                        label: 'Manutenção de Empresas',
-                        icon: 'pi pi-fw pi-table',
-                        to: '/empresas',
-                    },
-                ],
-            },
-            {
-                label: 'Operações',
-                items: [
-                    {
-                        label: 'Cadastros',
-                        icon: 'pi pi-fw pi-database',
-                        items: [
-                            {
-                                label: 'Cadastros Básicos',
-                                icon: 'pi pi-fw pi-bookmark',
-                                items: [
-                                    {
-                                        label: 'Clientes',
-                                        icon: 'pi pi-fw pi-id-card',
-                                        to: '/clientes',
-                                    },
-                                    {
-                                        label: 'Feriados',
-                                        icon: 'pi pi-fw pi-table',
-                                        to: '/feriados',
-                                    },
-                                    {
-                                        label: 'Municípios',
-                                        icon: 'pi pi-fw pi-building',
-                                        to: '/municipios',
-                                    },
-                                    {
-                                        label: 'Estados',
-                                        icon: 'pi pi-fw pi-flag',
-                                        to: '/estados',
-                                    },
-                                ],
-                            },
-                            {
-                                label: 'Cadastros Operacionais',
-                                icon: 'pi pi-fw pi-sitemap',
-                                items: [
-                                    {
-                                        label: 'Configurações Fiscais',
-                                        icon: 'pi pi-fw pi-table',
-                                        items: [
-                                            {
-                                                label: 'Enquadramento Jurídico',
-                                                icon: 'pi pi-fw pi-table',
-                                                to: '/tipoempresa',
-                                            },
-                                            {
-                                                label: 'Regras de Obrigações',
-                                                icon: 'pi pi-fw pi-money-bill',
-                                                to: '/obrigacoes',
-                                            },
-                                        ],
-                                    },
-                                    {
-
-                                        label: 'Processos para Empresas', // O item pai agora agrupa os dois
-                                        icon: 'pi pi-fw pi-briefcase',
-                                        items: [
-                                            {
-                                                label: 'Processos',
-                                                icon: 'pi pi-fw pi-list',
-                                                to: '/rotinas', // Mantive o path atual para não quebrar seus links
-                                            },
-                                            {
-                                                label: 'Etapas',
-                                                icon: 'pi pi-fw pi-check-square',
-                                                to: '/passos',
-                                            },
-                                        ]
-                                    },
-                                    {
-                                        label: 'Rotinas PF (IRPF / Carnê-Leão)',
-                                        icon: 'pi pi-fw pi-user',
-                                        to: '/rotinas-pf',
-                                    },
-
-                                ],
-                            },
-                            {
-                                label: 'Cadastros Contábeis',
-                                icon: 'pi pi-fw pi-sitemap',
-                                items: [
-
-                                    {
-                                        label: 'CNAE',
-                                        icon: 'pi pi-fw pi-table',
-                                        to: '/cnae',
-                                    },
-                                ],
-                            },
-                        ],
-                    },
-                ],
-            },
-            {
-                label: 'Diversos',
-                icon: 'pi pi-fw pi-briefcase',
-                to: '/pages',
-                items: [
-                    {
-                        label: 'Usuários',
-                        icon: 'pi pi-fw pi-user',
-                        visible: podeGerenciarUsuarios,
-                        items: [
-                            {
-                                label: 'Usuários',
-                                icon: 'pi pi-fw pi-users',
-                                to: '/usuarios',
-                            },
-                        ],
-                    },
-                    {
-                        label: 'Monitor',
-                        icon: 'pi pi-fw pi-chart-line',
-                        visible: podeVerMonitor,
-                        items: [
-                            {
-                                label: 'Operações',
-                                icon: 'pi pi-fw pi-list',
-                                to: '/monitor',
-                            },
-                        ],
-                    },
-                    {
-                        label: 'Configurações',
-                        icon: 'pi pi-fw pi-cog',
-                        visible: userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER',
-                        items: [
-                            {
-                                label: 'API Integra Contador',
-                                icon: 'pi pi-fw pi-key',
-                                to: '/configuracoes/api-integra-contador',
-                                visible: userRole === 'SUPER',
-                            },
-                            {
-                                label: 'Geração de Guias',
-                                icon: 'pi pi-fw pi-file',
-                                to: '/configuracoes/geracao-guias',
-                                visible: userRole === 'ADMIN',
-                            },
-                            {
-                                label: 'Certificado Digital',
-                                icon: 'pi pi-fw pi-shield',
-                                to: '/configuracoes/certificado-digital',
-                                visible: userRole === 'ADMIN',
-                            },
-                            {
-                                label: 'Catálogo de Serviços',
-                                icon: 'pi pi-fw pi-sitemap',
-                                to: '/catalogo-servicos',
-                            },
-                        ],
-                    },
-                    {
-                        label: 'Sobre',
-                        icon: 'pi pi-fw pi-pencil',
-                        to: '/pages/landing',
-                    },
-                ],
-            },
+  const model: AppMenuItem[] = useMemo(
+    () => [
+      {
+        label: 'Home',
+        items: [
+          { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
+          {
+            label: 'Rotinas Fiscais',
+            icon: 'pi pi-fw pi-list',
+            items: [
+              {
+                label: 'Rotinas por empresas',
+                icon: 'pi pi-fw pi-list',
+                to: '/compromissos-empresas',
+              },
+              {
+                label: 'Rotinas por natureza',
+                icon: 'pi pi-fw pi-sitemap',
+                to: '/compromissos-por-natureza',
+              },
+              {
+                label: 'Rotinas (visão corrida)',
+                icon: 'pi pi-fw pi-table',
+                to: '/compromissos-visao',
+              },
+            ],
+          },
+          {
+            label: 'Fluxos de Processos',
+            icon: 'pi pi-fw pi-calendar',
+            items: [
+              {
+                label: 'Fluxo em Árvore',
+                icon: 'pi pi-fw pi-sitemap',
+                to: '/agenda-arvore',
+              },
+              {
+                label: 'Fluxo em Agenda (calendário)',
+                icon: 'pi pi-fw pi-calendar',
+                to: '/agenda',
+              },
+            ],
+          },
+          {
+            label: 'Manutenção de Empresas',
+            icon: 'pi pi-fw pi-table',
+            to: '/empresas',
+          },
         ],
-        [podeGerenciarUsuarios, podeVerMonitor, userRole],
-    );
+      },
+      {
+        label: 'Operações',
+        items: [
+          {
+            label: 'Cadastros',
+            icon: 'pi pi-fw pi-database',
+            items: [
+              {
+                label: 'Cadastros Básicos',
+                icon: 'pi pi-fw pi-bookmark',
+                items: [
+                  {
+                    label: 'Clientes',
+                    icon: 'pi pi-fw pi-id-card',
+                    to: '/clientes',
+                  },
+                  {
+                    label: 'Feriados',
+                    icon: 'pi pi-fw pi-table',
+                    to: '/feriados',
+                  },
+                  {
+                    label: 'Municípios',
+                    icon: 'pi pi-fw pi-building',
+                    to: '/municipios',
+                  },
+                  {
+                    label: 'Estados',
+                    icon: 'pi pi-fw pi-flag',
+                    to: '/estados',
+                  },
+                ],
+              },
+              {
+                label: 'Cadastros Operacionais',
+                icon: 'pi pi-fw pi-sitemap',
+                items: [
+                  {
+                    label: 'Configurações Fiscais',
+                    icon: 'pi pi-fw pi-table',
+                    items: [
+                      {
+                        label: 'Enquadramento Jurídico',
+                        icon: 'pi pi-fw pi-table',
+                        to: '/tipoempresa',
+                      },
+                      {
+                        label: 'Regras de Obrigações',
+                        icon: 'pi pi-fw pi-money-bill',
+                        to: '/obrigacoes',
+                      },
+                    ],
+                  },
+                  {
 
-    return (
-        <MenuProvider>
-            <ul className="layout-menu">
-                {model.map((item, i) => {
-                    return !item?.seperator ? (
-                        <AppMenuitem item={item} root={true} index={i} key={item.label} />
-                    ) : (
-                        <li className="menu-separator"></li>
-                    );
-                })}
-            </ul>
-        </MenuProvider>
-    );
+                    label: 'Processos para Empresas', // O item pai agora agrupa os dois
+                    icon: 'pi pi-fw pi-briefcase',
+                    items: [
+                      {
+                        label: 'Processos',
+                        icon: 'pi pi-fw pi-list',
+                        to: '/rotinas', // Mantive o path atual para não quebrar seus links
+                      },
+                      {
+                        label: 'Etapas',
+                        icon: 'pi pi-fw pi-check-square',
+                        to: '/passos',
+                      },
+                    ]
+                  },
+                  {
+                    label: 'Rotinas PF (IRPF / Carnê-Leão)',
+                    icon: 'pi pi-fw pi-user',
+                    to: '/rotinas-pf',
+                  },
+
+                ],
+              },
+              {
+                label: 'Cadastros Contábeis',
+                icon: 'pi pi-fw pi-sitemap',
+                items: [
+
+                  {
+                    label: 'CNAE',
+                    icon: 'pi pi-fw pi-table',
+                    to: '/cnae',
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        label: 'Diversos',
+        icon: 'pi pi-fw pi-briefcase',
+        to: '/pages',
+        items: [
+          {
+            label: 'Usuários',
+            icon: 'pi pi-fw pi-user',
+            visible: podeGerenciarUsuarios,
+            items: [
+              {
+                label: 'Usuários',
+                icon: 'pi pi-fw pi-users',
+                to: '/usuarios',
+              },
+            ],
+          },
+          {
+            label: 'Monitor',
+            icon: 'pi pi-fw pi-chart-line',
+            visible: podeVerMonitor,
+            items: [
+              {
+                label: 'Operações',
+                icon: 'pi pi-fw pi-list',
+                to: '/monitor',
+              },
+            ],
+          },
+          {
+            label: 'Configurações',
+            icon: 'pi pi-fw pi-cog',
+            visible: userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER',
+            items: [
+              {
+                label: 'Integra Contador - Serpro',
+                icon: 'pi pi-fw pi-database',
+                items: [
+                  {
+                    label: 'API Integra Contador',
+                    icon: 'pi pi-fw pi-key',
+                    to: '/configuracoes/api-integra-contador',
+                    visible: userRole === 'SUPER',
+                  },
+                  {
+                    label: 'Geração de Guias',
+                    icon: 'pi pi-fw pi-file',
+                    to: '/configuracoes/geracao-guias',
+                    visible: userRole === 'ADMIN',
+                  },
+                  {
+                    label: 'Certificado Digital',
+                    icon: 'pi pi-fw pi-shield',
+                    to: '/configuracoes/certificado-digital',
+                    visible: userRole === 'ADMIN',
+                  },
+                  {
+                    label: 'Catálogo de Serviços',
+                    icon: 'pi pi-fw pi-sitemap',
+                    to: '/catalogo-servicos',
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            label: 'Sobre',
+            icon: 'pi pi-fw pi-pencil',
+            to: '/pages/landing',
+          },
+        ],
+      },
+    ],
+    [podeGerenciarUsuarios, podeVerMonitor, userRole],
+  );
+
+  return (
+    <MenuProvider>
+      <ul className="layout-menu">
+        {model.map((item, i) => {
+          return !item?.seperator ? (
+            <AppMenuitem item={item} root={true} index={i} key={item.label} />
+          ) : (
+            <li className="menu-separator"></li>
+          );
+        })}
+      </ul>
+    </MenuProvider>
+  );
 };
 
 export default AppMenu;

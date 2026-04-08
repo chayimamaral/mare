@@ -14,36 +14,43 @@ type CatalogoServicoRepository struct {
 }
 
 type CatalogoServicoUpsertInput struct {
-	ID                  string
-	Secao               string
-	Sequencial          int
-	Codigo              string
-	IDSistema           string
-	IDServico           string
-	SituacaoImplantacao string
-	DataImplantacao     string
-	Tipo                string
-	Descricao           string
+	ID              string
+	Secao           string
+	Sequencial      int
+	Codigo          string
+	IDSistema       string
+	IDServico       string
+	DataImplantacao string
+	Tipo            string
+	Descricao       string
 }
 
 func NewCatalogoServicoRepository(pool *pgxpool.Pool) *CatalogoServicoRepository {
 	return &CatalogoServicoRepository{pool: pool}
 }
 
-func (r *CatalogoServicoRepository) List(ctx context.Context, secao string) ([]domain.CatalogoServico, error) {
+func (r *CatalogoServicoRepository) List(ctx context.Context, secao string, incluirInativos bool) ([]domain.CatalogoServico, error) {
 	args := []any{}
-	where := "ativo = true"
+	conds := make([]string, 0, 2)
+	if !incluirInativos {
+		// Inclui ativo=true e legado NULL; exclui apenas soft-delete explícito (ativo=false).
+		conds = append(conds, "(ativo IS DISTINCT FROM false)")
+	}
 	if strings.TrimSpace(secao) != "" && strings.ToUpper(strings.TrimSpace(secao)) != "TODAS" {
-		where += " AND secao = $1"
+		conds = append(conds, fmt.Sprintf("secao = $%d", len(args)+1))
 		args = append(args, strings.TrimSpace(secao))
+	}
+	where := "true"
+	if len(conds) > 0 {
+		where = strings.Join(conds, " AND ")
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, secao, sequencial, codigo, id_sistema, id_servico, situacao_implantacao,
+		SELECT id, secao, sequencial, codigo, id_sistema, id_servico,
 		       COALESCE(to_char(data_implantacao, 'YYYY-MM-DD'), ''), tipo, descricao, ativo
 		  FROM public.catalogo_servico_integra_contador
 		 WHERE %s
-		 ORDER BY secao ASC, sequencial ASC, codigo ASC`, where)
+		 ORDER BY secao ASC, sequencial ASC, codigo ASC, id ASC`, where)
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -61,7 +68,6 @@ func (r *CatalogoServicoRepository) List(ctx context.Context, secao string) ([]d
 			&item.Codigo,
 			&item.IDSistema,
 			&item.IDServico,
-			&item.SituacaoImplantacao,
 			&item.DataImplantacao,
 			&item.Tipo,
 			&item.Descricao,
@@ -80,10 +86,10 @@ func (r *CatalogoServicoRepository) List(ctx context.Context, secao string) ([]d
 func (r *CatalogoServicoRepository) Create(ctx context.Context, input CatalogoServicoUpsertInput) (domain.CatalogoServico, error) {
 	const q = `
 		INSERT INTO public.catalogo_servico_integra_contador
-			(secao, sequencial, codigo, id_sistema, id_servico, situacao_implantacao, data_implantacao, tipo, descricao)
+			(secao, sequencial, codigo, id_sistema, id_servico, data_implantacao, tipo, descricao)
 		VALUES
-			($1,$2,$3,$4,$5,$6,NULLIF($7, '')::date,$8,$9)
-		RETURNING id, secao, sequencial, codigo, id_sistema, id_servico, situacao_implantacao,
+			($1,$2,$3,$4,$5,NULLIF($6, '')::date,$7,$8)
+		RETURNING id, secao, sequencial, codigo, id_sistema, id_servico,
 		          COALESCE(to_char(data_implantacao, 'YYYY-MM-DD'), ''), tipo, descricao, ativo`
 
 	var item domain.CatalogoServico
@@ -95,7 +101,6 @@ func (r *CatalogoServicoRepository) Create(ctx context.Context, input CatalogoSe
 		input.Codigo,
 		input.IDSistema,
 		input.IDServico,
-		input.SituacaoImplantacao,
 		input.DataImplantacao,
 		input.Tipo,
 		input.Descricao,
@@ -106,7 +111,6 @@ func (r *CatalogoServicoRepository) Create(ctx context.Context, input CatalogoSe
 		&item.Codigo,
 		&item.IDSistema,
 		&item.IDServico,
-		&item.SituacaoImplantacao,
 		&item.DataImplantacao,
 		&item.Tipo,
 		&item.Descricao,
@@ -121,10 +125,10 @@ func (r *CatalogoServicoRepository) Update(ctx context.Context, input CatalogoSe
 	const q = `
 		UPDATE public.catalogo_servico_integra_contador
 		   SET secao = $1, sequencial = $2, codigo = $3, id_sistema = $4, id_servico = $5,
-		       situacao_implantacao = $6, data_implantacao = NULLIF($7, '')::date, tipo = $8, descricao = $9,
+		       data_implantacao = NULLIF($6, '')::date, tipo = $7, descricao = $8,
 		       atualizado_em = now()
-		 WHERE id = $10 AND ativo = true
-		RETURNING id, secao, sequencial, codigo, id_sistema, id_servico, situacao_implantacao,
+		 WHERE id = $9 AND ativo = true
+		RETURNING id, secao, sequencial, codigo, id_sistema, id_servico,
 		          COALESCE(to_char(data_implantacao, 'YYYY-MM-DD'), ''), tipo, descricao, ativo`
 
 	var item domain.CatalogoServico
@@ -136,7 +140,6 @@ func (r *CatalogoServicoRepository) Update(ctx context.Context, input CatalogoSe
 		input.Codigo,
 		input.IDSistema,
 		input.IDServico,
-		input.SituacaoImplantacao,
 		input.DataImplantacao,
 		input.Tipo,
 		input.Descricao,
@@ -148,7 +151,6 @@ func (r *CatalogoServicoRepository) Update(ctx context.Context, input CatalogoSe
 		&item.Codigo,
 		&item.IDSistema,
 		&item.IDServico,
-		&item.SituacaoImplantacao,
 		&item.DataImplantacao,
 		&item.Tipo,
 		&item.Descricao,

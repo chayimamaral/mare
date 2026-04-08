@@ -21,9 +21,20 @@ func NewCatalogoServicoHandler(s *service.CatalogoServicoService) *CatalogoServi
 	return &CatalogoServicoHandler{service: s}
 }
 
+func parseCatalogoIncluirInativos(r *http.Request) bool {
+	v := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("incluir_inativos")))
+	switch v {
+	case "1", "true", "yes", "sim", "on":
+		return true
+	default:
+		return false
+	}
+}
+
 func (h *CatalogoServicoHandler) List(w http.ResponseWriter, r *http.Request) {
 	secao := strings.TrimSpace(r.URL.Query().Get("secao"))
-	items, err := h.service.List(r.Context(), secao)
+	incluirInativos := parseCatalogoIncluirInativos(r)
+	items, err := h.service.List(r.Context(), secao, incluirInativos)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
