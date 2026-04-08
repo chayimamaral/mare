@@ -195,7 +195,7 @@ const AppMenu = () => {
                     {
                         label: 'Configurações',
                         icon: 'pi pi-fw pi-cog',
-                        visible: userRole === 'SUPER' || userRole === 'ADMIN',
+                        visible: userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER',
                         items: [
                             {
                                 label: 'API Integra Contador',
@@ -215,6 +215,11 @@ const AppMenu = () => {
                                 to: '/configuracoes/certificado-digital',
                                 visible: userRole === 'ADMIN',
                             },
+                            {
+                                label: 'Catálogo de Serviços',
+                                icon: 'pi pi-fw pi-sitemap',
+                                to: '/catalogo-servicos',
+                            },
                         ],
                     },
                     {
@@ -225,7 +230,7 @@ const AppMenu = () => {
                 ],
             },
         ],
-        [podeGerenciarUsuarios, podeVerMonitor],
+        [podeGerenciarUsuarios, podeVerMonitor, userRole],
     );
 
     return (
