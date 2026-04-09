@@ -1,0 +1,52 @@
+Projeto: vecontab (ERP contábil/fiscal)
+
+Escopo e stack oficial
+- Backend: Go (Golang), arquitetura Clean Architecture + SOLID + DDD.
+- Frontend: React com Next.js 16 + TypeScript + PrimeReact/PrimeFlex + React Query.
+- Banco: PostgreSQL 18.3 com driver pgx (github.com/jackc/pgx/v5).
+- Ambiente local: Fedora Linux 43.
+
+Diretrizes obrigatórias de implementação
+- Priorizar performance e segurança em todas as decisões técnicas.
+- Não usar ORM no backend. Acesso a dados somente com SQL explícito + pgx.
+- Migrations devem ser mantidas e executadas a partir de `vecontab/migrations`.
+- IDs de entidades devem ser UUID.
+- Seguir os perfis de usuário e isolamento por tenant: SUPER, ADMIN, USER.
+
+Padrão backend (Go)
+- Organizar por camadas de domínio/aplicação/infra, com responsabilidades bem separadas.
+- Evitar acoplamento entre handlers, casos de uso e repositórios.
+- Tratar erros com contexto suficiente para troubleshooting sem expor dados sensíveis.
+- Manter consultas SQL legíveis, performáticas e revisáveis.
+
+Padrão frontend (React/Next/PrimeReact)
+- Para telas comuns (CRUD/listagens/forms), seguir o padrão visual e comportamental de Municípios.
+- Para cenários hierárquicos de agenda, usar padrão agenda-árvore quando aplicável.
+- Em tabelas e treetables, botões de linha devem seguir o modelo já adotado em Municípios.
+- Botão "Atualizar" deve ser ícone no canto inferior da página (não usar botão superior textual).
+- Preferir `useQuery` para carregamento e sincronização de dados sempre que possível, evitando `useEffect` para fetch.
+- Preservar consistência de UX entre páginas (filtros, paginação, ações e feedback visual).
+
+Regras de domínio contábil/fiscal (datas e vencimentos)
+- Ao implementar cálculos de vencimento, considerar calendário brasileiro.
+- Tratar feriados e dias não úteis com postergação para próximo dia útil quando exigido pela regra fiscal.
+- Evitar lógica de datas hardcoded em componente de UI; centralizar regra em camada de domínio/serviço.
+
+Comandos e ferramentas (Fedora 43)
+- Instalação de pacotes: `sudo dnf5 install <pacote>`.
+- Backend dev: `go run cmd/api/main.go`.
+- Frontend dev: `npm run dev` (em `frontend`).
+- Banco local: `psql -h localhost -U camaral -d vecontab` (ajustar usuário conforme ambiente).
+
+Banco de dados PostgreSQL 18.3
+- Assumir recursos e sintaxe compatíveis com PostgreSQL 18.3.
+- Criar índices e constraints alinhados ao uso real (foco em throughput e integridade).
+- Revisar planos de execução em consultas críticas antes de fechar implementação.
+
+Padrões de linguagem e escrita
+- Responder e documentar em Português do Brasil.
+- Em nomes técnicos, evitar "ç" antes de "e" e "i"; usar grafia compatível em identificadores.
+- Não associar termos religiosos ou políticos a conteúdos de TI.
+
+Diretriz de licenciamento
+- Projeto proprietário. Não sugerir mudança para licenças permissivas no núcleo do sistema.

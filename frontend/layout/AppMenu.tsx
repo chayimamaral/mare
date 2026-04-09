@@ -218,6 +218,12 @@ const AppMenu = () => {
                     visible: userRole === 'ADMIN',
                   },
                   {
+                    label: 'Execução de Serviços',
+                    icon: 'pi pi-fw pi-play',
+                    to: '/configuracoes/integra-contador-servicos',
+                    visible: userRole === 'ADMIN' || userRole === 'SUPER',
+                  },
+                  {
                     label: 'Certificado Digital',
                     icon: 'pi pi-fw pi-shield',
                     to: '/configuracoes/certificado-digital',

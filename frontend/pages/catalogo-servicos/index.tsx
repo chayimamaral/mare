@@ -7,6 +7,7 @@ import { Button } from 'primereact/button';
 import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { Dropdown } from 'primereact/dropdown';
+import { Calendar } from 'primereact/calendar';
 import { Toast } from 'primereact/toast';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Checkbox } from 'primereact/checkbox';
@@ -98,6 +99,7 @@ export default function CatalogoServicosPage() {
     const [dialogVisible, setDialogVisible] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [secaoContextoDialog, setSecaoContextoDialog] = useState<string>('');
     const [form, setForm] = useState<FormState>(emptyForm);
     const { data: roleData, isFetching: isFetchingRole } = useQuery({
         queryKey: ['catalogo-servicos-user-role'],
@@ -143,11 +145,13 @@ export default function CatalogoServicosPage() {
         return [{ label: 'Todas as seções', value: 'TODAS' }, ...SECOES_FIXAS.map((s) => ({ label: s, value: s }))];
     }, []);
 
-    const abrirNovo = () => {
+    const abrirNovo = (secaoPadrao?: string) => {
         if (!podeManter) return;
+        const secaoInicial = (secaoPadrao ?? '').trim() || (secaoFiltro !== 'TODAS' ? secaoFiltro : '');
         setSubmitted(false);
         setEditingId(null);
-        setForm({ ...emptyForm, secao: secaoFiltro !== 'TODAS' ? secaoFiltro : '' });
+        setSecaoContextoDialog(secaoInicial);
+        setForm({ ...emptyForm, secao: secaoInicial });
         setDialogVisible(true);
     };
 
@@ -155,6 +159,7 @@ export default function CatalogoServicosPage() {
         if (!podeManter) return;
         setSubmitted(false);
         setEditingId(row.id);
+        setSecaoContextoDialog(row.secao);
         setForm({
             secao: row.secao,
             sequencial: row.sequencial,
@@ -206,6 +211,7 @@ export default function CatalogoServicosPage() {
             setDialogVisible(false);
             setForm(emptyForm);
             setEditingId(null);
+            setSecaoContextoDialog('');
             await refetch();
         } catch (e: any) {
             const msg = e?.response?.data?.error || e?.response?.data?.message || 'Falha ao salvar';
@@ -238,9 +244,26 @@ export default function CatalogoServicosPage() {
 
     const acoesTemplate = (node: TreeNode) => {
         const d = node.data as any;
-        if (d.isSecao || !podeManter || d.ativo === false) return null;
+        if (!podeManter) return null;
+        if (d.isSecao) {
+            return (
+                <div className="flex justify-content-start pl-1">
+                    <Button
+                        type="button"
+                        icon="pi pi-plus"
+                        rounded
+                        severity="success"
+                        tooltip={`Incluir serviço em ${d.secao}`}
+                        tooltipOptions={{ position: 'left' }}
+                        onClick={() => abrirNovo(String(d.secao ?? ''))}
+                        aria-label={`Incluir serviço na seção ${d.secao}`}
+                    />
+                </div>
+            );
+        }
+        if (d.ativo === false) return null;
         return (
-            <div className="flex gap-2">
+            <div className="flex align-items-center justify-content-start gap-2 flex-wrap pl-1">
                 <Button type="button" icon="pi pi-pencil" rounded severity="success" onClick={() => abrirEditar(d as CatalogoServico)} />
                 <Button type="button" icon="pi pi-trash" rounded severity="warning" onClick={() => excluir(d.id)} />
             </div>
@@ -277,9 +300,6 @@ export default function CatalogoServicosPage() {
                                 Incluir inativos (excluídos logicamente)
                             </label>
                         </div>
-                        {podeManter && (
-                            <Button type="button" label="Incluir" icon="pi pi-plus" severity="success" onClick={abrirNovo} />
-                        )}
                     </div>
                     <p className="text-600 text-sm mt-0 mb-3">
                         Por padrão a lista mostra apenas serviços ativos. Marque a opção acima para ver também registros com{' '}
@@ -306,7 +326,10 @@ export default function CatalogoServicosPage() {
                     </TreeTable>
                     <Dialog
                         visible={dialogVisible}
-                        onHide={() => setDialogVisible(false)}
+                        onHide={() => {
+                            setDialogVisible(false);
+                            setSecaoContextoDialog('');
+                        }}
                         header={editingId ? 'Alterar serviço' : 'Novo serviço'}
                         style={{ width: 'min(96vw, 52rem)' }}
                         modal
@@ -317,9 +340,14 @@ export default function CatalogoServicosPage() {
                             </div>
                         }
                     >
-                        <div className="grid">
-                            <div className="col-12 md:col-4">
-                                <label htmlFor="secao">Seção</label>
+                        <div className="mb-3 p-2 border-round surface-50">
+                            <span className="text-sm text-700">
+                                Seção vinculada: <strong>{form.secao || secaoContextoDialog || 'Selecione uma seção'}</strong>
+                            </span>
+                        </div>
+                        <div className="grid p-fluid">
+                            <div className="col-12 md:col-5">
+                                <label htmlFor="secao" className="font-medium">Seção</label>
                                 <Dropdown
                                     id="secao"
                                     value={form.secao}
@@ -329,34 +357,63 @@ export default function CatalogoServicosPage() {
                                     onChange={(e) => setForm((p) => ({ ...p, secao: e.value ?? '' }))}
                                     className={`w-full ${isInvalid(form.secao) ? 'p-invalid' : ''}`}
                                 />
+                                {isInvalid(form.secao) && <small className="p-error">Informe a seção.</small>}
                             </div>
                             <div className="col-12 md:col-2">
-                                <label htmlFor="sequencial">Sequencial</label>
-                                <InputText id="sequencial" type="number" value={String(form.sequencial)} onChange={(e) => setForm((p) => ({ ...p, sequencial: Number(e.target.value || 0) }))} />
+                                <label htmlFor="sequencial" className="font-medium">Sequencial</label>
+                                <InputText
+                                    id="sequencial"
+                                    type="number"
+                                    value={String(form.sequencial)}
+                                    onChange={(e) => setForm((p) => ({ ...p, sequencial: Number(e.target.value || 0) }))}
+                                />
                             </div>
                             <div className="col-12 md:col-2">
-                                <label htmlFor="codigo">Código</label>
+                                <label htmlFor="codigo" className="font-medium">Código</label>
                                 <InputText id="codigo" value={form.codigo} onChange={(e) => setForm((p) => ({ ...p, codigo: e.target.value }))} className={isInvalid(form.codigo) ? 'p-invalid' : ''} />
+                                {isInvalid(form.codigo) && <small className="p-error">Informe o código.</small>}
                             </div>
-                            <div className="col-12 md:col-4">
-                                <label htmlFor="tipo">Tipo</label>
+                            <div className="col-12 md:col-3">
+                                <label htmlFor="tipo" className="font-medium">Tipo</label>
                                 <InputText id="tipo" value={form.tipo} onChange={(e) => setForm((p) => ({ ...p, tipo: e.target.value }))} className={isInvalid(form.tipo) ? 'p-invalid' : ''} />
+                                {isInvalid(form.tipo) && <small className="p-error">Informe o tipo.</small>}
                             </div>
                             <div className="col-12 md:col-4">
-                                <label htmlFor="idsistema">idSistema</label>
+                                <label htmlFor="idsistema" className="font-medium">idSistema</label>
                                 <InputText id="idsistema" value={form.id_sistema} onChange={(e) => setForm((p) => ({ ...p, id_sistema: e.target.value }))} className={isInvalid(form.id_sistema) ? 'p-invalid' : ''} />
+                                {isInvalid(form.id_sistema) && <small className="p-error">Informe o idSistema.</small>}
                             </div>
                             <div className="col-12 md:col-4">
-                                <label htmlFor="idservico">idServico</label>
+                                <label htmlFor="idservico" className="font-medium">idServico</label>
                                 <InputText id="idservico" value={form.id_servico} onChange={(e) => setForm((p) => ({ ...p, id_servico: e.target.value }))} className={isInvalid(form.id_servico) ? 'p-invalid' : ''} />
+                                {isInvalid(form.id_servico) && <small className="p-error">Informe o idServico.</small>}
                             </div>
                             <div className="col-12 md:col-4">
-                                <label htmlFor="data_implantacao">Data de implantação</label>
-                                <InputText id="data_implantacao" type="date" value={form.data_implantacao || ''} onChange={(e) => setForm((p) => ({ ...p, data_implantacao: e.target.value }))} />
+                                <label htmlFor="data_implantacao" className="font-medium">Data de implantação</label>
+                                <Calendar
+                                    id="data_implantacao"
+                                    value={form.data_implantacao ? new Date(`${form.data_implantacao}T12:00:00`) : null}
+                                    onChange={(e) => {
+                                        const dt = e.value as Date | null;
+                                        if (!dt) {
+                                            setForm((p) => ({ ...p, data_implantacao: '' }));
+                                            return;
+                                        }
+                                        const y = dt.getFullYear();
+                                        const m = String(dt.getMonth() + 1).padStart(2, '0');
+                                        const d = String(dt.getDate()).padStart(2, '0');
+                                        setForm((p) => ({ ...p, data_implantacao: `${y}-${m}-${d}` }));
+                                    }}
+                                    dateFormat="dd/mm/yy"
+                                    showIcon
+                                    appendTo={typeof document !== 'undefined' ? document.body : undefined}
+                                    className="w-full"
+                                />
                             </div>
                             <div className="col-12">
-                                <label htmlFor="descricao">Descrição</label>
+                                <label htmlFor="descricao" className="font-medium">Descrição</label>
                                 <InputText id="descricao" value={form.descricao} onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))} className={isInvalid(form.descricao) ? 'p-invalid' : ''} />
+                                {isInvalid(form.descricao) && <small className="p-error">Informe a descrição.</small>}
                             </div>
                         </div>
                     </Dialog>

@@ -57,9 +57,13 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	monitorOperacaoRepo := repository.NewMonitorOperacaoRepository(pool)
 	monitorOperacaoService := service.NewMonitorOperacaoService(monitorOperacaoRepo)
 	rotinaPFService := service.NewRotinaPFService(repository.NewRotinaPFRepository(pool))
-	configuracaoIntegracaoService := service.NewConfiguracaoIntegracaoService(repository.NewConfiguracaoIntegracaoRepository(pool))
+	configuracaoIntegracaoRepo := repository.NewConfiguracaoIntegracaoRepository(pool)
+	configuracaoIntegracaoService := service.NewConfiguracaoIntegracaoService(configuracaoIntegracaoRepo)
 	certificadoService, _ := service.NewCertificadoService(repository.NewCertificadoRepository(pool), cfg.CertCryptoKeyHex)
 	catalogoServicoService := service.NewCatalogoServicoService(repository.NewCatalogoServicoRepository(pool))
+	integraServicoProcRepo := repository.NewIntegraContadorServicoProcuracaoRepository(pool)
+	integraContadorService := service.NewIntegraContadorService(certificadoService, configuracaoIntegracaoRepo, integraServicoProcRepo)
+	integraServicoProcService := service.NewIntegraContadorServicoProcuracaoService(integraServicoProcRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -85,6 +89,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	rotinaPFHandler := handlers.NewRotinaPFHandler(rotinaPFService)
 	configuracaoIntegracaoHandler := handlers.NewConfiguracaoIntegracaoHandler(configuracaoIntegracaoService, certificadoService)
 	catalogoServicoHandler := handlers.NewCatalogoServicoHandler(catalogoServicoService)
+	integraContadorHandler := handlers.NewIntegraContadorHandler(integraContadorService)
+	integraServicoProcHandler := handlers.NewIntegraContadorServicoProcuracaoHandler(integraServicoProcService)
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
 	requireAdminOnly := apiMiddleware.RequireAnyRole("ADMIN")
@@ -95,9 +101,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 	})
 
 	return r
@@ -129,6 +135,8 @@ func registerRoutes(
 	monitorOperacaoHandler *handlers.MonitorOperacaoHandler,
 	configuracaoIntegracaoHandler *handlers.ConfiguracaoIntegracaoHandler,
 	catalogoServicoHandler *handlers.CatalogoServicoHandler,
+	integraContadorHandler *handlers.IntegraContadorHandler,
+	integraServicoProcHandler *handlers.IntegraContadorServicoProcuracaoHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOnly func(http.Handler) http.Handler,
@@ -275,4 +283,12 @@ func registerRoutes(
 	r.With(requireAuth, requireSuper).Post("/catalogo-servico", catalogoServicoHandler.Create)
 	r.With(requireAuth, requireSuper).Put("/catalogo-servico", catalogoServicoHandler.Update)
 	r.With(requireAuth, requireSuper).Put("/deletecatalogo-servico", catalogoServicoHandler.Delete)
+
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/autenticar", integraContadorHandler.Authenticate)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/chamar", integraContadorHandler.Call)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das", integraContadorHandler.PGMEIGerarDAS)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das-codigo-barras", integraContadorHandler.PGMEIGerarDASCodBarras)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/atualizar-beneficio", integraContadorHandler.PGMEIAtualizarBeneficio)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/consultar-divida-ativa", integraContadorHandler.PGMEIConsultarDividaAtiva)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/servicos-procuracao", integraServicoProcHandler.List)
 }

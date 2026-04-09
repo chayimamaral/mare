@@ -8,6 +8,14 @@ backend/cmd/api/vecontab_bin
 public-api/public-api
 backup/
 docs/
+docs/requisitos/
+docs/ajustes/
+docs/arquitetura/
+docs/bkp_db/
+docs/certificado/
+docs/serpro/
+docs/Serpro.Componentes.AutenticacaoLoja.Dotnet/
+
 migrations/
 vec_prospect/
 gitsave.sh
