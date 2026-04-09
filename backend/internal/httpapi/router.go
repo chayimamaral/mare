@@ -59,7 +59,11 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	rotinaPFService := service.NewRotinaPFService(repository.NewRotinaPFRepository(pool))
 	configuracaoIntegracaoRepo := repository.NewConfiguracaoIntegracaoRepository(pool)
 	configuracaoIntegracaoService := service.NewConfiguracaoIntegracaoService(configuracaoIntegracaoRepo)
-	certificadoService, _ := service.NewCertificadoService(repository.NewCertificadoRepository(pool), cfg.CertCryptoKeyHex)
+	certificadoService, _ := service.NewCertificadoService(
+		repository.NewCertificadoRepository(pool),
+		repository.NewCertificadoClienteRepository(pool),
+		cfg.CertCryptoKeyHex,
+	)
 	catalogoServicoService := service.NewCatalogoServicoService(repository.NewCatalogoServicoRepository(pool))
 	integraServicoProcRepo := repository.NewIntegraContadorServicoProcuracaoRepository(pool)
 	integraContadorService := service.NewIntegraContadorService(certificadoService, configuracaoIntegracaoRepo, integraServicoProcRepo)
@@ -88,6 +92,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	clienteHandler := handlers.NewClienteHandler(clienteService)
 	rotinaPFHandler := handlers.NewRotinaPFHandler(rotinaPFService)
 	configuracaoIntegracaoHandler := handlers.NewConfiguracaoIntegracaoHandler(configuracaoIntegracaoService, certificadoService)
+	certificadoClienteHandler := handlers.NewCertificadoClienteHandler(certificadoService)
 	catalogoServicoHandler := handlers.NewCatalogoServicoHandler(catalogoServicoService)
 	integraContadorHandler := handlers.NewIntegraContadorHandler(integraContadorService)
 	integraServicoProcHandler := handlers.NewIntegraContadorServicoProcuracaoHandler(integraServicoProcService)
@@ -101,9 +106,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, integraContadorHandler, integraServicoProcHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 	})
 
 	return r
@@ -134,6 +139,7 @@ func registerRoutes(
 	clienteHandler *handlers.ClienteHandler,
 	monitorOperacaoHandler *handlers.MonitorOperacaoHandler,
 	configuracaoIntegracaoHandler *handlers.ConfiguracaoIntegracaoHandler,
+	certificadoClienteHandler *handlers.CertificadoClienteHandler,
 	catalogoServicoHandler *handlers.CatalogoServicoHandler,
 	integraContadorHandler *handlers.IntegraContadorHandler,
 	integraServicoProcHandler *handlers.IntegraContadorServicoProcuracaoHandler,
@@ -234,6 +240,9 @@ func registerRoutes(
 	r.With(requireAuth).Get("/empresadados", empresaDadosHandler.Get)
 	// ADMIN/USER: cadastro unificado de cliente (issue #59) grava empresa + clientes_dados.
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "USER")).Put("/empresadados", empresaDadosHandler.Upsert)
+
+	r.With(requireAuth).Get("/certificado-cliente", certificadoClienteHandler.Get)
+	r.With(requireAuth, requireAdmin).Post("/certificado-cliente/upload", certificadoClienteHandler.Upload)
 
 	r.With(requireAuth).Get("/cnaes", cnaeHandler.List)
 	r.With(requireAuth, requireAdmin).Post("/cnae", cnaeHandler.Create)

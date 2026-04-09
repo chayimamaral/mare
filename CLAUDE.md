@@ -62,3 +62,9 @@ Usuários: temos 3 tipos de usuários:
   USER: serão os usuários do mesmo escritório de contabilidade, mas com poderes restritos;
 
 Campos 'id' sempre criar como uuid.
+
+📑 TabView + Dialog (PrimeReact) — lições do cadastro de Clientes
+- O `<li>` da **ink bar** é irmão das abas no mesmo `<ul>`; evitar `space-between` no flex da nav. Ink bar oculta via `pt` quando o tema gerar artefatos visuais.
+- Bordas inferiores do tema em `.p-tabview-nav` e `.p-tabview-nav-link`: para diálogos “limpos”, sobrescrever em escopo (classe no `TabView`, estilos em `frontend/styles/layout/layout.scss`).
+- **Altura:** `min-height` fixa em CSS no `.p-tabview-panels` (ex. `min(58vh, 38rem)`); não medir com `ResizeObserver` ao mudar de aba (efeito colateral: scroll espúrio e crescimento de `minHeight`).
+- Atalhos numéricos + botão desabilitado alinhado às abas `disabled` por perfil (ex.: Certificado só ADMIN/SUPER; USER com `TabPanel disabled` e fallback de índice ativo).

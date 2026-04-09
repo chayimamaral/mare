@@ -27,6 +27,15 @@ Padrão frontend (React/Next/PrimeReact)
 - Preferir `useQuery` para carregamento e sincronização de dados sempre que possível, evitando `useEffect` para fetch.
 - Preservar consistência de UX entre páginas (filtros, paginação, ações e feedback visual).
 
+TabView dentro de Dialog (PrimeReact) — padrão aprovado no cadastro de Clientes
+- **Não** usar `justify-content: space-between` no `<ul class="p-tabview-nav">`: o último `<li>` é a **ink bar**; o flex trata como item extra e gera linhas/pontos e layout quebrado.
+- Ocultar ink bar neste padrão: `pt={{ inkbar: { style: { display: 'none' } } }}` (referência: `frontend/pages/clientes/index.tsx` + classe `cliente-tabview-dialog` em `styles/layout/layout.scss`).
+- Tema Lara/MD aplica **borda inferior** no `ul` e em cada **`.p-tabview-nav-link`**; no Dialog isso vira linha longa + “sublinhado” por aba. Neutralizar só no escopo da classe (ver `layout.scss`: `.cliente-tabview-dialog .p-tabview-nav` e links).
+- **Altura estável do corpo das abas:** definir `min-height` em **CSS** em `.cliente-tabview-dialog .p-tabview-panels` (ex.: `min(58vh, 38rem)`, `overflow-y: visible`). **Não** usar `ResizeObserver` + `minHeight` dinâmico ao trocar aba — infla `scrollHeight`, aparece scroll interno e “pulo” ao voltar à primeira aba.
+- Atalhos numéricos (1, 2, 3) à direita: `position: absolute` no grupo de botões; `padding-right` no `navContainer` (~`11rem`) para o texto das abas não colidir; títulos com `whiteSpace: 'nowrap'` nos `headerStyle` dos `TabPanel`.
+- Abas **restritas por perfil:** `TabPanel` com `disabled={...}` e o botão de atalho correspondente com `disabled`; se o índice ativo puder ser o da aba bloqueada, `useEffect` para voltar à aba 0 (USER sem Certificado digital).
+- `scrollable` no TabView dentro de Dialog costuma piorar o layout (setas vs. largura); preferir rolagem horizontal só em `navContent` se necessário.
+
 Regras de domínio contábil/fiscal (datas e vencimentos)
 - Ao implementar cálculos de vencimento, considerar calendário brasileiro.
 - Tratar feriados e dias não úteis com postergação para próximo dia útil quando exigido pela regra fiscal.

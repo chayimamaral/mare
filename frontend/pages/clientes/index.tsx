@@ -17,7 +17,9 @@ import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
+import { TabView, TabPanel } from 'primereact/tabview';
 import MunicipioService from '../../services/cruds/MunicipioService';
+import CertificadoClienteService from '../../services/cruds/CertificadoClienteService';
 import EmpresaService from '../../services/cruds/EmpresaService';
 import RotinaService from '../../services/cruds/RotinaService';
 import RotinaPFService from '../../services/cruds/RotinaPFService';
@@ -74,6 +76,11 @@ const Clientes = ({ dados }: { dados: string }) => {
   const tipoPessoaOptions = [
     { label: 'Pessoa jurídica (PJ)', value: 'PJ' },
     { label: 'Pessoa física (PF)', value: 'PF' },
+  ];
+
+  const tipoCertificadoOptions = [
+    { label: 'A1', value: 'A1' },
+    { label: 'A3', value: 'A3' },
   ];
 
   let emptyEmpresa: Vec.Empresa = {
@@ -165,7 +172,31 @@ const Clientes = ({ dados }: { dados: string }) => {
 
   const [clienteExtra, setClienteExtra] = useState<ClienteExtraForm>(emptyClienteExtra);
 
+  type CertClienteForm = {
+    tipo_certificado: string;
+    senha_certificado: string;
+    nome_certificado: string;
+    emitido_para: string;
+    emitido_por: string;
+    validade_de: string;
+    validade_ate: string;
+  };
+  const emptyCertCliente: CertClienteForm = {
+    tipo_certificado: 'A1',
+    senha_certificado: '',
+    nome_certificado: '',
+    emitido_para: '',
+    emitido_por: '',
+    validade_de: '',
+    validade_ate: '',
+  };
+  const [certClienteForm, setCertClienteForm] = useState<CertClienteForm>(emptyCertCliente);
+  const [certArquivo, setCertArquivo] = useState<File | null>(null);
+  const certFileInputRef = useRef<HTMLInputElement>(null);
+
   const [empresaDialog, setEmpresaDialog] = useState(false);
+  /** Navegação explícita das abas do cadastro (evita barra nativa do TabView comprimida no Dialog). */
+  const [clienteDialogTabIndex, setClienteDialogTabIndex] = useState(0);
   const [deleteEmpresaDialog, setDeleteEmpresaDialog] = useState(false);
   const [empresa, setEmpresa] = useState<Vec.Empresa>(emptyEmpresa);
   const [submitted, setSubmitted] = useState(false);
@@ -239,7 +270,12 @@ const Clientes = ({ dados }: { dados: string }) => {
       try {
         const api = setupAPIClient(undefined);
         const r = await api.get('/api/usuariorole');
-        return r.data?.logado?.role ?? null;
+        const raw = r.data?.logado?.role;
+        if (typeof raw !== 'string') {
+          return null;
+        }
+        const norm = raw.trim().toUpperCase();
+        return norm || null;
       } catch {
         return null;
       }
@@ -252,6 +288,54 @@ const Clientes = ({ dados }: { dados: string }) => {
   const podeCadastrarClientes = userRole === 'ADMIN';
   const podeEditarDadosComplementares = userRole === 'ADMIN' || userRole === 'USER';
   const podeEditarComplementosCliente = podeCadastrarClientes || podeEditarDadosComplementares;
+  /** Certificado por cliente: ADMIN do escritório e SUPER; USER não vê nem altera (EF-907). */
+  const podeAnexarCertificadoCliente = userRole === 'ADMIN' || userRole === 'SUPER';
+  const abaCertificadoClienteHabilitada = podeAnexarCertificadoCliente;
+
+  const certClienteService = CertificadoClienteService();
+
+  const {
+    data: certClienteRemote,
+    refetch: refetchCertCliente,
+    isFetching: certClienteLoading,
+  } = useQuery({
+    queryKey: ['certificado-cliente', empresa.id],
+    queryFn: async () => {
+      const id = (empresa.id ?? '').trim();
+      if (!id) {
+        return {};
+      }
+      const { data } = await certClienteService.getByEmpresa(id);
+      return data?.certificado ?? {};
+    },
+    enabled: empresaDialog && !!(empresa.id ?? '').trim() && abaCertificadoClienteHabilitada,
+  });
+
+  useEffect(() => {
+    if (!empresaDialog || abaCertificadoClienteHabilitada) {
+      return;
+    }
+    if (clienteDialogTabIndex === 2) {
+      setClienteDialogTabIndex(0);
+    }
+  }, [empresaDialog, abaCertificadoClienteHabilitada, clienteDialogTabIndex]);
+
+  useEffect(() => {
+    if (!empresaDialog || !certClienteRemote) {
+      return;
+    }
+    const data = certClienteRemote as Record<string, unknown>;
+    setCertClienteForm((prev) => ({
+      ...prev,
+      tipo_certificado: typeof data.tipo_certificado === 'string' ? data.tipo_certificado : 'A1',
+      senha_certificado: '',
+      nome_certificado: typeof data.nome_certificado === 'string' ? data.nome_certificado : '',
+      emitido_para: typeof data.emitido_para === 'string' ? data.emitido_para : '',
+      emitido_por: typeof data.emitido_por === 'string' ? data.emitido_por : '',
+      validade_de: typeof data.validade_de === 'string' ? data.validade_de : '',
+      validade_ate: typeof data.validade_ate === 'string' ? data.validade_ate : '',
+    }));
+  }, [certClienteRemote, empresaDialog]);
 
   const fetchEmpresasPayload = (payload: LazyTableState) => {
     setLoading(true);
@@ -416,16 +500,28 @@ const Clientes = ({ dados }: { dados: string }) => {
     setRotina(emptyRotina);
     setRotinaPF(emptyRotinaPF);
     setClienteExtra(emptyClienteExtra);
+    setCertClienteForm(emptyCertCliente);
+    setCertArquivo(null);
+    if (certFileInputRef.current) {
+      certFileInputRef.current.value = '';
+    }
     setRotinas([]);
     setRotinasPF([]);
     setSubmitted(false);
+    setClienteDialogTabIndex(0);
     setEmpresaDialog(true);
   };
 
   const hideDialog = () => {
     setSubmitted(false);
     setEmpresaDialog(false);
+    setClienteDialogTabIndex(0);
     setClienteExtra(emptyClienteExtra);
+    setCertClienteForm(emptyCertCliente);
+    setCertArquivo(null);
+    if (certFileInputRef.current) {
+      certFileInputRef.current.value = '';
+    }
   };
 
   const hideDeleteEmpresaDialog = () => {
@@ -477,9 +573,9 @@ const Clientes = ({ dados }: { dados: string }) => {
       tipo_empresa:
         selectedValue?.tipo_empresa?.id != null && selectedValue.tipo_empresa.id !== ''
           ? {
-              id: selectedValue.tipo_empresa.id,
-              descricao: selectedValue.tipo_empresa.descricao ?? '',
-            }
+            id: selectedValue.tipo_empresa.id,
+            descricao: selectedValue.tipo_empresa.descricao ?? '',
+          }
           : { id: '', descricao: '' },
     }));
   }
@@ -699,6 +795,12 @@ const Clientes = ({ dados }: { dados: string }) => {
   };
 
   const editEmpresa = (row: Vec.Empresa) => {
+    setClienteDialogTabIndex(0);
+    setCertClienteForm(emptyCertCliente);
+    setCertArquivo(null);
+    if (certFileInputRef.current) {
+      certFileInputRef.current.value = '';
+    }
     setRotina(row.rotina);
     const rpf = row.rotina_pf;
     setRotinaPF(
@@ -853,6 +955,71 @@ const Clientes = ({ dados }: { dados: string }) => {
     } catch (error) {
       toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao validar o CNAE', life: 3000 });
       return false;
+    }
+  }
+
+  function onValidadeCertClienteChange(value: string) {
+    if (!value) {
+      setCertClienteForm((prev) => ({ ...prev, validade_de: '', validade_ate: '' }));
+      return;
+    }
+    const inicio = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(inicio.getTime())) {
+      setCertClienteForm((prev) => ({ ...prev, validade_de: value }));
+      return;
+    }
+    const fim = new Date(inicio);
+    fim.setFullYear(fim.getFullYear() + 1);
+    const fimISO = fim.toISOString().slice(0, 10);
+    setCertClienteForm((prev) => ({
+      ...prev,
+      validade_de: value,
+      validade_ate: fimISO,
+    }));
+  }
+
+  async function saveCertificadoCliente() {
+    const eid = (empresa.id ?? '').trim();
+    if (!eid) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Atenção',
+        detail: 'Grave o cliente antes de anexar o certificado.',
+        life: 4000,
+      });
+      return;
+    }
+    if (!certArquivo) {
+      toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Selecione o arquivo .pfx.', life: 3500 });
+      return;
+    }
+    if (!certClienteForm.senha_certificado.trim()) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Atenção',
+        detail: 'Informe a senha do certificado digital.',
+        life: 4000,
+      });
+      return;
+    }
+    try {
+      await certClienteService.upload({
+        empresaId: eid,
+        arquivo: certArquivo,
+        senha_certificado: certClienteForm.senha_certificado,
+        titular_nome: certClienteForm.emitido_para.trim() ? certClienteForm.emitido_para.trim() : undefined,
+      });
+      toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Certificado do cliente atualizado', life: 3000 });
+      setCertArquivo(null);
+      setCertClienteForm((c) => ({ ...c, senha_certificado: '' }));
+      if (certFileInputRef.current) {
+        certFileInputRef.current.value = '';
+      }
+      await refetchCertCliente();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string; message?: string } } };
+      const msg = err?.response?.data?.error || err?.response?.data?.message || 'Falha ao enviar certificado';
+      toast.current?.show({ severity: 'error', summary: 'Erro', detail: String(msg), life: 7000 });
     }
   }
 
@@ -1065,7 +1232,7 @@ const Clientes = ({ dados }: { dados: string }) => {
 
           <Dialog
             visible={empresaDialog}
-            style={{ width: 'min(720px, 96vw)' }}
+            style={{ width: 'min(920px, 96vw)' }}
             header={empresa?.id ? 'Cliente (edição)' : 'Cliente (novo)'}
             modal
             className="p-fluid"
@@ -1078,285 +1245,531 @@ const Clientes = ({ dados }: { dados: string }) => {
               </p>
             )}
 
-            <div className="field">
-              <label htmlFor="ddtipo_pessoa">Pessoa física ou jurídica</label>
-              <Dropdown
-                id="ddtipo_pessoa"
-                value={isClientePF ? 'PF' : 'PJ'}
-                options={tipoPessoaOptions}
-                onChange={(e) => onTipoPessoaChange(e.value)}
-                optionLabel="label"
-                optionValue="value"
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
-                className="w-full"
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="nome_">Nome</label>
-              <InputText
-                id="nome_"
-                value={empresa.nome}
-                type="text"
-                onChange={(e) => onInputChange(e, 'nome')}
-                required
-                autoFocus
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
-                className={classNames({ 'p-invalid': submitted && !empresa.nome })}
-              />
-              {submitted && !empresa.nome && <small className="p-invalid">Nome do cliente é obrigatório.</small>}
-            </div>
-
-            <div className="field">
-              <label htmlFor="ddmuncli">Município</label>
-              <Dropdown
-                id="ddmuncli"
-                value={municipioFormDropdownValue}
-                options={municipios}
-                onChange={(e) => onMunicipioClienteChange(e.value ?? null)}
-                optionLabel="nome"
-                dataKey="id"
-                placeholder="Selecione o município"
-                emptyMessage="Nenhum município encontrado"
-                disabled={!podeEditarComplementosCliente}
-                className="w-full"
-                showClear
-              />
-              <small className="text-600">
-                {isClientePF ? 'Município de residência ou contato.' : 'Define a lista de rotinas disponíveis para PJ.'}
-              </small>
-            </div>
-
-            {!isClientePF && (
-            <div className="field">
-              <label htmlFor="ddrotina">Rotina (somente PJ)</label>
-              <Dropdown
-                id="ddrotina"
-                value={empresa.rotina}
-                options={rotinas}
-                onChange={(e) => onRotinaChange(e.value)}
-                optionLabel="lista_label"
-                dataKey="id"
-                placeholder={
-                  (empresa.municipio?.id ?? '').trim()
-                    ? 'Selecione a rotina do município'
-                    : 'Selecione o município primeiro'
-                }
-                emptyMessage="Nenhuma rotina para este município"
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
-              />
-              {submitted && !(empresa.rotina?.id ?? '').trim() && (
-                <small className="p-invalid">Rotina é obrigatória para pessoa jurídica.</small>
-              )}
-            </div>
-            )}
-
-            <div className="field">
-              <label htmlFor="ddrotinapf">Rotina PF (somente pessoa física)</label>
-              <Dropdown
-                id="ddrotinapf"
-                value={rotinaPFFormDropdownValue}
-                options={rotinasPF}
-                onChange={(e) => onRotinaPFChange(e.value ?? emptyRotinaPF)}
-                optionLabel="nome"
-                dataKey="id"
-                placeholder={
-                  isClientePF
-                    ? rotinasPF.length
-                      ? 'Selecione a rotina federal / sazonal'
-                      : 'Cadastre rotinas PF no banco (tabela rotina_pf)'
-                    : 'Não aplicável a PJ'
-                }
-                emptyMessage="Nenhuma rotina PF para este tenant"
-                disabled={empresa?.iniciado === true || !isClientePF || coreCamposBloqueados}
-                className="w-full"
-              />
-              {submitted && isClientePF && !(empresa.rotina_pf?.id ?? rotinaPF?.id ?? '').trim() && (
-                <small className="p-invalid">Rotina PF é obrigatória para pessoa física.</small>
-              )}
-              <small className="text-600">Templates por tenant (Carnê-Leão mensal, IRPF anual, etc.).</small>
-            </div>
-
-            {!isClientePF && (
-            <div className="p-fluid field">
-              <label htmlFor="ddtag">CNAE&apos;s (somente PJ)</label>
-              <Chips
-                id="ddtag"
-                value={empresa.cnaes}
-                onChange={handleCnaesChange}
-                itemTemplate={(cnae: string) => (
-                  <div className="p-d-flex p-ai-center p-flex-wrap">
-                    <div className="p-mr-2">{cnae.replace(/(\d{2})(\d{2})(\d{1})(\d{2})/, '$1.$2-$3/$4')}</div>
-                  </div>
-                )}
-                keyfilter="alphanum"
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
-              />
-            </div>
-            )}
-
-            <div className="field">
-              <label htmlFor="documento_">{isClientePF ? 'CPF (11 dígitos)' : 'CNPJ (14 dígitos, opcional)'}</label>
-              <InputText
-                id="documento_"
-                value={empresa.documento ?? ''}
-                type="text"
-                inputMode="numeric"
-                maxLength={isClientePF ? 14 : 18}
-                onChange={(e) => onInputChange(e, 'documento')}
-                disabled={empresa?.iniciado === true || coreCamposBloqueados}
-                className={classNames({ 'p-invalid': submitted && isClientePF && onlyDigits(empresa.documento ?? '').length !== 11 })}
-                placeholder={isClientePF ? 'Somente números ou formatado' : 'Opcional para PJ'}
-              />
-              <small className="text-600">Único cadastro de CPF/CNPJ; não duplicar em outros campos.</small>
-            </div>
-
-            <div className="formgrid grid">
-              <div className="field col-12 md:col-8">
-                <label htmlFor="logr_">Logradouro (rua)</label>
-                <InputText
-                  id="logr_"
-                  value={clienteExtra.logradouro}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, logradouro: e.target.value }))}
-                  disabled={!podeEditarComplementosCliente}
-                  className="w-full"
+            <div className="relative w-full mb-2" style={{ maxWidth: '100%' }}>
+              <div
+                className="flex gap-2 align-items-center flex-shrink-0"
+                style={{
+                  position: 'absolute',
+                  top: '0.35rem',
+                  right: '0.15rem',
+                  zIndex: 2,
+                  pointerEvents: 'auto',
+                }}
+              >
+                <Button
+                  type="button"
+                  tooltip="Dados principais"
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={() => setClienteDialogTabIndex(0)}
+                  className="w-2rem h-2rem p-0"
+                  rounded
+                  outlined={clienteDialogTabIndex !== 0}
+                  label="1"
                 />
-              </div>
-              <div className="field col-12 md:col-4">
-                <label htmlFor="num_">Número</label>
-                <InputText
-                  id="num_"
-                  value={clienteExtra.numero}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, numero: e.target.value }))}
-                  disabled={!podeEditarComplementosCliente}
-                  className="w-full"
-                  maxLength={40}
+                <Button
+                  type="button"
+                  tooltip="Endereço e meios de contato"
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={() => setClienteDialogTabIndex(1)}
+                  className="w-2rem h-2rem p-0"
+                  rounded
+                  outlined={clienteDialogTabIndex !== 1}
+                  label="2"
                 />
-              </div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="bairro_">Bairro</label>
-              <InputText
-                id="bairro_"
-                value={empresa.bairro ?? ''}
-                type="text"
-                onChange={(e) => onInputChange(e, 'bairro')}
-                disabled={!podeEditarComplementosCliente}
-                placeholder="Obrigatório quando houver compromissos por bairro"
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="cep_">CEP</label>
-              <InputText
-                id="cep_"
-                value={clienteExtra.cep}
-                inputMode="numeric"
-                maxLength={9}
-                onChange={(e) => setClienteExtra((x) => ({ ...x, cep: e.target.value }))}
-                disabled={!podeEditarComplementosCliente}
-                placeholder="00000000 ou 00000-000"
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="edemail">E-mail de contato</label>
-              <InputText
-                id="edemail"
-                type="email"
-                value={clienteExtra.email_contato}
-                onChange={(e) => setClienteExtra((x) => ({ ...x, email_contato: e.target.value }))}
-                disabled={!podeEditarComplementosCliente}
-                className="w-full"
-              />
-            </div>
-
-            <div className="formgrid grid">
-              <div className="field col-12 md:col-6">
-                <label htmlFor="edtel1">Telefone</label>
-                <InputText
-                  id="edtel1"
-                  value={clienteExtra.telefone}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, telefone: e.target.value }))}
-                  disabled={!podeEditarComplementosCliente}
-                  maxLength={40}
-                />
-              </div>
-              <div className="field col-12 md:col-6">
-                <label htmlFor="edtel2">Telefone 2</label>
-                <InputText
-                  id="edtel2"
-                  value={clienteExtra.telefone2}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, telefone2: e.target.value }))}
-                  disabled={!podeEditarComplementosCliente}
-                  maxLength={40}
-                />
-              </div>
-            </div>
-
-            {!isClientePF && (
-              <div className="field">
-                <label htmlFor="cap_social">Capital social</label>
-                <InputNumber
-                  id="cap_social"
-                  inputId="cap_social"
-                  value={clienteExtra.capital_social ?? undefined}
-                  onChange={(e) =>
-                    setClienteExtra((x) => ({
-                      ...x,
-                      capital_social: e.value === null || e.value === undefined ? null : Number(e.value),
-                    }))
+                <Button
+                  type="button"
+                  tooltip={
+                    abaCertificadoClienteHabilitada
+                      ? 'Certificado digital'
+                      : 'Certificado digital (somente administrador do escritório)'
                   }
-                  mode="currency"
-                  currency="BRL"
-                  locale="pt-BR"
-                  minFractionDigits={2}
-                  maxFractionDigits={7}
-                  className="w-full"
-                  disabled={!podeEditarComplementosCliente}
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={() => setClienteDialogTabIndex(2)}
+                  className="w-2rem h-2rem p-0"
+                  rounded
+                  outlined={clienteDialogTabIndex !== 2}
+                  label="3"
+                  disabled={!abaCertificadoClienteHabilitada}
                 />
-                <small className="text-600">Por cliente (PJ). O enquadramento jurídico mantém apenas faturamento anual de referência.</small>
               </div>
-            )}
+              <TabView
+                activeIndex={clienteDialogTabIndex}
+                onTabChange={(e) => {
+                  if (!abaCertificadoClienteHabilitada && e.index === 2) {
+                    return;
+                  }
+                  setClienteDialogTabIndex(e.index);
+                }}
+                className="w-full cliente-tabview-dialog"
+                pt={{
+                  root: {
+                    style: { maxWidth: '100%' },
+                  },
+                  navContainer: {
+                    className: 'w-full',
+                    style: {
+                      boxSizing: 'border-box',
+                      paddingLeft: 0,
+                      paddingRight: '11.25rem',
+                      position: 'relative',
+                      borderBottom: 'none',
+                    },
+                  },
+                  navContent: {
+                    style: {
+                      flex: '1 1 auto',
+                      minWidth: 0,
+                      overflowX: 'auto',
+                      overflowY: 'hidden',
+                    },
+                  },
+                  /* O <li> da ink bar é irmão das abas no <ul>; space-between o tratava como 4º item e gerava traços/pontos estranhos. */
+                  inkbar: { style: { display: 'none' } },
+                  nav: {
+                    style: {
+                      display: 'flex',
+                      flexWrap: 'nowrap',
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      alignItems: 'flex-end',
+                      columnGap: '1.5rem',
+                      listStyle: 'none',
+                      margin: 0,
+                      paddingLeft: 0,
+                      paddingRight: 0,
+                    },
+                  },
+                }}
+              >
+                <TabPanel header="Dados Principais" headerStyle={{ whiteSpace: 'nowrap' }}>
+                  <div className="field">
+                    <label htmlFor="ddtipo_pessoa">Pessoa física ou jurídica</label>
+                    <Dropdown
+                      id="ddtipo_pessoa"
+                      value={isClientePF ? 'PF' : 'PJ'}
+                      options={tipoPessoaOptions}
+                      onChange={(e) => onTipoPessoaChange(e.value)}
+                      optionLabel="label"
+                      optionValue="value"
+                      disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                      className="w-full"
+                    />
+                  </div>
 
-            <div className="formgrid grid">
-              <div className="field col-12 md:col-6">
-                <label htmlFor="edaber">Data de abertura</label>
-                <input
-                  id="edaber"
-                  type="date"
-                  className="p-inputtext p-component w-full"
-                  value={clienteExtra.data_abertura}
-                  disabled={!podeEditarComplementosCliente}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, data_abertura: e.target.value }))}
-                />
-                <small className="text-600">Formato conforme o navegador (aaaa-mm-dd enviado à API).</small>
-              </div>
-              <div className="field col-12 md:col-6">
-                <label htmlFor="edenc">Data de encerramento</label>
-                <input
-                  id="edenc"
-                  type="date"
-                  className="p-inputtext p-component w-full"
-                  value={clienteExtra.data_encerramento}
-                  disabled={!podeEditarComplementosCliente}
-                  onChange={(e) => setClienteExtra((x) => ({ ...x, data_encerramento: e.target.value }))}
-                />
-              </div>
-            </div>
+                  <div className="field">
+                    <label htmlFor="nome_">Nome</label>
+                    <InputText
+                      id="nome_"
+                      value={empresa.nome}
+                      type="text"
+                      onChange={(e) => onInputChange(e, 'nome')}
+                      required
+                      autoFocus
+                      disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                      className={classNames({ 'p-invalid': submitted && !empresa.nome })}
+                    />
+                    {submitted && !empresa.nome && <small className="p-invalid">Nome do cliente é obrigatório.</small>}
+                  </div>
 
-            <div className="field">
-              <label htmlFor="edobs">Observações</label>
-              <InputTextarea
-                id="edobs"
-                value={clienteExtra.observacao}
-                onChange={(e) => setClienteExtra((x) => ({ ...x, observacao: e.target.value }))}
-                disabled={!podeEditarComplementosCliente}
-                rows={3}
-                className="w-full"
-                autoResize
-              />
+                  <div className="field">
+                    <label htmlFor="ddmuncli">Município</label>
+                    <Dropdown
+                      id="ddmuncli"
+                      value={municipioFormDropdownValue}
+                      options={municipios}
+                      onChange={(e) => onMunicipioClienteChange(e.value ?? null)}
+                      optionLabel="nome"
+                      dataKey="id"
+                      placeholder="Selecione o município"
+                      emptyMessage="Nenhum município encontrado"
+                      disabled={!podeEditarComplementosCliente}
+                      className="w-full"
+                      showClear
+                    />
+                    <small className="text-600">
+                      {isClientePF ? 'Município de residência ou contato.' : 'Define a lista de rotinas disponíveis para PJ.'}
+                    </small>
+                  </div>
+
+                  {!isClientePF && (
+                    <div className="field">
+                      <label htmlFor="ddrotina">Rotina (somente PJ)</label>
+                      <Dropdown
+                        id="ddrotina"
+                        value={empresa.rotina}
+                        options={rotinas}
+                        onChange={(e) => onRotinaChange(e.value)}
+                        optionLabel="lista_label"
+                        dataKey="id"
+                        placeholder={
+                          (empresa.municipio?.id ?? '').trim()
+                            ? 'Selecione a rotina do município'
+                            : 'Selecione o município primeiro'
+                        }
+                        emptyMessage="Nenhuma rotina para este município"
+                        disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                      />
+                      {submitted && !(empresa.rotina?.id ?? '').trim() && (
+                        <small className="p-invalid">Rotina é obrigatória para pessoa jurídica.</small>
+                      )}
+                    </div>
+                  )}
+
+                  {isClientePF && (
+                    <div className="field">
+                      <label htmlFor="ddrotinapf">Rotina PF</label>
+                      <Dropdown
+                        id="ddrotinapf"
+                        value={rotinaPFFormDropdownValue}
+                        options={rotinasPF}
+                        onChange={(e) => onRotinaPFChange(e.value ?? emptyRotinaPF)}
+                        optionLabel="nome"
+                        dataKey="id"
+                        placeholder={
+                          rotinasPF.length
+                            ? 'Selecione a rotina federal / sazonal'
+                            : 'Cadastre rotinas PF no banco (tabela rotina_pf)'
+                        }
+                        emptyMessage="Nenhuma rotina PF para este tenant"
+                        disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                        className="w-full"
+                      />
+                      {submitted && !(empresa.rotina_pf?.id ?? rotinaPF?.id ?? '').trim() && (
+                        <small className="p-invalid">Rotina PF é obrigatória para pessoa física.</small>
+                      )}
+                      <small className="text-600">Templates por tenant (Carnê-Leão mensal, IRPF anual, etc.).</small>
+                    </div>
+                  )}
+
+                  {!isClientePF && (
+                    <div className="p-fluid field">
+                      <label htmlFor="ddtag">CNAE&apos;s (somente PJ)</label>
+                      <Chips
+                        id="ddtag"
+                        value={empresa.cnaes}
+                        onChange={handleCnaesChange}
+                        itemTemplate={(cnae: string) => (
+                          <div className="p-d-flex p-ai-center p-flex-wrap">
+                            <div className="p-mr-2">{cnae.replace(/(\d{2})(\d{2})(\d{1})(\d{2})/, '$1.$2-$3/$4')}</div>
+                          </div>
+                        )}
+                        keyfilter="alphanum"
+                        disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                      />
+                    </div>
+                  )}
+
+                  <div className="field">
+                    <label htmlFor="documento_">{isClientePF ? 'CPF (11 dígitos)' : 'CNPJ (14 dígitos, opcional)'}</label>
+                    <InputText
+                      id="documento_"
+                      value={empresa.documento ?? ''}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={isClientePF ? 14 : 18}
+                      onChange={(e) => onInputChange(e, 'documento')}
+                      disabled={empresa?.iniciado === true || coreCamposBloqueados}
+                      className={classNames({ 'p-invalid': submitted && isClientePF && onlyDigits(empresa.documento ?? '').length !== 11 })}
+                      placeholder={isClientePF ? 'Somente números ou formatado' : 'Opcional para PJ'}
+                    />
+                    <small className="text-600">
+                      {isClientePF
+                        ? 'CPF único neste cadastro; não duplicar em outros campos.'
+                        : 'CNPJ único neste cadastro (opcional para PJ); não duplicar em outros campos.'}
+                    </small>
+                  </div>
+
+                  {!isClientePF && (
+                    <div className="field">
+                      <label htmlFor="cap_social">Capital social</label>
+                      <InputNumber
+                        id="cap_social"
+                        inputId="cap_social"
+                        value={clienteExtra.capital_social ?? undefined}
+                        onChange={(e) =>
+                          setClienteExtra((x) => ({
+                            ...x,
+                            capital_social: e.value === null || e.value === undefined ? null : Number(e.value),
+                          }))
+                        }
+                        mode="currency"
+                        currency="BRL"
+                        locale="pt-BR"
+                        minFractionDigits={2}
+                        maxFractionDigits={7}
+                        className="w-full"
+                        disabled={!podeEditarComplementosCliente}
+                      />
+                      <small className="text-600">Por cliente (PJ). O enquadramento jurídico mantém apenas faturamento anual de referência.</small>
+                    </div>
+                  )}
+                </TabPanel>
+
+                <TabPanel header="Endereço e Meios de Contato" headerStyle={{ whiteSpace: 'nowrap' }}>
+                  <p className="text-600 text-sm mt-0 mb-3">
+                    Município e rotinas foram informados na aba <strong>Dados Principais</strong>.
+                  </p>
+
+                  <div className="formgrid grid">
+                    <div className="field col-12 md:col-8">
+                      <label htmlFor="logr_">Logradouro (rua)</label>
+                      <InputText
+                        id="logr_"
+                        value={clienteExtra.logradouro}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, logradouro: e.target.value }))}
+                        disabled={!podeEditarComplementosCliente}
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="field col-12 md:col-4">
+                      <label htmlFor="num_">Número</label>
+                      <InputText
+                        id="num_"
+                        value={clienteExtra.numero}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, numero: e.target.value }))}
+                        disabled={!podeEditarComplementosCliente}
+                        className="w-full"
+                        maxLength={40}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="bairro_">Bairro</label>
+                    <InputText
+                      id="bairro_"
+                      value={empresa.bairro ?? ''}
+                      type="text"
+                      onChange={(e) => onInputChange(e, 'bairro')}
+                      disabled={!podeEditarComplementosCliente}
+                      placeholder="Obrigatório quando houver compromissos por bairro"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="cep_">CEP</label>
+                    <InputText
+                      id="cep_"
+                      value={clienteExtra.cep}
+                      inputMode="numeric"
+                      maxLength={9}
+                      onChange={(e) => setClienteExtra((x) => ({ ...x, cep: e.target.value }))}
+                      disabled={!podeEditarComplementosCliente}
+                      placeholder="00000000 ou 00000-000"
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="edemail">E-mail de contato</label>
+                    <InputText
+                      id="edemail"
+                      type="email"
+                      value={clienteExtra.email_contato}
+                      onChange={(e) => setClienteExtra((x) => ({ ...x, email_contato: e.target.value }))}
+                      disabled={!podeEditarComplementosCliente}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div className="formgrid grid">
+                    <div className="field col-12 md:col-6">
+                      <label htmlFor="edtel1">Telefone</label>
+                      <InputText
+                        id="edtel1"
+                        value={clienteExtra.telefone}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, telefone: e.target.value }))}
+                        disabled={!podeEditarComplementosCliente}
+                        maxLength={40}
+                      />
+                    </div>
+                    <div className="field col-12 md:col-6">
+                      <label htmlFor="edtel2">Telefone 2</label>
+                      <InputText
+                        id="edtel2"
+                        value={clienteExtra.telefone2}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, telefone2: e.target.value }))}
+                        disabled={!podeEditarComplementosCliente}
+                        maxLength={40}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="formgrid grid">
+                    <div className="field col-12 md:col-6">
+                      <label htmlFor="edaber">Data de abertura</label>
+                      <input
+                        id="edaber"
+                        type="date"
+                        className="p-inputtext p-component w-full"
+                        value={clienteExtra.data_abertura}
+                        disabled={!podeEditarComplementosCliente}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, data_abertura: e.target.value }))}
+                      />
+                      <small className="text-600">Formato conforme o navegador (aaaa-mm-dd enviado à API).</small>
+                    </div>
+                    <div className="field col-12 md:col-6">
+                      <label htmlFor="edenc">Data de encerramento</label>
+                      <input
+                        id="edenc"
+                        type="date"
+                        className="p-inputtext p-component w-full"
+                        value={clienteExtra.data_encerramento}
+                        disabled={!podeEditarComplementosCliente}
+                        onChange={(e) => setClienteExtra((x) => ({ ...x, data_encerramento: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="edobs">Observações</label>
+                    <InputTextarea
+                      id="edobs"
+                      value={clienteExtra.observacao}
+                      onChange={(e) => setClienteExtra((x) => ({ ...x, observacao: e.target.value }))}
+                      disabled={!podeEditarComplementosCliente}
+                      rows={3}
+                      className="w-full"
+                      autoResize
+                    />
+                  </div>
+                </TabPanel>
+
+                <TabPanel
+                  header="Certificado Digital"
+                  headerStyle={{ whiteSpace: 'nowrap' }}
+                  disabled={!abaCertificadoClienteHabilitada}
+                >
+                  {!empresa.id ? (
+                    <p className="text-600 text-sm">Salve o cliente para anexar o certificado A1 (.pfx).</p>
+                  ) : (
+                    <>
+                      <p className="text-600 text-sm mt-0 mb-3">
+                        Certificado por cliente (armazenamento cifrado). Mesmo fluxo da tela de configurações do escritório.
+                      </p>
+                      <div className="field">
+                        <label htmlFor="cert_cli_tipo">Tipo de certificado</label>
+                        <Dropdown
+                          id="cert_cli_tipo"
+                          options={tipoCertificadoOptions}
+                          value={certClienteForm.tipo_certificado}
+                          onChange={(e) => setCertClienteForm((p) => ({ ...p, tipo_certificado: e.value ?? 'A1' }))}
+                          placeholder="Selecione"
+                          className="w-full"
+                          disabled={!podeAnexarCertificadoCliente}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="cert_cli_arq">Arquivo .pfx</label>
+                        <div className="p-inputgroup flex-wrap w-full">
+                          <InputText
+                            id="cert_cli_arq"
+                            value={certArquivo?.name ?? (certClienteForm.validade_ate ? 'Certificado carregado' : '')}
+                            readOnly
+                            placeholder="Selecione o arquivo PFX"
+                            className="flex-1 w-full"
+                          />
+                          <Button
+                            type="button"
+                            icon="pi pi-upload"
+                            onClick={() => certFileInputRef.current?.click()}
+                            tooltip="Selecionar arquivo PFX"
+                            disabled={!podeAnexarCertificadoCliente}
+                          />
+                        </div>
+                        <input
+                          ref={certFileInputRef}
+                          type="file"
+                          accept=".pfx,application/x-pkcs12"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            setCertArquivo(f ?? null);
+                          }}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="cert_cli_senha">Senha do certificado</label>
+                        <InputText
+                          id="cert_cli_senha"
+                          type="password"
+                          autoComplete="new-password"
+                          value={certClienteForm.senha_certificado}
+                          onChange={(e) => setCertClienteForm((p) => ({ ...p, senha_certificado: e.target.value }))}
+                          className="w-full"
+                          disabled={!podeAnexarCertificadoCliente}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="cert_cli_nome">Nome</label>
+                        <InputText
+                          id="cert_cli_nome"
+                          value={certClienteForm.nome_certificado}
+                          onChange={(e) => setCertClienteForm((p) => ({ ...p, nome_certificado: e.target.value }))}
+                          className="w-full"
+                          readOnly
+                        />
+                        <small className="text-600">Preenchido a partir do certificado após o envio.</small>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="cert_cli_para">Emitido para</label>
+                        <InputText
+                          id="cert_cli_para"
+                          value={certClienteForm.emitido_para}
+                          onChange={(e) => setCertClienteForm((p) => ({ ...p, emitido_para: e.target.value }))}
+                          className="w-full"
+                          disabled={!podeAnexarCertificadoCliente}
+                        />
+                      </div>
+                      <div className="field">
+                        <label htmlFor="cert_cli_por">Emitido por</label>
+                        <InputText
+                          id="cert_cli_por"
+                          value={certClienteForm.emitido_por}
+                          onChange={(e) => setCertClienteForm((p) => ({ ...p, emitido_por: e.target.value }))}
+                          className="w-full"
+                          readOnly
+                        />
+                      </div>
+                      <div className="formgrid grid">
+                        <div className="field col-12 md:col-6">
+                          <label htmlFor="cert_cli_val">Validade (início)</label>
+                          <InputText
+                            id="cert_cli_val"
+                            type="date"
+                            value={certClienteForm.validade_de}
+                            onChange={(e) => onValidadeCertClienteChange(e.target.value)}
+                            className="w-full"
+                            disabled={!podeAnexarCertificadoCliente}
+                          />
+                        </div>
+                        <div className="field col-12 md:col-6">
+                          <label htmlFor="cert_cli_val_ate">Validade (fim)</label>
+                          <InputText
+                            id="cert_cli_val_ate"
+                            type="date"
+                            value={certClienteForm.validade_ate}
+                            onChange={(e) => setCertClienteForm((p) => ({ ...p, validade_ate: e.target.value }))}
+                            className="w-full"
+                            disabled={!podeAnexarCertificadoCliente}
+                          />
+                        </div>
+                      </div>
+                      {!podeAnexarCertificadoCliente && (
+                        <p className="text-600 text-sm">Somente administradores podem enviar ou alterar o .pfx do cliente.</p>
+                      )}
+                      <div className="mt-3">
+                        <Button
+                          type="button"
+                          label={certClienteLoading ? 'Carregando…' : 'Salvar certificado'}
+                          icon="pi pi-save"
+                          onClick={() => void saveCertificadoCliente()}
+                          disabled={!podeAnexarCertificadoCliente || certClienteLoading}
+                        />
+                      </div>
+                    </>
+                  )}
+                </TabPanel>
+              </TabView>
             </div>
           </Dialog>
 

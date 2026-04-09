@@ -20,26 +20,33 @@ var (
 
 // CertificadoService cifra PFX e senha antes do Postgres; decifra só em memória para uso em TLS/SERPRO.
 type CertificadoService struct {
-	repo *repository.CertificadoRepository
-	key  []byte
+	repo        *repository.CertificadoRepository
+	repoCliente *repository.CertificadoClienteRepository
+	key         []byte
 }
 
 // NewCertificadoService aceita keyHex vazia (serviço inoperante até configurar).
-func NewCertificadoService(repo *repository.CertificadoRepository, keyHex string) (*CertificadoService, error) {
+// repoCliente pode ser nil (upload por cliente ficará indisponível).
+func NewCertificadoService(repo *repository.CertificadoRepository, repoCliente *repository.CertificadoClienteRepository, keyHex string) (*CertificadoService, error) {
 	keyHex = strings.TrimSpace(keyHex)
 	if keyHex == "" {
-		return &CertificadoService{repo: repo, key: nil}, nil
+		return &CertificadoService{repo: repo, repoCliente: repoCliente, key: nil}, nil
 	}
 	k, err := certseal.ParseKeyHex(keyHex)
 	if err != nil {
 		return nil, fmt.Errorf("VECONTAB_CERT_CRYPTO_KEY_HEX: %w", err)
 	}
-	return &CertificadoService{repo: repo, key: k}, nil
+	return &CertificadoService{repo: repo, repoCliente: repoCliente, key: k}, nil
 }
 
 // Configurado indica se a chave AES-256 está disponível.
 func (s *CertificadoService) Configurado() bool {
 	return s != nil && len(s.key) == certseal.KeySize
+}
+
+// ClienteRepoConfigurado indica se persistência por cliente está disponível.
+func (s *CertificadoService) ClienteRepoConfigurado() bool {
+	return s != nil && s.repoCliente != nil
 }
 
 // UpsertPFX valida o PKCS#12, extrai validade (e metadados básicos) e persiste cifrado por tenant.
@@ -92,6 +99,92 @@ func (s *CertificadoService) UpsertPFX(ctx context.Context, tenantID string, pfx
 		Ativo:        true,
 	}
 	return s.repo.UpsertAtivo(ctx, row)
+}
+
+// UpsertPFXCliente valida PKCS#12 e persiste em public.certificado_cliente (1:1 com cliente_id).
+func (s *CertificadoService) UpsertPFXCliente(ctx context.Context, tenantID, empresaID string, pfx []byte, senhaPlana, cnpjHint, titularHint string) error {
+	if s == nil || s.repoCliente == nil {
+		return fmt.Errorf("repositorio certificado_cliente nao configurado")
+	}
+	if !s.Configurado() {
+		return ErrChaveCriptografiaNaoConfigurada
+	}
+	tid := strings.TrimSpace(tenantID)
+	eid := strings.TrimSpace(empresaID)
+	if tid == "" || eid == "" {
+		return fmt.Errorf("tenant e empresa obrigatorios")
+	}
+	senhaPlana = strings.TrimSpace(senhaPlana)
+	if len(pfx) == 0 || senhaPlana == "" {
+		return fmt.Errorf("pfx e senha obrigatorios")
+	}
+
+	priv, leaf, err := pkcs12.Decode(pfx, senhaPlana)
+	if err != nil {
+		return fmt.Errorf("pfx invalido ou senha incorreta: %w", err)
+	}
+	_ = priv
+
+	pfxSealed, err := certseal.Seal(s.key, pfx)
+	if err != nil {
+		return fmt.Errorf("cifrar pfx: %w", err)
+	}
+	senhaSealed, err := certseal.Seal(s.key, []byte(senhaPlana))
+	if err != nil {
+		return fmt.Errorf("cifrar senha: %w", err)
+	}
+
+	cnpj := strings.TrimSpace(cnpjHint)
+	nome := strings.TrimSpace(titularHint)
+	if nome == "" {
+		nome = strings.TrimSpace(leaf.Subject.CommonName)
+	}
+
+	clienteID, err := s.repoCliente.ClienteIDEmpresaTenant(ctx, eid, tid)
+	if err != nil {
+		return err
+	}
+
+	return s.repoCliente.UpsertAtivo(ctx, clienteID, pfxSealed, senhaSealed, cnpj, nome,
+		strings.TrimSpace(leaf.Issuer.CommonName), leaf.NotBefore, leaf.NotAfter)
+}
+
+// ResumoCertificadoCliente retorna metadados do certificado do cliente (por empresa_id da API).
+func (s *CertificadoService) ResumoCertificadoCliente(ctx context.Context, tenantID, empresaID string) (*domain.CertificadoClienteResumo, error) {
+	if s == nil || s.repoCliente == nil {
+		return nil, fmt.Errorf("repositorio certificado_cliente nao configurado")
+	}
+	tid := strings.TrimSpace(tenantID)
+	eid := strings.TrimSpace(empresaID)
+	if tid == "" || eid == "" {
+		return nil, fmt.Errorf("tenant e empresa obrigatorios")
+	}
+	clienteID, err := s.repoCliente.ClienteIDEmpresaTenant(ctx, eid, tid)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.repoCliente.GetResumoAtivo(ctx, clienteID)
+	if err != nil || row == nil {
+		return nil, err
+	}
+	return &domain.CertificadoClienteResumo{
+		TipoCertificado: "A1",
+		NomeCertificado: firstNonEmptyCert(row.EmitidoPor, row.TitularNome),
+		EmitidoPara:     strings.TrimSpace(row.TitularNome),
+		EmitidoPor:      strings.TrimSpace(row.TitularNome),
+		CNPJ:            strings.TrimSpace(row.CNPJ),
+		ValidadeDe:      row.ValidadeDe.Format("2006-01-02"),
+		ValidadeAte:     row.ValidadeAte.Format("2006-01-02"),
+	}, nil
+}
+
+func firstNonEmptyCert(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // MaterialEmMemoria decifra PFX e senha; o chamador deve chamar CertificadoMaterial.Zero() após uso.
