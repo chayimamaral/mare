@@ -337,8 +337,22 @@ const Empresas = ({ dados }) => {
       return '';
     }
     const children = node.children ?? [];
-    const hasPendente = children.some((c) => !(c.data?.processo?.compromissos_gerados === true));
-    return hasPendente ? 'empresa-processo-pendente-row' : '';
+    if (children.length === 0) {
+      return 'empresa-processo-nao-iniciado-row';
+    }
+
+    const processos = children.map((c) => c.data?.processo).filter(Boolean) as Vec.EmpresaProcesso[];
+    const total = processos.length;
+    const concluidos = processos.filter((p) => p.compromissos_gerados === true).length;
+    const iniciados = processos.filter((p) => p.iniciado === true).length;
+
+    if (total > 0 && concluidos === total) {
+      return 'empresa-processo-concluido-row';
+    }
+    if (iniciados === 0) {
+      return 'empresa-processo-nao-iniciado-row';
+    }
+    return 'empresa-processo-em-andamento-row';
   };
 
   const dialogFooter = (
@@ -422,7 +436,21 @@ const Empresas = ({ dados }) => {
               <p className="m-0 mt-1 text-600 text-sm">Árvore de empresa e processos por fase.</p>
               <p className="m-0 mt-1 text-500 text-xs">Faixa principal: Novo Processo. Faixa filha: Iniciar Processo e Gerar Compromissos.</p>
             </div>
-            <div className="flex align-items-center gap-2 mt-2 md:mt-0">
+            <div className="flex align-items-center gap-3 mt-2 md:mt-0">
+              <div className="flex align-items-center gap-3 text-xs text-600 white-space-nowrap">
+                <span className="flex align-items-center gap-1">
+                  <span style={{ width: '0.8rem', height: '0.8rem', borderRadius: '50%', background: '#dcfce7', border: '1px solid #86efac' }} />
+                  Concluido
+                </span>
+                <span className="flex align-items-center gap-1">
+                  <span style={{ width: '0.8rem', height: '0.8rem', borderRadius: '50%', background: '#fff4cc', border: '1px solid #fde68a' }} />
+                  Em andamento
+                </span>
+                <span className="flex align-items-center gap-1">
+                  <span style={{ width: '0.8rem', height: '0.8rem', borderRadius: '50%', background: '#fde8e8', border: '1px solid #fca5a5' }} />
+                  Não iniciado
+                </span>
+              </div>
               <span className="p-input-icon-left">
                 <i className="pi pi-search" />
                 <InputText
@@ -432,7 +460,6 @@ const Empresas = ({ dados }) => {
                   placeholder="Filtrar por nome..."
                 />
               </span>
-              <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={onRefresh} />
             </div>
           </div>
 
@@ -451,6 +478,10 @@ const Empresas = ({ dados }) => {
             <Column field="regime" header="Regime Tributário" body={regimeBodyTemplate} style={{ width: '18%' }} />
             <Column header="Ações" body={actionBodyTemplate} style={{ width: '10%' }} />
           </TreeTable>
+
+          <div className="mt-2">
+            <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={onRefresh} />
+          </div>
 
           <Dialog
             visible={empresaDialog}

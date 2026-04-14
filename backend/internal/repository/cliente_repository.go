@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
@@ -32,10 +31,6 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 			c.nome,
 			COALESCE(NULLIF(BTRIM(c.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
 			COALESCE(c.municipio_id, ed.municipio_id)::text,
-			c.rotina_id::text,
-			c.rotina_pf_id::text,
-			COALESCE(rpf.nome, ''),
-			COALESCE(rpf.categoria, ''),
 			c.cnaes,
 			COALESCE(c.bairro, ''),
 			e.iniciado,
@@ -43,12 +38,10 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
-		LEFT JOIN public.rotina_pf rpf ON rpf.id = c.rotina_pf_id
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true AND c.ativo = true`
 
 	var c domain.Cliente
-	var doc, munID, rotID, rpfID sql.NullString
-	var rpfNome, rpfCat string
+	var doc, munID sql.NullString
 	if err := r.pool.QueryRow(ctx, q, id, tenantID).Scan(
 		&c.ID,
 		&c.TenantID,
@@ -56,10 +49,6 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 		&c.Nome,
 		&doc,
 		&munID,
-		&rotID,
-		&rpfID,
-		&rpfNome,
-		&rpfCat,
 		&c.Cnaes,
 		&c.Bairro,
 		&c.Iniciado,
@@ -77,16 +66,6 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 		s := munID.String
 		c.MunicipioID = &s
 	}
-	if rotID.Valid {
-		s := rotID.String
-		c.RotinaID = &s
-	}
-	if rpfID.Valid && strings.TrimSpace(rpfID.String) != "" {
-		s := rpfID.String
-		c.RotinaPFID = &s
-	}
-	c.RotinaPFNome = rpfNome
-	c.CategoriaPF = rpfCat
 	return c, nil
 }
 
@@ -106,10 +85,6 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 			c.nome,
 			COALESCE(NULLIF(BTRIM(c.documento), ''), NULLIF(BTRIM(ed.cnpj::text), '')),
 			COALESCE(c.municipio_id, ed.municipio_id)::text,
-			c.rotina_id::text,
-			c.rotina_pf_id::text,
-			COALESCE(rpf.nome, ''),
-			COALESCE(rpf.categoria, ''),
 			c.cnaes,
 			COALESCE(c.bairro, ''),
 			e.iniciado,
@@ -117,7 +92,6 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
-		LEFT JOIN public.rotina_pf rpf ON rpf.id = c.rotina_pf_id
 		WHERE e.tenant_id = $1 AND e.ativo = true AND c.ativo = true
 		ORDER BY c.nome ASC
 		LIMIT $2 OFFSET $3`
@@ -131,8 +105,7 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 	out := make([]domain.Cliente, 0)
 	for rows.Next() {
 		var c domain.Cliente
-		var doc, munID, rotID, rpfID sql.NullString
-		var rpfNome, rpfCat string
+		var doc, munID sql.NullString
 		if err := rows.Scan(
 			&c.ID,
 			&c.TenantID,
@@ -140,10 +113,6 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 			&c.Nome,
 			&doc,
 			&munID,
-			&rotID,
-			&rpfID,
-			&rpfNome,
-			&rpfCat,
 			&c.Cnaes,
 			&c.Bairro,
 			&c.Iniciado,
@@ -158,16 +127,6 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 			s := munID.String
 			c.MunicipioID = &s
 		}
-		if rotID.Valid {
-			s := rotID.String
-			c.RotinaID = &s
-		}
-		if rpfID.Valid && strings.TrimSpace(rpfID.String) != "" {
-			s := rpfID.String
-			c.RotinaPFID = &s
-		}
-		c.RotinaPFNome = rpfNome
-		c.CategoriaPF = rpfCat
 		out = append(out, c)
 	}
 	if err := rows.Err(); err != nil {

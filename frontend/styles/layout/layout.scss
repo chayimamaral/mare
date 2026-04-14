@@ -60,6 +60,14 @@
   /* Ocupa todo o espaço vertical disponível */
 }
 
-.empresa-processo-pendente-row > td {
+.empresa-processo-nao-iniciado-row>td {
   background: #fde8e8 !important;
+}
+
+.empresa-processo-em-andamento-row>td {
+  background: #fff4cc !important;
+}
+
+.empresa-processo-concluido-row>td {
+  background: #dcfce7 !important;
 }

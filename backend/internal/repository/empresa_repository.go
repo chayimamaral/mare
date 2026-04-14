@@ -18,13 +18,6 @@ func empresaMunicipioScanString(ns sql.NullString) string {
 	return ""
 }
 
-func empresaRotinaScanString(ns sql.NullString) string {
-	if ns.Valid {
-		return ns.String
-	}
-	return ""
-}
-
 type EmpresaListParams struct {
 	First     int
 	Rows      int
@@ -121,26 +114,6 @@ func normalizeEmpresaTipoPessoa(s string) string {
 	return "PJ"
 }
 
-func empresaRotinaIDParam(tipo, rotinaID string) any {
-	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
-		return nil
-	}
-	if rid := strings.TrimSpace(rotinaID); rid != "" {
-		return rid
-	}
-	return nil
-}
-
-func empresaRotinaPFIDParam(tipo, rotinaPFID string) any {
-	if normalizeEmpresaTipoPessoa(tipo) != "PF" {
-		return nil
-	}
-	if id := strings.TrimSpace(rotinaPFID); id != "" {
-		return id
-	}
-	return nil
-}
-
 func empresaCnaesParam(tipo string, cnaes []string) any {
 	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
 		if len(cnaes) == 0 {
@@ -221,13 +194,13 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			COALESCE(rt.codigo_crt, 0),
 			COALESCE(m.id::text, ''),
 			COALESCE(m.nome, ''),
-			COALESCE(r.id, ''),
-			COALESCE(r.descricao, ''),
-			COALESCE(NULLIF(BTRIM(te_cli.id), ''), NULLIF(BTRIM(te_rot.id), ''), ''),
-			COALESCE(NULLIF(BTRIM(te_cli.descricao), ''), NULLIF(BTRIM(te_rot.descricao), ''), ''),
-			COALESCE(rpf.id::text, ''),
-			COALESCE(rpf.nome, ''),
-			COALESCE(rpf.categoria, ''),
+			'' AS rotina_id,
+			'' AS rotina_descricao,
+			COALESCE(NULLIF(BTRIM(te_cli.id), ''), ''),
+			COALESCE(NULLIF(BTRIM(te_cli.descricao), ''), ''),
+			'' AS rotina_pf_id,
+			'' AS rotina_pf_nome,
+			'' AS rotina_pf_categoria,
 			c.cnaes,
 			COALESCE(c.bairro, ''),
 			e.iniciado,
@@ -250,10 +223,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
 		LEFT JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
-		LEFT JOIN public.rotinas r ON r.id = c.rotina_id
-		LEFT JOIN public.tipoempresa te_rot ON te_rot.id = r.tipo_empresa_id
 		LEFT JOIN public.tipoempresa te_cli ON te_cli.id = c.tipo_empresa_id
-		LEFT JOIN public.rotina_pf rpf ON rpf.id = c.rotina_pf_id
 		LEFT JOIN public.regime_tributario rt ON rt.id = c.regime_tributario_id
 		WHERE %s
 		ORDER BY %s
@@ -340,8 +310,6 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		cnaes = []string{}
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
-	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rotinaPFArg := empresaRotinaPFIDParam(tipo, input.RotinaPFID)
 	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
 
 	tx, err := r.pool.Begin(ctx)
@@ -351,8 +319,8 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	defer tx.Rollback(ctx)
 
 	const insCliente = `
-		INSERT INTO public.cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, rotina_id, rotina_pf_id, cnaes, bairro, ie, im, regime_tributario_id, tipo_empresa_id)
-		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), $5, $6, $7, $8, NULLIF(TRIM($9), ''), TRIM(COALESCE($10::text, '')), TRIM(COALESCE($11::text, '')), $12, $13)
+		INSERT INTO public.cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, cnaes, bairro, ie, im, regime_tributario_id, tipo_empresa_id)
+		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), $5, $6, NULLIF(TRIM($7), ''), TRIM(COALESCE($8::text, '')), TRIM(COALESCE($9::text, '')), $10, $11)
 		RETURNING id::text`
 
 	var clienteID string
@@ -362,8 +330,6 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		tipo,
 		doc,
 		empresaMunicipioIDParam(input.MunicipioID),
-		rotinaArg,
-		rotinaPFArg,
 		cnaesArg,
 		input.Bairro,
 		strings.TrimSpace(input.IE),
@@ -385,7 +351,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	}
 
 	const sel = `
-		SELECT e.id, c.nome, c.municipio_id, e.tenant_id, c.rotina_id, c.rotina_pf_id, c.cnaes, e.iniciado, e.ativo
+		SELECT e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		WHERE e.id = $1`
@@ -399,10 +365,10 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, tenantID string
-		var municipioID, rotinaID, rotinaPFID sql.NullString
+		var municipioID sql.NullString
 		var cnaesOut any
 		var iniciado, ativo bool
-		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaesOut, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &cnaesOut, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan created empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -410,8 +376,8 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 			Nome:        nome,
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
-			RotinaID:    empresaRotinaScanString(rotinaID),
-			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
+			RotinaID:    "",
+			RotinaPFID:  "",
 			Cnaes:       cnaesOut,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -432,32 +398,28 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 		UPDATE public.cliente c
 		SET nome = $1,
 		    tenant_id = $2,
-		    rotina_id = $3,
-		    cnaes = $4,
-		    bairro = NULLIF(TRIM($7), ''),
-		    tipo_pessoa = $8,
-		    documento = NULLIF(TRIM($9), ''),
-		    municipio_id = $10,
-		    rotina_pf_id = $11,
-		    ie = TRIM(COALESCE($12::text, '')),
-		    im = TRIM(COALESCE($13::text, '')),
-		    regime_tributario_id = $14,
-		    tipo_empresa_id = $15,
+		    cnaes = $3,
+		    bairro = NULLIF(TRIM($6), ''),
+		    tipo_pessoa = $7,
+		    documento = NULLIF(TRIM($8), ''),
+		    municipio_id = $9,
+		    ie = TRIM(COALESCE($10::text, '')),
+		    im = TRIM(COALESCE($11::text, '')),
+		    regime_tributario_id = $12,
+		    tipo_empresa_id = $13,
 		    atualizado_em = NOW()
 		FROM public.empresa e
-		WHERE c.id = e.cliente_id AND e.id = $5 AND e.tenant_id = $6
-		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.rotina_id, c.rotina_pf_id, c.cnaes, e.iniciado, e.ativo`
+		WHERE c.id = e.cliente_id AND e.id = $4 AND e.tenant_id = $5
+		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
 	cnaes := normalizeCnaesParaTextArray(input.Cnaes)
 	if cnaes == nil {
 		cnaes = []string{}
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
-	rotinaArg := empresaRotinaIDParam(tipo, input.RotinaID)
-	rotinaPFArg := empresaRotinaPFIDParam(tipo, input.RotinaPFID)
 	regimeArg := empresaRegimeTributarioIDParam(tipo, input.RegimeTributarioID)
 	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, rotinaArg, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), rotinaPFArg, strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), regimeArg, tipoEmpresaArg)
+	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), regimeArg, tipoEmpresaArg)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update empresa: %w", err)
 	}
@@ -466,10 +428,10 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var id, nome, tenantID string
-		var municipioID, rotinaID, rotinaPFID sql.NullString
+		var municipioID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&id, &nome, &municipioID, &tenantID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan updated empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -477,8 +439,8 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 			Nome:        nome,
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
-			RotinaID:    empresaRotinaScanString(rotinaID),
-			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
+			RotinaID:    "",
+			RotinaPFID:  "",
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -500,7 +462,7 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 		SET iniciado = true
 		FROM public.cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
-		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.rotina_id, c.rotina_pf_id, c.cnaes, e.iniciado, e.ativo`
+		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
 	rows, err := r.pool.Query(ctx, query, id, tenantID)
 	if err != nil {
@@ -511,10 +473,10 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, tenantID string
-		var municipioID, rotinaID, rotinaPFID sql.NullString
+		var municipioID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan iniciar processo empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -522,8 +484,8 @@ func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID st
 			Nome:        nome,
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
-			RotinaID:    empresaRotinaScanString(rotinaID),
-			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
+			RotinaID:    "",
+			RotinaPFID:  "",
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -592,7 +554,7 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 func (r *EmpresaRepository) CreateProcesso(ctx context.Context, input EmpresaProcessoInput) ([]domain.EmpresaProcessoItem, int64, error) {
 	const query = `
 		INSERT INTO public.empresa_processos (tenant_id, empresa_id, rotina_id, descricao)
-		VALUES ($1, $2, NULLIF($3::text, '')::uuid, $4)
+		VALUES ($1, $2, NULLIF($3::text, ''), $4)
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, iniciado, passos_concluidos, compromissos_gerados, ativo`
 
 	rows, err := r.pool.Query(ctx, query, input.TenantID, input.EmpresaID, strings.TrimSpace(input.RotinaID), strings.TrimSpace(input.Descricao))
@@ -696,7 +658,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 		SET ativo = false
 		FROM public.cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
-		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.rotina_id, c.rotina_pf_id, c.cnaes, e.iniciado, e.ativo`
+		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
 	rows, err := r.pool.Query(ctx, query, id, tenantID)
 	if err != nil {
@@ -707,10 +669,10 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 	empresas := make([]domain.EmpresaMutationItem, 0)
 	for rows.Next() {
 		var eid, nome, tenantID string
-		var municipioID, rotinaID, rotinaPFID sql.NullString
+		var municipioID sql.NullString
 		var cnaes any
 		var iniciado, ativo bool
-		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &rotinaID, &rotinaPFID, &cnaes, &iniciado, &ativo); err != nil {
+		if err := rows.Scan(&eid, &nome, &municipioID, &tenantID, &cnaes, &iniciado, &ativo); err != nil {
 			return nil, 0, fmt.Errorf("scan deleted empresa: %w", err)
 		}
 		empresas = append(empresas, domain.EmpresaMutationItem{
@@ -718,8 +680,8 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 			Nome:        nome,
 			MunicipioID: empresaMunicipioScanString(municipioID),
 			TenantID:    tenantID,
-			RotinaID:    empresaRotinaScanString(rotinaID),
-			RotinaPFID:  empresaRotinaScanString(rotinaPFID),
+			RotinaID:    "",
+			RotinaPFID:  "",
 			Cnaes:       cnaes,
 			Iniciado:    iniciado,
 			Ativo:       ativo,
@@ -746,15 +708,21 @@ func (r *EmpresaRepository) MunicipioEUfIDs(ctx context.Context, empresaID, tena
 	return municipioID, ufID, nil
 }
 
-// TipoEmpresaIDFromRotina retorna o tipo de empresa cadastrado na rotina vinculada à empresa.
+// TipoEmpresaIDFromRotina retorna o tipo de empresa do cliente ou da rotina do processo mais recente.
 func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresaID string) (string, error) {
 	var tid *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT r.tipo_empresa_id
+		SELECT COALESCE(
+			NULLIF(TRIM(c.tipo_empresa_id), ''),
+			NULLIF(TRIM(r.tipo_empresa_id), '')
+		)
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		INNER JOIN public.rotinas r ON r.id = c.rotina_id
-		WHERE e.id = $1 AND e.ativo = true`, empresaID).Scan(&tid)
+		LEFT JOIN public.empresa_processos ep ON ep.empresa_id = e.id AND ep.ativo = true
+		LEFT JOIN public.rotinas r ON r.id = ep.rotina_id
+		WHERE e.id = $1 AND e.ativo = true
+		ORDER BY ep.criado_em DESC NULLS LAST
+		LIMIT 1`, empresaID).Scan(&tid)
 	if err != nil {
 		return "", fmt.Errorf("buscar tipo de empresa da rotina: %w", err)
 	}

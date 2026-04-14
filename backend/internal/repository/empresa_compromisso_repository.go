@@ -97,12 +97,11 @@ func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, e
 	var out empresaGeracaoContext
 	err := r.pool.QueryRow(ctx, `
 		SELECT e.id, e.tenant_id, COALESCE(c.municipio_id, ed.municipio_id), m.ufid, COALESCE(NULLIF(TRIM(c.bairro), ''), ''),
-		       COALESCE(NULLIF(TRIM(r.tipo_empresa_id), ''), '')
+		       COALESCE(NULLIF(TRIM(c.tipo_empresa_id), ''), '')
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
 		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
 		INNER JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
-		INNER JOIN public.rotinas r ON r.id = c.rotina_id AND r.ativo = true
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`,
 		empresaID, tenantID,
 	).Scan(&out.EmpresaID, &out.TenantID, &out.MunicipioID, &out.EstadoID, &out.Bairro, &out.TipoEmpresaID)
@@ -110,7 +109,7 @@ func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, e
 		return empresaGeracaoContext{}, fmt.Errorf("empresa nao encontrada neste tenant: %w", err)
 	}
 	if out.TipoEmpresaID == "" {
-		return empresaGeracaoContext{}, fmt.Errorf("cadastre o tipo de empresa na rotina desta empresa antes de gerar compromissos")
+		return empresaGeracaoContext{}, fmt.Errorf("cadastre o enquadramento juridico desta empresa antes de gerar compromissos")
 	}
 	return out, nil
 }

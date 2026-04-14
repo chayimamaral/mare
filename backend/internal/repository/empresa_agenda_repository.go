@@ -157,7 +157,7 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 		return nil, err
 	}
 
-	// Cadastro legal (compromisso_financeiro) pelo tipo de empresa da rotina vinculada à empresa.
+	// Cadastro legal pelo tipo de empresa do cliente.
 	const queryCatalog = `
 		SELECT
 			e.id,
@@ -175,14 +175,12 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 			NULL::numeric
 		FROM public.empresa e
 		INNER JOIN public.cliente cli ON cli.id = e.cliente_id
-		INNER JOIN public.rotinas r ON r.id = cli.rotina_id
 		INNER JOIN public.tipoempresa_obrigacao c
-			ON c.tipo_empresa_id = r.tipo_empresa_id AND c.ativo = true
+			ON c.tipo_empresa_id = cli.tipo_empresa_id AND c.ativo = true
 		WHERE e.ativo = true
 		  AND e.tenant_id = $1
-		  AND r.ativo = true
-		  AND r.tipo_empresa_id IS NOT NULL
-		  AND trim(r.tipo_empresa_id) <> ''
+		  AND cli.tipo_empresa_id IS NOT NULL
+		  AND trim(cli.tipo_empresa_id) <> ''
 		  AND NOT EXISTS (
 		  	SELECT 1 FROM public.empresa_agenda ea
 		  	WHERE ea.empresa_id = e.id AND ea.descricao = c.descricao
