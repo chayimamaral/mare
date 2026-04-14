@@ -34,10 +34,10 @@ const Empresas = ({ dados }) => {
   const empresaCompromissoService = EmpresaCompromissoService();
   const toast = useRef<Toast>(null);
 
-  const [nomeFiltro, setNomeFiltro] = useState('');
   const [empresaFiltro, setEmpresaFiltro] = useState<string | null>(null);
   const [municipioFiltro, setMunicipioFiltro] = useState<string | null>(null);
   const [enquadramentoFiltro, setEnquadramentoFiltro] = useState<string | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<string | null>(null);
   const [empresaDialog, setEmpresaDialog] = useState(false);
   const [empresaSelecionada, setEmpresaSelecionada] = useState<Vec.Empresa | null>(null);
   const [processoTemplate, setProcessoTemplate] = useState<Vec.RotinaLite | null>(null);
@@ -47,7 +47,7 @@ const Empresas = ({ dados }) => {
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
   const { data: empresasData, isFetching: loadingEmpresas, refetch: refetchEmpresas } = useQuery({
-    queryKey: ['empresas-tree', tenantid, nomeFiltro],
+    queryKey: ['empresas-tree', tenantid],
     queryFn: async () => {
       const { data } = await empresaService.getEmpresas({
         lazyEvent: JSON.stringify({
@@ -56,7 +56,7 @@ const Empresas = ({ dados }) => {
           page: 1,
           sortField: 'nome',
           sortOrder: 1,
-          filters: { nome: { value: nomeFiltro, matchMode: 'contains' } },
+          filters: { nome: { value: '', matchMode: 'contains' } },
           tenantid,
         }),
       });
@@ -124,6 +124,7 @@ const Empresas = ({ dados }) => {
     return treeNodes.filter((n) => {
       const d = n.data as EmpresaNodeData;
       const emp = d.empresa;
+      const children = n.children ?? [];
       if (empresaFiltro && (emp.nome ?? '') !== empresaFiltro) {
         return false;
       }
@@ -133,9 +134,29 @@ const Empresas = ({ dados }) => {
       if (enquadramentoFiltro && (emp.tipo_empresa?.descricao ?? '') !== enquadramentoFiltro) {
         return false;
       }
+      if (statusFiltro) {
+        const processos = children.map((c) => c.data?.processo).filter(Boolean) as Vec.EmpresaProcesso[];
+        const total = processos.length;
+        const concluidos = processos.filter((p) => p.compromissos_gerados === true).length;
+        const iniciados = processos.filter((p) => p.iniciado === true).length;
+
+        const statusEmpresa = (() => {
+          if (total === 0 || iniciados === 0) {
+            return 'NAO_INICIADO';
+          }
+          if (concluidos === total) {
+            return 'CONCLUIDO';
+          }
+          return 'EM_ANDAMENTO';
+        })();
+
+        if (statusEmpresa !== statusFiltro) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [treeNodes, empresaFiltro, municipioFiltro, enquadramentoFiltro]);
+  }, [treeNodes, empresaFiltro, municipioFiltro, enquadramentoFiltro, statusFiltro]);
 
   const empresaOptions = useMemo(() => {
     const nomes = Array.from(new Set((empresasData ?? []).map((e: Vec.Empresa) => (e.nome ?? '').trim()).filter(Boolean)));
@@ -151,6 +172,12 @@ const Empresas = ({ dados }) => {
     const nomes = Array.from(new Set((empresasData ?? []).map((e: Vec.Empresa) => (e.tipo_empresa?.descricao ?? '').trim()).filter(Boolean)));
     return nomes.map((n) => ({ label: n, value: n }));
   }, [empresasData]);
+
+  const statusOptions = [
+    { label: 'Não iniciado', value: 'NAO_INICIADO' },
+    { label: 'Em andamento', value: 'EM_ANDAMENTO' },
+    { label: 'Concluido', value: 'CONCLUIDO' },
+  ];
 
   const onRefresh = () => {
     refetchEmpresas();
@@ -384,7 +411,7 @@ const Empresas = ({ dados }) => {
               className="empresa-filtros-grid"
               style={{
                 display: 'grid',
-                gridTemplateColumns: '1.2fr 1fr 1.5fr',
+                gridTemplateColumns: '1.1fr 1fr 1.4fr 1fr',
                 gap: '1rem',
               }}
             >
@@ -427,6 +454,18 @@ const Empresas = ({ dados }) => {
                   filter
                 />
               </div>
+              <div className="field mb-0 min-w-0">
+                <label htmlFor="filtroStatus" className="text-sm text-600 mb-2 block">Status</label>
+                <Dropdown
+                  id="filtroStatus"
+                  value={statusFiltro}
+                  options={statusOptions}
+                  onChange={(e) => setStatusFiltro((e.value as string | null) ?? null)}
+                  placeholder="Todos"
+                  showClear
+                  className="w-full p-column-filter"
+                />
+              </div>
             </div>
           </div>
 
@@ -451,15 +490,6 @@ const Empresas = ({ dados }) => {
                   Não iniciado
                 </span>
               </div>
-              <span className="p-input-icon-left">
-                <i className="pi pi-search" />
-                <InputText
-                  type="search"
-                  value={nomeFiltro}
-                  onChange={(e) => setNomeFiltro(e.target.value)}
-                  placeholder="Filtrar por nome..."
-                />
-              </span>
             </div>
           </div>
 
