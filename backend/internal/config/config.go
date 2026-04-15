@@ -29,15 +29,15 @@ type Config struct {
 
 func Load() (Config, error) {
 	// Tenta carregar o .env do diretório atual
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("Aviso: .env não encontrado no diretório atual, tentando caminho relativo...")
-	}
-	err = godotenv.Load(".env") // Ajuste o caminho se necessário
-	if err != nil {
-		// Se este também falhar, talvez seja um problema real
-		fmt.Printf("Erro ao carregar ../../.env: %v\n", err)
-	}
+	_ = godotenv.Load()
+	// if err != nil {
+	// 	fmt.Println("Aviso: .env não encontrado no diretório atual, tentando caminho relativo...")
+	// }
+	// err = godotenv.Load(".env") // Ajuste o caminho se necessário
+	// if err != nil {
+	// 	// Se este também falhar, talvez seja um problema real
+	// 	fmt.Printf("Erro ao carregar ../../.env: %v\n", err)
+	// }
 
 	cfg := Config{
 		Port:                           getEnv("PORT", "8080"),
@@ -50,10 +50,10 @@ func Load() (Config, error) {
 		CompromissosWorkerRunOnStartup: getEnv("COMPROMISSOS_WORKER_RUN_ON_STARTUP", "false") == "true",
 		CompromissosWorkerTimezone:     getEnv("COMPROMISSOS_WORKER_TIMEZONE", "America/Sao_Paulo"),
 		CertCryptoKeyHex:               os.Getenv("VECONTAB_CERT_CRYPTO_KEY_HEX"),
-		SerproOAuthTokenURL:              getEnv("SERPRO_OAUTH_TOKEN_URL", ""),
-		SerproClientID:                   os.Getenv("SERPRO_CLIENT_ID"),
-		SerproClientSecret:               os.Getenv("SERPRO_CLIENT_SECRET"),
-		SerproAPIBaseURL:                 getEnv("SERPRO_API_BASE_URL", ""),
+		SerproOAuthTokenURL:            getEnv("SERPRO_OAUTH_TOKEN_URL", ""),
+		SerproClientID:                 os.Getenv("SERPRO_CLIENT_ID"),
+		SerproClientSecret:             os.Getenv("SERPRO_CLIENT_SECRET"),
+		SerproAPIBaseURL:               getEnv("SERPRO_API_BASE_URL", ""),
 	}
 
 	if cfg.DatabaseURL == "" {

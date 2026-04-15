@@ -104,21 +104,6 @@ function formatBRL(n: number | null | undefined): string {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(n));
 }
 
-const defaultExpandedKeys = (roots: TreeNode[]): Record<string, boolean> => {
-    const keys: Record<string, boolean> = {};
-    for (const nat of roots) {
-        if (nat.key) {
-            keys[nat.key] = true;
-        }
-        for (const emp of nat.children || []) {
-            if (emp.key) {
-                keys[emp.key] = true;
-            }
-        }
-    }
-    return keys;
-};
-
 const statusNorm = (s: string) => s.trim().toLowerCase();
 
 function diffDiasParaHoje(isoDate?: string): number | null {
@@ -424,7 +409,7 @@ export default function CompromissosPorNaturezaPage() {
     useEffect(() => {
         const tree = data ?? [];
         setNodes(tree);
-        setExpandedKeys(defaultExpandedKeys(tree));
+        setExpandedKeys({});
         setFirst(0);
     }, [data]);
 

@@ -237,6 +237,12 @@ declare namespace Vec {
         configuracao_json?: Record<string, unknown>;
     }
 
+    type SalarioMinimoNacional = {
+        id?: string;
+        ano?: number;
+        valor?: number;
+    }
+
     type CompromissoRef = {
         id?: string;
         nome?: string;

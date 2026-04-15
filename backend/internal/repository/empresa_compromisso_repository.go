@@ -195,8 +195,8 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 	}
 
 	const ins = `
-		INSERT INTO public.empresa_compromissos (descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id)
-		VALUES ($1, $2, $3::timestamptz, $4, 'pendente', $5, $6::uuid)
+		INSERT INTO public.empresa_compromissos (descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia)
+		VALUES ($1, $2, $3::timestamptz, $4, 'pendente', $5, $6::uuid, $7::date)
 		RETURNING id, descricao, valor, vencimento::text, COALESCE(observacao, ''), status, empresa_id, tipoempresa_obrigacao_id::text`
 
 	items := make([]domain.EmpresaCompromissoItem, 0)
@@ -217,23 +217,23 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 
 		switch per {
 		case "MENSAL":
-			for i := 0; i < 12; i++ {
-				dt := addMonthsSameDay(dataInicio, i)
-				dt = ajustarVencimento(dt, feriados)
-				var row domain.EmpresaCompromissoItem
-				err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID).Scan(
-					&row.ID, &row.Descricao, &row.Valor, &row.Vencimento, &row.Observacao, &row.Status, &row.EmpresaID, &row.TipoempresaObrigacaoID,
-				)
-				if err != nil {
-					return nil, fmt.Errorf("insert compromisso mensal: %w", err)
-				}
-				items = append(items, row)
+			dt := resolveCompetenciaMensal(dataInicio, time.Now())
+			dt = ajustarVencimento(dt, feriados)
+			competencia := time.Date(dt.Year(), dt.Month(), 1, 0, 0, 0, 0, time.UTC)
+			var row domain.EmpresaCompromissoItem
+			err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID, competencia.Format("2006-01-02")).Scan(
+				&row.ID, &row.Descricao, &row.Valor, &row.Vencimento, &row.Observacao, &row.Status, &row.EmpresaID, &row.TipoempresaObrigacaoID,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("insert compromisso mensal: %w", err)
 			}
+			items = append(items, row)
 		case "ANUAL":
 			dt := dataInicio.AddDate(1, 0, 0)
 			dt = ajustarVencimento(dt, feriados)
+			competencia := time.Date(dt.Year(), dt.Month(), 1, 0, 0, 0, 0, time.UTC)
 			var row domain.EmpresaCompromissoItem
-			err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID).Scan(
+			err := tx.QueryRow(ctx, ins, t.Descricao, valorIns, dt.Format(time.RFC3339), obs, empresaID, t.ID, competencia.Format("2006-01-02")).Scan(
 				&row.ID, &row.Descricao, &row.Valor, &row.Vencimento, &row.Observacao, &row.Status, &row.EmpresaID, &row.TipoempresaObrigacaoID,
 			)
 			if err != nil {
@@ -262,6 +262,20 @@ func addMonthsSameDay(t time.Time, months int) time.Time {
 		d = lastDay
 	}
 	return time.Date(first.Year(), first.Month(), d, 0, 0, 0, 0, loc)
+}
+
+func resolveCompetenciaMensal(dataInicio time.Time, agora time.Time) time.Time {
+	dt := dataInicio
+	hoje := agora.In(dataInicio.Location())
+	hojeRef := time.Date(hoje.Year(), hoje.Month(), hoje.Day(), 0, 0, 0, 0, hoje.Location())
+	dtRef := time.Date(dt.Year(), dt.Month(), dt.Day(), 0, 0, 0, 0, dt.Location())
+
+	// Regra: gera somente o compromisso do mês vigente da referência.
+	// Se a vigência/referência já passou, gera o próximo mês.
+	if dtRef.Before(hojeRef) {
+		return addMonthsSameDay(dt, 1)
+	}
+	return dt
 }
 
 func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoAcompanhamentoItem, error) {

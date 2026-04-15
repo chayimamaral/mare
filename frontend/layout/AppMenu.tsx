@@ -8,7 +8,6 @@ import setupAPIClient from '../components/api/api';
 // Onde está o nome: logoIntegra
 // Onde está o local: '../assets/logo_integracontador_limpo.avif'
 import logoIntegra from '../public/logo_integracontador.avif';
-import { options } from '@fullcalendar/core/preact';
 
 const AppMenu = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -119,16 +118,13 @@ const AppMenu = () => {
                     label: 'Configurações Fiscais',
                     icon: 'pi pi-fw pi-table',
                     items: [
-                      {
-                        label: 'Enquadramento Jurídico',
-                        icon: 'pi pi-fw pi-table',
-                        to: '/tipoempresa',
-                      },
+
                       {
                         label: 'Regras de Obrigações',
                         icon: 'pi pi-fw pi-money-bill',
                         to: '/obrigacoes',
                       },
+
                     ],
                   },
                   {
@@ -160,16 +156,25 @@ const AppMenu = () => {
                 label: 'Cadastros Contábeis',
                 icon: 'pi pi-fw pi-sitemap',
                 items: [
-
+                  {
+                    label: 'Enquadramento Jurídico',
+                    icon: 'pi pi-fw pi-table',
+                    to: '/tipoempresa',
+                  },
+                  {
+                    label: 'Regime tributário',
+                    icon: 'pi pi-fw pi-percentage',
+                    to: '/regimes-tributarios',
+                  },
                   {
                     label: 'CNAE',
                     icon: 'pi pi-fw pi-table',
                     to: '/cnae',
                   },
                   {
-                    label: 'Regime tributário',
-                    icon: 'pi pi-fw pi-percentage',
-                    to: '/regimes-tributarios',
+                    label: 'Salário mínimo nacional',
+                    icon: 'pi pi-fw pi-money-bill',
+                    to: '/salario-minimo',
                   },
                 ],
               },
@@ -257,7 +262,12 @@ const AppMenu = () => {
                     to: '/catalogo-servicos',
                   },
                   {
-                    label: 'Tabela de Consumo',
+                    label: 'Matriz de Conformidade Fiscal',
+                    icon: 'pi pi-fw pi-check-square',
+                    to: '/matriz-conformidade-fiscal',
+                  },
+                  {
+                    label: 'Tabela de Preços deConsumo',
                     icon: 'pi pi-fw pi-wallet',
                     to: '/configuracoes/integra-contador-tabela-consumo',
                     visible: userRole === 'ADMIN' || userRole === 'SUPER',

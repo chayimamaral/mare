@@ -103,27 +103,99 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 	refDate := time.Now().AddDate(0, 1, 0)
 	refMonth := time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, refDate.Location())
 
+	rows, err := tx.Query(ctx, `
+		SELECT e.id::text, e.tenant_id::text
+		FROM public.empresa e
+		WHERE e.ativo = true
+		  AND e.iniciado = true
+		  AND NOT EXISTS (
+			SELECT 1 FROM public.empresa_compromissos ec WHERE ec.empresa_id = e.id
+		  )
+		ORDER BY e.id ASC
+	`)
+	if err != nil {
+		return fmt.Errorf("listar empresas elegiveis para worker: %w", err)
+	}
+	type empresaAlvo struct {
+		ID       string
+		TenantID string
+	}
+	type tenantResumo struct {
+		EmpresasAlvo int
+		Inseridos    int
+		Erros        int
+	}
+	alvos := make([]empresaAlvo, 0)
+	for rows.Next() {
+		var a empresaAlvo
+		if err := rows.Scan(&a.ID, &a.TenantID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan empresas elegiveis para worker: %w", err)
+		}
+		alvos = append(alvos, a)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("rows empresas elegiveis para worker: %w", err)
+	}
+	rows.Close()
+
+	repo := repository.NewEmpresaCompromissoRepository(w.pool)
 	var totalInseridos int
-	if err := tx.QueryRow(
-		ctx,
-		`SELECT public.gerar_compromissos_geral($1::date)`,
-		refMonth.Format("2006-01-02"),
-	).Scan(&totalInseridos); err != nil {
-		w.recordMonitorOperacao(context.Background(), domain.MonitorOperacaoStatusErro, err.Error(), map[string]any{
-			"competencia": refMonth.Format("2006-01-02"),
-			"fase":        "gerar_compromissos_geral",
-		})
-		return fmt.Errorf("executar gerar_compromissos_geral: %w", err)
+	var totalComErro int
+	porTenant := make(map[string]*tenantResumo)
+	for _, alvo := range alvos {
+		resumo, ok := porTenant[alvo.TenantID]
+		if !ok {
+			resumo = &tenantResumo{}
+			porTenant[alvo.TenantID] = resumo
+		}
+		resumo.EmpresasAlvo++
+
+		inseridos, err := repo.GerarCompromissosEmpresa(ctx, alvo.TenantID, refMonth, alvo.ID)
+		if err != nil {
+			totalComErro++
+			resumo.Erros++
+			log.Printf("worker compromissos: erro empresa=%s tenant=%s: %v", alvo.ID, alvo.TenantID, err)
+			continue
+		}
+		totalInseridos += inseridos
+		resumo.Inseridos += inseridos
 	}
 
-	log.Printf("worker compromissos: competencia=%s inseridos=%d", refMonth.Format("2006-01-02"), totalInseridos)
+	for tenantID, r := range porTenant {
+		log.Printf(
+			"worker compromissos: tenant=%s competencia=%s empresas_alvo=%d inseridos=%d erros=%d",
+			tenantID,
+			refMonth.Format("2006-01-02"),
+			r.EmpresasAlvo,
+			r.Inseridos,
+			r.Erros,
+		)
+	}
+
+	log.Printf(
+		"worker compromissos: competencia=%s empresas_alvo=%d inseridos=%d erros=%d",
+		refMonth.Format("2006-01-02"),
+		len(alvos),
+		totalInseridos,
+		totalComErro,
+	)
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tx worker: %w", err)
 	}
 
-	w.recordMonitorOperacao(context.Background(), domain.MonitorOperacaoStatusSucesso, fmt.Sprintf("inseridos=%d", totalInseridos), map[string]any{
-		"competencia": refMonth.Format("2006-01-02"),
-		"inseridos":   totalInseridos,
+	status := domain.MonitorOperacaoStatusSucesso
+	msg := fmt.Sprintf("inseridos=%d empresas_alvo=%d", totalInseridos, len(alvos))
+	if totalComErro > 0 {
+		status = domain.MonitorOperacaoStatusErro
+		msg = fmt.Sprintf("%s erros=%d", msg, totalComErro)
+	}
+	w.recordMonitorOperacao(context.Background(), status, msg, map[string]any{
+		"competencia":   refMonth.Format("2006-01-02"),
+		"inseridos":     totalInseridos,
+		"empresas_alvo": len(alvos),
+		"erros":         totalComErro,
 	})
 	return nil
 }
