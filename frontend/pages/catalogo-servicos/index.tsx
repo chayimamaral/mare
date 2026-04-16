@@ -446,6 +446,13 @@ export const getServerSideProps = canSSRAuth(async (ctx) => {
     try {
         const apiClient = setupAPIClient(ctx);
         await apiClient.get('/api/registro');
+
+        const { data } = await apiClient.get('/api/usuariorole');
+        const role = data?.logado?.role;
+        if (role !== 'SUPER') {
+            return { redirect: { destination: '/', permanent: false } };
+        }
+
         return { props: {} };
     } catch (err) {
         console.log(err);

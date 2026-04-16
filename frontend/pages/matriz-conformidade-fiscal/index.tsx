@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
-import { Checkbox } from 'primereact/checkbox';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
@@ -10,7 +9,8 @@ import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/Ca
 import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
 import SerproServicoEnquadramentoService from '../../services/cruds/SerproServicoEnquadramentoService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
+import { canSSRAuth } from '../../components/utils/canSSRAuth';
+import setupAPIClient from '../../components/api/api';
 
 type SelectOption = { label: string; value: string };
 
@@ -223,14 +223,21 @@ export default function MatrizConformidadeFiscalPage() {
                       <div key={s.id} className="col-12 md:col-6 lg:col-4">
                         <div className="p-2 border-1 border-200 border-round surface-card h-full">
                           <div className="flex align-items-start gap-2">
-                            <Checkbox inputId={`svc-${s.id}`} checked={checked} onChange={(e) => toggleServico(s.id, Boolean(e.checked))} />
-                            <label htmlFor={`svc-${s.id}`} className="cursor-pointer line-height-3">
-                              <strong>{s.codigo}</strong> - {s.descricao}
-                              <br />
-                              <small className="text-600">
-                                {s.secao} | {s.id_sistema}/{s.id_servico}
-                              </small>
-                            </label>
+                            <div className="field-checkbox m-0">
+                              <input
+                                id={`svc-${s.id}`}
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => toggleServico(s.id, e.target.checked)}
+                              />
+                              <label htmlFor={`svc-${s.id}`} className="cursor-pointer line-height-3">
+                                <strong>{s.codigo}</strong> - {s.descricao}
+                                <br />
+                                <small className="text-600">
+                                  {s.secao} | {s.id_sistema}/{s.id_servico}
+                                </small>
+                              </label>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -246,4 +253,23 @@ export default function MatrizConformidadeFiscalPage() {
   );
 }
 
-export const getServerSideProps = withAuthServerSideProps(async () => ({}));
+export const getServerSideProps = canSSRAuth(async (ctx) => {
+  const apiClient = setupAPIClient(ctx);
+  try {
+    await apiClient.get('/api/registro');
+  } catch (err: unknown) {
+    const ax = err as { response?: { status?: number; data?: { error?: string } } };
+    const msg = ax?.response?.data?.error ?? '';
+    if (!(ax?.response?.status === 400 && msg.includes('no rows in result set'))) {
+      return { redirect: { destination: '/', permanent: false } };
+    }
+  }
+
+  const { data } = await apiClient.get('/api/usuariorole');
+  const role = data?.logado?.role;
+  if (role !== 'SUPER') {
+    return { redirect: { destination: '/', permanent: false } };
+  }
+
+  return { props: {} };
+});

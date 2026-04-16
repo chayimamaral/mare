@@ -8,8 +8,7 @@ import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import setupAPIClient from '../../components/api/api';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
-import { GetServerSidePropsContext } from 'next';
+import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/CatalogoServicoService';
 
 type Ambiente = 'trial' | 'producao';
@@ -487,4 +486,23 @@ export default function IntegraContadorServicosPage() {
     );
 }
 
-export const getServerSideProps = withAuthServerSideProps(async (_ctx: GetServerSidePropsContext) => ({}));
+export const getServerSideProps = canSSRAuth(async (ctx) => {
+    const apiClient = setupAPIClient(ctx);
+    try {
+        await apiClient.get('/api/registro');
+    } catch (err: unknown) {
+        const ax = err as { response?: { status?: number; data?: { error?: string } } };
+        const msg = ax?.response?.data?.error ?? '';
+        if (!(ax?.response?.status === 400 && msg.includes('no rows in result set'))) {
+            return { redirect: { destination: '/', permanent: false } };
+        }
+    }
+
+    const { data } = await apiClient.get('/api/usuariorole');
+    const role = data?.logado?.role;
+    if (role !== 'SUPER') {
+        return { redirect: { destination: '/', permanent: false } };
+    }
+
+    return { props: {} };
+});

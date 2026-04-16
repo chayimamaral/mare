@@ -68,3 +68,10 @@ Campos 'id' sempre criar como uuid.
 - Bordas inferiores do tema em `.p-tabview-nav` e `.p-tabview-nav-link`: para diálogos “limpos”, sobrescrever em escopo (classe no `TabView`, estilos em `frontend/styles/layout/layout.scss`).
 - **Altura:** `min-height` fixa em CSS no `.p-tabview-panels` (ex. `min(58vh, 38rem)`); não medir com `ResizeObserver` ao mudar de aba (efeito colateral: scroll espúrio e crescimento de `minHeight`).
 - Atalhos numéricos + botão desabilitado alinhado às abas `disabled` por perfil (ex.: Certificado só ADMIN/SUPER; USER com `TabPanel disabled` e fallback de índice ativo).
+
+📌 Checkbox (padrão aprovado)
+- Preferir o padrão **nativo** com `field-checkbox` (PrimeFlex) + `<input type="checkbox">` + `<label htmlFor="...">`, como em `frontend/pages/configuracoes/geracao-guias.tsx`.
+- Evitar `Checkbox` do PrimeReact quando houver qualquer indício de CSS “fantasma” (checkbox nativo aparecendo por baixo/ao lado) por ausência/alteração de CSS base.
+- Sempre garantir:
+  - `id` no `<input>` e `htmlFor` correspondente no `<label>` (label clicável).
+  - `onChange` lendo `e.target.checked` (boolean).

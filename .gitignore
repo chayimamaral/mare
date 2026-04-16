@@ -28,12 +28,4 @@ docs/Serpro.Componentes.AutenticacaoLoja.Dotnet/
 migrations/
 vec_prospect/
 
-# .NET / C#
-bin/
-obj/
-*.user
-*.suo
-*.sln.dotSettings.user
-.vs/
-
 config_privada.env
