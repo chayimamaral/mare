@@ -7,9 +7,9 @@ import { InputText } from 'primereact/inputtext';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/CatalogoServicoService';
+import api from '../../components/api/apiClient';
+import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 
 type Ambiente = 'trial' | 'producao';
 type NI = { numero: string; tipo: number };
@@ -112,8 +112,9 @@ function presetPorServico(idServico: string): string {
 }
 
 export default function IntegraContadorServicosPage() {
+    useRouteClientGuard();
+
     const toast = useRef<Toast>(null);
-    const api = setupAPIClient(undefined);
     const catalogoSvc = useMemo(() => CatalogoServicoService(), []);
     const [ambiente, setAmbiente] = useState<Ambiente>('trial');
     const [secao, setSecao] = useState<string>('');
@@ -485,24 +486,3 @@ export default function IntegraContadorServicosPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    const apiClient = setupAPIClient(ctx);
-    try {
-        await apiClient.get('/api/registro');
-    } catch (err: unknown) {
-        const ax = err as { response?: { status?: number; data?: { error?: string } } };
-        const msg = ax?.response?.data?.error ?? '';
-        if (!(ax?.response?.status === 400 && msg.includes('no rows in result set'))) {
-            return { redirect: { destination: '/', permanent: false } };
-        }
-    }
-
-    const { data } = await apiClient.get('/api/usuariorole');
-    const role = data?.logado?.role;
-    if (role !== 'SUPER') {
-        return { redirect: { destination: '/', permanent: false } };
-    }
-
-    return { props: {} };
-});

@@ -12,7 +12,6 @@ import { classNames } from 'primereact/utils';
 import { AxiosError } from 'axios';
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
 import { Vec } from '../../types/types';
 
@@ -542,4 +541,3 @@ const RegimesTributarios = () => {
 
 export default RegimesTributarios;
 
-export const getServerSideProps = withAuthServerSideProps(async () => undefined);

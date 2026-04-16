@@ -1,5 +1,3 @@
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
 import { Dialog } from 'primereact/dialog';
@@ -88,7 +86,6 @@ const apiErr = (err: unknown) =>
   'Operação não concluída.';
 
 export default function TenantsPage() {
-  const api = setupAPIClient(undefined);
   const qc = useQueryClient();
   const toast = useRef<Toast>(null);
   const usuarioService = UsuarioService();
@@ -732,26 +729,3 @@ export default function TenantsPage() {
     </div>
   );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  const apiClient = setupAPIClient(ctx);
-  try {
-    await apiClient.get('/api/registro');
-  } catch (err: unknown) {
-    const ax = err as { response?: { status?: number; data?: { error?: string } } };
-    const msg = ax?.response?.data?.error ?? '';
-    if (ax?.response?.status === 400 && msg.includes('no rows in result set')) {
-      // mesmo critério de outras páginas autenticadas
-    } else {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  }
-
-  const { data } = await apiClient.get('/api/usuariorole');
-  const role = data?.logado?.role;
-  if (role !== 'SUPER') {
-    return { redirect: { destination: '/', permanent: false } };
-  }
-
-  return { props: {} };
-});

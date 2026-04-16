@@ -4,8 +4,6 @@ import { DataTable } from 'primereact/datatable';
 import { Toast } from 'primereact/toast';
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import MonitorOperacaoService from '../../services/cruds/MonitorOperacaoService';
 import { Vec } from '../../types/types';
 
@@ -130,26 +128,3 @@ const MonitorPage = () => {
 };
 
 export default MonitorPage;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  const apiClient = setupAPIClient(ctx);
-  try {
-    await apiClient.get('/api/registro');
-  } catch (err: unknown) {
-    const ax = err as { response?: { status?: number; data?: { error?: string } } };
-    const msg = ax?.response?.data?.error ?? '';
-    if (ax?.response?.status === 400 && msg.includes('no rows in result set')) {
-      // mesmo critério de outras páginas autenticadas
-    } else {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  }
-
-  const { data } = await apiClient.get('/api/usuariorole');
-  const role = data?.logado?.role;
-  if (role !== 'ADMIN' && role !== 'SUPER') {
-    return { redirect: { destination: '/', permanent: false } };
-  }
-
-  return { props: {} };
-});

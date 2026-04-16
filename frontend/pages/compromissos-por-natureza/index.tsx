@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import { TreeTable } from 'primereact/treetable';
 import type { TreeTableProps } from 'primereact/treetable';
 import { Column } from 'primereact/column';
@@ -1089,7 +1088,3 @@ export default function CompromissosPorNaturezaPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async () => {
-    return { props: {} };
-});

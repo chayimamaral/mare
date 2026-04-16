@@ -7,7 +7,6 @@ import { InputNumber } from 'primereact/inputnumber';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import React, { useRef, useState } from 'react';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import SalarioMinimoService from '../../services/cruds/SalarioMinimoService';
 import { Vec } from '../../types/types';
 
@@ -185,4 +184,3 @@ const SalarioMinimoPage = () => {
 
 export default SalarioMinimoPage;
 
-export const getServerSideProps = withAuthServerSideProps(async () => undefined);

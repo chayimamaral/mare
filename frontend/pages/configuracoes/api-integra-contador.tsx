@@ -4,8 +4,8 @@ import { Panel } from 'primereact/panel';
 import { Toast } from 'primereact/toast';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
+import api from '../../components/api/apiClient';
+import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 
 type Chaves = {
     consumer_key: string;
@@ -13,8 +13,9 @@ type Chaves = {
 };
 
 export default function ApiIntegraContadorPage() {
+    useRouteClientGuard();
+
     const toast = useRef<Toast>(null);
-    const api = setupAPIClient(undefined);
     const [form, setForm] = useState<Chaves>({ consumer_key: '', consumer_secret: '' });
 
     const { data, refetch, isFetching } = useQuery({
@@ -102,26 +103,3 @@ export default function ApiIntegraContadorPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    const apiClient = setupAPIClient(ctx);
-    try {
-        await apiClient.get('/api/registro');
-    } catch (err: unknown) {
-        const ax = err as { response?: { status?: number; data?: { error?: string } } };
-        const msg = ax?.response?.data?.error ?? '';
-        if (ax?.response?.status === 400 && msg.includes('no rows in result set')) {
-            // mesmo critério de outras páginas autenticadas
-        } else {
-            return { redirect: { destination: '/', permanent: false } };
-        }
-    }
-
-    const { data } = await apiClient.get('/api/usuariorole');
-    const role = data?.logado?.role;
-    if (role !== 'SUPER') {
-        return { redirect: { destination: '/', permanent: false } };
-    }
-
-    return { props: {} };
-});

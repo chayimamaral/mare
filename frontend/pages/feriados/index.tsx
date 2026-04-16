@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { classNames } from 'primereact/utils';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import { DataTable, DataTableFilterMeta } from 'primereact/datatable';
 import FeriadoService from '../../services/cruds/FeriadoService';
 import { Toast } from 'primereact/toast';
@@ -587,6 +586,4 @@ const Feriados = () => {
 
 export default Feriados;
 
-export const getServerSideProps = withAuthServerSideProps(async (ctx) => {
   // Aqui não é necessário nenhum processamento adicional
-});

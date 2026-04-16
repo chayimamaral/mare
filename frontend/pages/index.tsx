@@ -1,6 +1,6 @@
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { Tooltip } from 'primereact/tooltip';
-import { canSSRAuth } from '../services/utils/canSSRAuth';
 
 type ModuloAtivo = {
   future?: false;
@@ -149,6 +149,14 @@ function ModuloTile({ modulo }: { modulo: ModuloCard }) {
 }
 
 export default function Home() {
+  const { data: homeProps } = useQuery({
+    queryKey: ['home-page-props'],
+    queryFn: async () => ({}),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const {} = homeProps ?? {};
+
   return (
     <div className="card">
       <Tooltip target=".dash-modulo-tile" />
@@ -185,8 +193,7 @@ export default function Home() {
   );
 }
 
-export const getServerSideProps = canSSRAuth(async () => {
-  return {
-    props: {},
-  };
-});
+//   return {
+//     props: {},
+//   };
+// });

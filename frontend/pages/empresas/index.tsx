@@ -9,12 +9,11 @@ import { Toast } from 'primereact/toast';
 import { TreeTable } from 'primereact/treetable';
 import { TreeNode } from 'primereact/treenode';
 import React, { useMemo, useRef, useState } from 'react';
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import EmpresaCompromissoService from '../../services/cruds/EmpresaCompromissoService';
 import EmpresaService from '../../services/cruds/EmpresaService';
 import RotinaService from '../../services/cruds/RotinaService';
 import { Vec } from '../../types/types';
+import { useTenantIdQuery } from '../../components/hooks/useClientGuards';
 
 type EmpresaNodeData = {
   nodeType: 'empresa';
@@ -55,14 +54,14 @@ const extrairMensagemErro = (error: unknown): string => {
 };
 
 type EmpresasPageProps = {
-  dados: string;
+  dados?: string;
   tipoPessoa?: 'PJ' | 'PF';
 };
 
 export const EmpresasPage = ({ dados, tipoPessoa = 'PJ' }: EmpresasPageProps) => {
   const isPF = tipoPessoa === 'PF';
   const tituloPagina = isPF ? 'Manutenção de Cliente PF (IRPF)' : 'Manutenção de Empresas';
-  const tenantid = dados;
+  const tenantid = dados ?? '';
   const empresaService = EmpresaService();
   const empresaCompromissoService = EmpresaCompromissoService();
   const toast = useRef<Toast>(null);
@@ -626,32 +625,9 @@ export const EmpresasPage = ({ dados, tipoPessoa = 'PJ' }: EmpresasPageProps) =>
   );
 };
 
-const Empresas = ({ dados }: { dados: string }) => <EmpresasPage dados={dados} tipoPessoa="PJ" />;
+const Empresas = () => {
+  const { data: tenantid = '' } = useTenantIdQuery();
+  return <EmpresasPage dados={tenantid} tipoPessoa="PJ" />;
+};
 
 export default Empresas;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/usuariotenant');
-
-    return {
-
-      props: {
-
-        dados: response.data.tenantid,
-
-      }
-    };
-
-  } catch (err) {
-    console.log(err);
-
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false
-      }
-    };
-  }
-});

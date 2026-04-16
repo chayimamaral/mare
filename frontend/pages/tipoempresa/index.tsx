@@ -13,7 +13,6 @@ import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
 import { InputNumber, InputNumberChangeEvent } from 'primereact/inputnumber';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 
 interface LazyTableState {
     totalRecords: number;
@@ -462,7 +461,4 @@ const TipoEmpresa = () => {
 export default TipoEmpresa;
 
 
-export const getServerSideProps = withAuthServerSideProps(async (ctx) => {
     // Aqui não é necessário nenhum processamento adicional
-});
-

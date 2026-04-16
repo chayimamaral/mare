@@ -9,8 +9,6 @@ import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/Ca
 import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
 import SerproServicoEnquadramentoService from '../../services/cruds/SerproServicoEnquadramentoService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 
 type SelectOption = { label: string; value: string };
 
@@ -78,8 +76,16 @@ export default function MatrizConformidadeFiscalPage() {
   });
 
   useEffect(() => {
+    // Sincroniza somente quando o backend mudar de fato a seleção
+    if (!Array.isArray(selecionadosApi)) return;
+    // evita sobrescrever alterações locais enquanto o usuário marca/desmarca
+    const atual = selecionados.slice().sort();
+    const remoto = selecionadosApi.slice().sort();
+    if (atual.length === remoto.length && atual.every((v, i) => v === remoto[i])) {
+      return;
+    }
     setSelecionados(selecionadosApi);
-  }, [selecionadosApi]);
+  }, [selecionadosApi, selecionados]);
 
   const secoes = useMemo(() => {
     const unique = Array.from(new Set(catalogo.map((s) => (s.secao || '').trim()).filter((s) => s !== '')));
@@ -252,24 +258,3 @@ export default function MatrizConformidadeFiscalPage() {
     </div>
   );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  const apiClient = setupAPIClient(ctx);
-  try {
-    await apiClient.get('/api/registro');
-  } catch (err: unknown) {
-    const ax = err as { response?: { status?: number; data?: { error?: string } } };
-    const msg = ax?.response?.data?.error ?? '';
-    if (!(ax?.response?.status === 400 && msg.includes('no rows in result set'))) {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  }
-
-  const { data } = await apiClient.get('/api/usuariorole');
-  const role = data?.logado?.role;
-  if (role !== 'SUPER') {
-    return { redirect: { destination: '/', permanent: false } };
-  }
-
-  return { props: {} };
-});

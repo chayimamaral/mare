@@ -9,12 +9,11 @@ import { classNames } from 'primereact/utils';
 import React, { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Vec } from '../../types/types';
+import { useUserIdQuery } from '../../components/hooks/useClientGuards';
 
 import { Dropdown } from 'primereact/dropdown';
 import UsuarioService from '../../services/cruds/UsuarioService';
 import EmptyPage from '../pages/empty';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { RadioButton, RadioButtonChangeEvent } from 'primereact/radiobutton';
 
 interface Role {
@@ -44,7 +43,8 @@ interface LazyTableState {
   filters: DataTableFilterMeta;
 }
 
-const Usuarios = ({ user_id }) => {
+const Usuarios = () => {
+  const { data: user_id = '' } = useUserIdQuery();
 
   let emptyUsuario: Vec.Usuarios = {
     id: '',
@@ -650,31 +650,3 @@ const Usuarios = ({ user_id }) => {
 };
 
 export default Usuarios;
-
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  const apiClient = setupAPIClient(ctx);
-
-  try {
-    await apiClient.get('/api/registro');
-  } catch (err: unknown) {
-    const ax = err as { response?: { status?: number; data?: { error?: string } } };
-    const msg = ax?.response?.data?.error ?? '';
-    if (ax?.response?.status === 400 && msg.includes('no rows in result set')) {
-      // mesmo critério de withAuthServerSideProps
-    } else {
-      return { redirect: { destination: '/', permanent: false } };
-    }
-  }
-
-  const { data } = await apiClient.get('/api/usuariorole');
-  if (data?.logado?.role === 'USER') {
-    return { redirect: { destination: '/', permanent: false } };
-  }
-
-  return {
-    props: {
-      user_id: ctx.req.cookies?.user_id ?? '',
-    },
-  };
-});

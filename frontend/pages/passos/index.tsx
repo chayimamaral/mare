@@ -8,8 +8,6 @@ import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -17,7 +15,6 @@ import PassoService from '../../services/cruds/PassoService';
 import { InputNumber, InputNumberChangeEvent, InputNumberValueChangeEvent } from 'primereact/inputnumber';
 import { RadioButton, RadioButtonChangeEvent } from 'primereact/radiobutton';
 import MunicipioService from '../../services/cruds/MunicipioService';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 
 interface LazyTableState {
     totalRecords: number;
@@ -548,40 +545,3 @@ const Passos = () => {
 };
 
 export default Passos;
-
-
-export const getServerSideProps = withAuthServerSideProps(async (ctx) => {
-    // Aqui não é necessário nenhum processamento adicional
-});
-
-// export const getServerSideProps = canSSRAuth(async (ctx) => {
-//     try {
-//         const apiClient = setupAPIClient(ctx);
-//         const response = await apiClient.get('/api/registro');
-
-//         const dados = {
-
-//         };
-//         return {
-
-//             props: {
-
-//                 dados: dados
-
-//             }
-//         };
-
-//     } catch (err) {
-//         console.log(err);
-
-//         return {
-//             redirect: {
-//                 destination: '/',
-//                 permanent: false
-//             }
-//         };
-//     }
-// });
-
-
-

@@ -10,9 +10,8 @@ import { InputText } from 'primereact/inputtext';
 import { Dialog } from 'primereact/dialog';
 import { Calendar } from 'primereact/calendar';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import AgendaService from '../../services/cruds/AgendaService';
+import { useTenantIdQuery } from '../../components/hooks/useClientGuards';
 
 type TreeTableExpandEventArg = Parameters<NonNullable<TreeTableProps['onExpand']>>[0];
 
@@ -339,12 +338,8 @@ function mergeRootFromList(tree: TreeNode[], ev: AgendaEventDTO): TreeNode[] {
   });
 }
 
-type PaginaProps = {
-  dados: string;
-};
-
-export default function AgendaArvorePage({ dados }: PaginaProps) {
-  const tenantid = dados;
+export default function AgendaArvorePage() {
+  const { data: tenantid = '' } = useTenantIdQuery();
   const [nodes, setNodes] = useState<TreeNode[]>([]);
   const [filtroCor, setFiltroCor] = useState<FiltroCorAgenda>('TODOS');
   const [rotinaFiltro, setRotinaFiltro] = useState<string | null>(null);
@@ -1186,24 +1181,3 @@ export default function AgendaArvorePage({ dados }: PaginaProps) {
     </div>
   );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/usuariotenant');
-
-    return {
-      props: {
-        dados: response.data.tenantid,
-      },
-    };
-  } catch (err) {
-    console.log(err);
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false,
-      },
-    };
-  }
-});

@@ -1,8 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { GetServerSidePropsContext } from 'next';
 import { classNames } from 'primereact/utils';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import { DataTable, DataTableFilterMeta, DataTableStateEvent } from 'primereact/datatable';
 import { PaginatorTemplate } from 'primereact/paginator';
 import ObrigacaoLegaisService from '../../services/cruds/ObrigacaoLegaisService';
@@ -1144,6 +1142,4 @@ const ObrigacoesLegaisPage = () => {
 
 export default ObrigacoesLegaisPage;
 
-export const getServerSideProps = withAuthServerSideProps(async (_ctx: GetServerSidePropsContext) => {
   // sem processamento adicional
-});

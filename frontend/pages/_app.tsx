@@ -9,11 +9,28 @@ import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import '../styles/layout/layout.scss';
 import { AuthProvider } from '../components/context/AuthContext';
+import { useRouteClientGuard } from '../components/hooks/useClientGuards';
 // import userPersistedState from '../components/utils/usePersistedState';
 
 type Props = AppProps & {
     Component: Page;
 };
+
+function AppContent({ Component, pageProps }: Props) {
+    useRouteClientGuard();
+
+    if (Component.getLayout) {
+        return <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;
+    }
+
+    return (
+        <LayoutProvider>
+            <Layout>
+                <Component {...pageProps} />
+            </Layout>
+        </LayoutProvider>
+    );
+}
 
 export default function App({ Component, pageProps }: Props) {
     const [queryClient] = React.useState(
@@ -63,26 +80,12 @@ export default function App({ Component, pageProps }: Props) {
     //   localStorage.setItem('layoutConfig', JSON.stringify(layoutConfig));
     // }, [layoutConfig]);
 
-    if (Component.getLayout) {
-        return (
-            <QueryClientProvider client={queryClient}>
-                <AuthProvider>
-                    <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;
-                </AuthProvider>
-            </QueryClientProvider>
-        )
-    } else {
-        return (
-            <QueryClientProvider client={queryClient}>
-                <AuthProvider>
-                    <LayoutProvider>
-                        <Layout>
-                            <Component {...pageProps} />
-                        </Layout>
-                    </LayoutProvider>
-                </AuthProvider>
-            </QueryClientProvider>
-        );
-    }
+    return (
+        <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+                <AppContent Component={Component} pageProps={pageProps} />
+            </AuthProvider>
+        </QueryClientProvider>
+    );
 }
 

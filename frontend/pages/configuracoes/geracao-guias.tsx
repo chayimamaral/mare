@@ -3,9 +3,6 @@ import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import setupAPIClient from '../../components/api/api';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
-import { GetServerSidePropsContext } from 'next';
 
 type Config = {
     gerar_das_por_procuracao: boolean;
@@ -14,7 +11,6 @@ type Config = {
 
 export default function GeracaoGuiasPage() {
     const toast = useRef<Toast>(null);
-    const api = setupAPIClient(undefined);
     const [form, setForm] = useState<Config>({
         gerar_das_por_procuracao: false,
         gerar_darf_dctfweb_por_procuracao: false,
@@ -69,4 +65,3 @@ export default function GeracaoGuiasPage() {
     );
 }
 
-export const getServerSideProps = withAuthServerSideProps(async (_ctx: GetServerSidePropsContext) => ({}));

@@ -1,29 +1,7 @@
-import setupAPIClient from '../../components/api/api';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import { EmpresasPage } from '../empresas';
+import { useTenantIdQuery } from '../../components/hooks/useClientGuards';
 
-export default function ClientePF({ dados }: { dados: string }) {
-  return <EmpresasPage dados={dados} tipoPessoa="PF" />;
+export default function ClientePF() {
+  const { data: tenantid = '' } = useTenantIdQuery();
+  return <EmpresasPage dados={tenantid} tipoPessoa="PF" />;
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/usuariotenant');
-
-    return {
-      props: {
-        dados: response.data.tenantid,
-      },
-    };
-  } catch (err) {
-    console.log(err);
-
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false,
-      },
-    };
-  }
-});

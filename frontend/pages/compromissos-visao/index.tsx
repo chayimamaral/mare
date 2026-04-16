@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
 import { DataTable } from 'primereact/datatable';
 import type { DataTableFilterMeta, DataTableProps } from 'primereact/datatable';
 import { Column } from 'primereact/column';
@@ -631,7 +630,3 @@ export default function CompromissosVisaoPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async () => {
-    return { props: {} };
-});

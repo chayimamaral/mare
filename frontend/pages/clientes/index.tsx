@@ -13,10 +13,8 @@ import { Toolbar } from 'primereact/toolbar';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
-
+import api from '../../components/api/apiClient';
 import { Dropdown } from 'primereact/dropdown';
 import { TabView, TabPanel } from 'primereact/tabview';
 import MunicipioService from '../../services/cruds/MunicipioService';
@@ -34,7 +32,6 @@ interface LazyTableState {
   sortField?: string;
   sortOrder?: number;
   filters: DataTableFilterMeta;
-  tenantid: string;
 }
 
 type ClientesDataTablePageEvent = Parameters<
@@ -70,10 +67,7 @@ type PaginatorCurrentPageReportOptions = {
   rows: number;
 };
 
-const Clientes = ({ dados }: { dados: string }) => {
-
-  const tenantid = dados
-
+const Clientes = () => {
   const tipoPessoaOptions = [
     { label: 'Pessoa jurídica (PJ)', value: 'PJ' },
     { label: 'Pessoa física (PF)', value: 'PF' },
@@ -122,7 +116,6 @@ const Clientes = ({ dados }: { dados: string }) => {
     },
     uf: '',
     cep: '',
-    tenantid: '',
     cnaes: [],
     iniciado: false,
     passos_concluidos: false,
@@ -215,7 +208,6 @@ const Clientes = ({ dados }: { dados: string }) => {
     filters: {
       nome: { value: '', matchMode: 'contains' }
     },
-    tenantid: tenantid
   });
 
   const lazyStateRef = useRef(lazyState);
@@ -234,7 +226,6 @@ const Clientes = ({ dados }: { dados: string }) => {
   } = useQuery<string | null>({
     queryKey: ['user-role'],
     queryFn: async () => {
-      const api = setupAPIClient(undefined);
       const r = await api.get('/api/usuariorole');
       const raw = r.data?.logado?.role;
       if (typeof raw !== 'string') {
@@ -356,7 +347,7 @@ const Clientes = ({ dados }: { dados: string }) => {
 
   const fetchEmpresasPayload = (payload: LazyTableState) => {
     setLoading(true);
-    const body = { ...payload, tenantid };
+    const body = { ...payload };
     empresaService
       .getEmpresas({ lazyEvent: JSON.stringify(body) })
       .then(({ data }) => {
@@ -370,7 +361,7 @@ const Clientes = ({ dados }: { dados: string }) => {
   };
 
   const loadLazyEmpresa = () => {
-    const next: LazyTableState = { ...lazyStateRef.current, tenantid };
+    const next: LazyTableState = { ...lazyStateRef.current };
     setLazyState(next);
     fetchEmpresasPayload(next);
   };
@@ -414,7 +405,6 @@ const Clientes = ({ dados }: { dados: string }) => {
     const prev = lazyStateRef.current;
     const next: LazyTableState = {
       ...prev,
-      tenantid,
       first: event.first,
       rows: event.rows,
       page: pageIndex,
@@ -446,7 +436,6 @@ const Clientes = ({ dados }: { dados: string }) => {
         const prev = lazyStateRef.current;
         const next: LazyTableState = {
           ...prev,
-          tenantid,
           first: firstIdx,
           rows: options.rows,
           page: pageNum,
@@ -466,7 +455,6 @@ const Clientes = ({ dados }: { dados: string }) => {
     const prev = lazyStateRef.current;
     const next: LazyTableState = {
       ...prev,
-      tenantid,
       sortField: event.sortField ?? prev.sortField,
       sortOrder: event.sortOrder ?? prev.sortOrder,
       filters: event.filters ?? prev.filters,
@@ -480,7 +468,6 @@ const Clientes = ({ dados }: { dados: string }) => {
     const prev = lazyStateRef.current;
     const next: LazyTableState = {
       ...prev,
-      tenantid,
       first: 0,
       page: 1,
       filters: event.filters ?? prev.filters,
@@ -528,7 +515,6 @@ const Clientes = ({ dados }: { dados: string }) => {
       const prev = lazyStateRef.current;
       const next: LazyTableState = {
         ...prev,
-        tenantid,
         first: 0,
         page: 1,
         filters: { nome: { value: value.trim(), matchMode: 'contains' } },
@@ -545,7 +531,6 @@ const Clientes = ({ dados }: { dados: string }) => {
       const prev = lazyStateRef.current;
       const next: LazyTableState = {
         ...prev,
-        tenantid,
         first: 0,
         page: 1,
         filters: { nome: { value: '', matchMode: 'contains' } },
@@ -673,7 +658,6 @@ const Clientes = ({ dados }: { dados: string }) => {
       const _empresa = {
         ...empresa,
         id: eid,
-        tenantid,
         tipo_pessoa: isClientePF ? 'PF' : 'PJ',
         municipio: { id: (empresa.municipio?.id ?? '').trim() },
         rotina: { id: (empresa.rotina?.id ?? '').trim() },
@@ -1824,29 +1808,3 @@ const Clientes = ({ dados }: { dados: string }) => {
 };
 
 export default Clientes;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/usuariotenant');
-
-    return {
-
-      props: {
-
-        dados: response.data.tenantid,
-
-      }
-    };
-
-  } catch (err) {
-    console.log(err);
-
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false
-      }
-    };
-  }
-});

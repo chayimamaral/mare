@@ -5,9 +5,6 @@ import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import setupAPIClient from '../../components/api/api';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
-import { GetServerSidePropsContext } from 'next';
 
 type CertConfig = {
     tipo_certificado: string;
@@ -27,7 +24,6 @@ const tipos = [
 export default function CertificadoDigitalPage() {
     const toast = useRef<Toast>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const api = setupAPIClient(undefined);
     const [certFile, setCertFile] = useState<File | null>(null);
     const [form, setForm] = useState<CertConfig>({
         tipo_certificado: '',
@@ -191,4 +187,3 @@ export default function CertificadoDigitalPage() {
     );
 }
 
-export const getServerSideProps = withAuthServerSideProps(async (_ctx: GetServerSidePropsContext) => ({}));

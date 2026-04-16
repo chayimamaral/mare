@@ -9,9 +9,9 @@ import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { Dropdown } from 'primereact/dropdown';
 import { Dialog } from 'primereact/dialog';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import IntegraTabelaConsumoService, { IntegraGasto, TabelaConsumoFaixa } from '../../services/cruds/IntegraTabelaConsumoService';
+import api from '../../components/api/apiClient';
+import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 
 type FormFaixa = {
     id: string;
@@ -32,9 +32,10 @@ const emptyForm: FormFaixa = {
 };
 
 export default function IntegraContadorTabelaConsumoPage() {
+    useRouteClientGuard();
+
     const toast = useRef<Toast>(null);
     const svc = useMemo(() => IntegraTabelaConsumoService(), []);
-    const api = setupAPIClient(undefined);
     const [filtroTipo, setFiltroTipo] = useState<string>('');
     const [filtroEmpresa, setFiltroEmpresa] = useState<string>('');
     const [dialogVisible, setDialogVisible] = useState(false);
@@ -247,24 +248,3 @@ export default function IntegraContadorTabelaConsumoPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    const apiClient = setupAPIClient(ctx);
-    try {
-        await apiClient.get('/api/registro');
-    } catch (err: unknown) {
-        const ax = err as { response?: { status?: number; data?: { error?: string } } };
-        const msg = ax?.response?.data?.error ?? '';
-        if (!(ax?.response?.status === 400 && msg.includes('no rows in result set'))) {
-            return { redirect: { destination: '/', permanent: false } };
-        }
-    }
-
-    const { data } = await apiClient.get('/api/usuariorole');
-    const role = data?.logado?.role;
-    if (role !== 'SUPER') {
-        return { redirect: { destination: '/', permanent: false } };
-    }
-
-    return { props: {} };
-});

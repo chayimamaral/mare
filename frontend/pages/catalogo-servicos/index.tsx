@@ -13,8 +13,6 @@ import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { Checkbox } from 'primereact/checkbox';
 import { Tag } from 'primereact/tag';
 import CatalogoServicoService, { CatalogoServico } from '../../services/cruds/CatalogoServicoService';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 
 type FormState = Omit<CatalogoServico, 'id'>;
 
@@ -104,7 +102,6 @@ export default function CatalogoServicosPage() {
     const { data: roleData, isFetching: isFetchingRole } = useQuery({
         queryKey: ['catalogo-servicos-user-role'],
         queryFn: async () => {
-            const api = setupAPIClient(undefined);
             const { data } = await api.get('/api/usuariorole');
             return data?.logado?.role ?? '';
         },
@@ -441,26 +438,3 @@ export default function CatalogoServicosPage() {
         </div>
     );
 }
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    try {
-        const apiClient = setupAPIClient(ctx);
-        await apiClient.get('/api/registro');
-
-        const { data } = await apiClient.get('/api/usuariorole');
-        const role = data?.logado?.role;
-        if (role !== 'SUPER') {
-            return { redirect: { destination: '/', permanent: false } };
-        }
-
-        return { props: {} };
-    } catch (err) {
-        console.log(err);
-        return {
-            redirect: {
-                destination: '/',
-                permanent: false,
-            },
-        };
-    }
-});

@@ -10,8 +10,6 @@ import { PrimeIcons } from 'primereact/api';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -25,8 +23,6 @@ import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
 import LeftToolbar from '../../components/toolbar/LeftToolbar';
 import RightToolbar from '../../components/toolbar/RightToolbar';
 import SaveCancelDialogFooter from '../../components/toolbar/SaveCancelDialogFooter';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
-import { GetServerSidePropsContext } from 'next';
 
 interface LazyTableState {
     totalRecords: number;
@@ -1011,42 +1007,3 @@ const Rotinas = () => {
 };
 
 export default Rotinas;
-
-
-export const getServerSideProps = withAuthServerSideProps(async (ctx: GetServerSidePropsContext) => {
-    // Aqui não é necessário nenhum processamento adicional
-});
-
-// export const getServerSideProps = canSSRAuth(async (ctx) => {
-//     try {
-//         const apiClient = setupAPIClient(ctx);
-//         const response = await apiClient.get('/api/registro');
-
-//         const dados = {
-
-//         };
-//         return {
-
-//             props: {
-
-//                 dados: dados
-
-//             }
-//         };
-
-//     } catch (err) {
-//         console.log(err);
-
-//         return {
-//             redirect: {
-//                 destination: '/',
-//                 permanent: false
-//             }
-//         };
-//     }
-// });
-
-
-
-
-

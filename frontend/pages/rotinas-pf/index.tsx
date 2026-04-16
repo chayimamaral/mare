@@ -11,12 +11,9 @@ import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
-import { GetServerSidePropsContext } from 'next';
 import RotinaPFService from '../../services/cruds/RotinaPFService';
 import PassoService from '../../services/cruds/PassoService';
 import { Vec } from '../../types/types';
-import setupAPIClient from '../../components/api/api';
 
 interface LazyTableState {
   totalRecords: number;
@@ -83,7 +80,6 @@ const RotinasPF = () => {
     queryKey: ['user-role'],
     queryFn: async () => {
       try {
-        const api = setupAPIClient(undefined);
         const r = await api.get('/api/usuariorole');
         return r.data?.logado?.role ?? null;
       } catch {
@@ -597,7 +593,3 @@ const RotinasPF = () => {
 };
 
 export default RotinasPF;
-
-export const getServerSideProps = withAuthServerSideProps(async (_ctx: GetServerSidePropsContext) => {
-  /* auth via withAuthServerSideProps */
-});

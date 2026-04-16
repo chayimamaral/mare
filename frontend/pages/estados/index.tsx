@@ -9,8 +9,6 @@ import { classNames } from 'primereact/utils';
 import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import EstadoService from '../../services/cruds/EstadoService';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -438,35 +436,3 @@ const Estados = () => {
 };
 
 export default Estados;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    try {
-        const apiClient = setupAPIClient(ctx);
-        const response = await apiClient.get('/api/registro');
-
-        const dados = {
-
-        };
-        return {
-
-            props: {
-
-                dados: dados
-
-            }
-        };
-
-    } catch (err) {
-        console.log(err);
-
-        return {
-            redirect: {
-                destination: '/',
-                permanent: false
-            }
-        };
-    }
-});
-
-
-

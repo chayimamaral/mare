@@ -11,8 +11,6 @@ import { useQuery } from '@tanstack/react-query';
 import GrupoPassoService from '../../services/cruds/GrupoPassosService';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -485,32 +483,3 @@ const GrupoPassos = () => {
 };
 
 export default GrupoPassos;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/registro');
-
-    const dados = {
-
-    };
-    return {
-
-      props: {
-
-        dados: dados
-
-      }
-    };
-
-  } catch (err) {
-    console.log(err);
-
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false
-      }
-    };
-  }
-});

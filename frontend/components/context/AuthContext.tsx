@@ -57,6 +57,9 @@ export function signOut() {
 
   try {
     clearAuthTokenCookies(null);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('vecontab_token');
+    }
     Router.push('/auth/login');
 
   } catch (err) {
@@ -69,9 +72,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isAuthenticated = !!user;
 
   useEffect(() => {
-    const token = getAuthTokenFromParsedCookies(parseCookies());
+    const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
+    const token =
+      cookieToken ||
+      (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
 
     if (token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       api.get('/api/me').then(response => {
 
         //const { id, nome, email, empresa, tenant } = response.data
@@ -79,8 +86,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser({ id, nome, email, tenant })
 
       })
-        .catch(() => {
-          signOut()
+        .catch((err) => {
+          const axiosErr = err as AxiosError;
+          if (axiosErr?.response?.status === 401) {
+            signOut();
+          }
         })
     }
   }, [])
@@ -99,9 +109,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setCookie(undefined, AUTH_TOKEN_COOKIE, token, {
         maxAge: 60 * 60 * 24 * 30, // Expirar em 1 mês
-        path: '/'
+        path: '/',
+        sameSite: 'lax',
       })
       clearLegacyAuthTokenCookieBrowser();
+      try {
+        window.localStorage.setItem('vecontab_token', token);
+      } catch {
+        // ignore
+      }
 
       setUser({
         id,
@@ -146,6 +162,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function logoutUser() {
     try {
       clearAuthTokenCookies(null);
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('vecontab_token');
+      }
       Router.push('/auth/login');
       setUser(undefined)
     } catch (err) {

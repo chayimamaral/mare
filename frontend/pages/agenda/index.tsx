@@ -13,22 +13,16 @@ import { Calendar as PRCalendar } from 'primereact/calendar';
 import AgendaService from '../../services/cruds/AgendaService';
 import styles from './agenda.module.css';
 //import AgendaDialog from './AgendaDialog';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-import setupAPIClient from '../../components/api/api';
 import { Calendar } from '@fullcalendar/core'
 import dynamic from 'next/dynamic';
+import { useTenantIdQuery } from '../../components/hooks/useClientGuards';
 
 const AgendaDialog = dynamic(() => import('./AgendaDialog'), {
   ssr: false, // Isso desativa a renderização no servidor para este componente
 });
 
-type CalendarioProps = {
-  dados: string;
-};
-
-const Calendario = ({ dados }: CalendarioProps) => {
-
-  const tenantid = dados
+const Calendario = () => {
+  const { data: tenantid = '' } = useTenantIdQuery();
 
 
   const calendarRef = useRef<any>(null);
@@ -205,30 +199,3 @@ const Calendario = ({ dados }: CalendarioProps) => {
 };
 
 export default Calendario;
-
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-  try {
-    const apiClient = setupAPIClient(ctx);
-    const response = await apiClient.get('/api/usuariotenant');
-
-    return {
-
-      props: {
-
-        dados: response.data.tenantid,
-
-      }
-    };
-
-  } catch (err) {
-    console.log(err);
-
-    return {
-      redirect: {
-        destination: '/',
-        permanent: false
-      }
-    };
-  }
-});

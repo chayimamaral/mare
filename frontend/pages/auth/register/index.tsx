@@ -12,7 +12,6 @@ import { classNames } from 'primereact/utils';
 import { Page } from '../../../types/types';
 
 import AuthContext  from "../../../components/context/AuthContext";
-import { canSSRGuest } from "../../../components/utils/canSSRGuest";
 import { Toast } from 'primereact/toast';
 import Link from 'next/link';
 
@@ -111,12 +110,3 @@ RegisterPage.getLayout = function getLayout(page) {
 };
 
 export default RegisterPage;
-
-export const getServerSideProps = canSSRGuest(async (ctx) => {
-
-    return {
-        props: {
-
-        }
-    }
-})

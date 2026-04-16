@@ -7,7 +7,6 @@ import { Dropdown } from 'primereact/dropdown';
 
 import { InputTextarea } from 'primereact/inputtextarea';
 import RegistroService from '../../services/cruds/RegistroService';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 
 interface Registro {
     tenantid: string,
@@ -26,11 +25,7 @@ interface Registro {
     observacoes: string
 }
 
-interface RegistroProps {
-    dados: Registro
-}
-
-function Registro({ dados }: RegistroProps) {
+function Registro() {
 
     const [dropdownItem, setDropdownItem] = useState(null);
     const toast = useRef<Toast>(null);
@@ -191,10 +186,4 @@ function Registro({ dados }: RegistroProps) {
 
 export default Registro;
 
-export const getServerSideProps = withAuthServerSideProps(async () => {
     // Aqui não é necessário nenhum processamento adicional
-});
-
-
-
-

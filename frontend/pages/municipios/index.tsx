@@ -10,9 +10,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import MunicipioService from '../../services/cruds/MunicipioService';
-import { canSSRAuth } from '../../components/utils/canSSRAuth';
-//import { setupAPIClient } from '../services/api';
-import setupAPIClient from '../../components/api/api';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
@@ -528,32 +525,3 @@ const Municipios = () => {
 };
 
 export default Municipios;
-
-export const getServerSideProps = canSSRAuth(async (ctx) => {
-    try {
-        const apiClient = setupAPIClient(ctx);
-        const response = await apiClient.get('/api/registro');
-
-        const dados = {
-
-        };
-        return {
-
-            props: {
-
-                dados: dados
-
-            }
-        };
-
-    } catch (err) {
-        console.log(err);
-
-        return {
-            redirect: {
-                destination: '/',
-                permanent: false
-            }
-        };
-    }
-});

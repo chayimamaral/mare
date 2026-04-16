@@ -13,7 +13,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Vec } from '../../types/types';
 
 import { Dropdown } from 'primereact/dropdown';
-import { withAuthServerSideProps } from '../../components/utils/crudUtils';
 import CnaeService from '../../services/cruds/CnaeService';
 import { FormEvent } from 'primereact/ts-helpers';
 
@@ -575,7 +574,4 @@ const Cnae = () => {
 export default Cnae;
 
 
-export const getServerSideProps = withAuthServerSideProps(async (ctx) => {
   // Aqui não é necessário nenhum processamento adicional
-});
-
