@@ -32,6 +32,17 @@ echo "--- Iniciando Deploy Global [Início: $START_DATE] ---"
 echo "Log detalhado em: $BACKEND_LOG e $FRONTEND_LOG"
 echo ""
 
+# --- Executa frontend ---
+echo "🎨 Processando Frontend (build estático para embed no backend)..."
+if (cd frontend && ./deploy-frontend.sh > "$FRONTEND_LOG" 2>&1); then
+    FRONTEND_STATUS="✅ Sucesso"
+else
+    FRONTEND_STATUS="❌ FALHOU"
+fi
+echo "Status: $FRONTEND_STATUS"
+
+echo ""
+
 # --- Executa backend ---
 echo "📦 Processando Backend..."
 # Rodamos o script e capturamos toda a saída (stdout + stderr)
@@ -42,17 +53,6 @@ else
 fi
 # Mostra o status imediato no terminal para você não ficar no escuro
 echo "Status: $BACKEND_STATUS"
-
-echo ""
-
-# --- Executa frontend ---
-echo "🎨 Processando Frontend..."
-if (cd frontend && ./deploy-frontend.sh > "$FRONTEND_LOG" 2>&1); then
-    FRONTEND_STATUS="✅ Sucesso"
-else
-    FRONTEND_STATUS="❌ FALHOU"
-fi
-echo "Status: $FRONTEND_STATUS"
 
 echo ""
 

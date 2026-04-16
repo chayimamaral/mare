@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/chayimamaral/vecontab/backend/frontend"
 	"github.com/chayimamaral/vecontab/backend/internal/config"
 	"github.com/chayimamaral/vecontab/backend/internal/db"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi"
@@ -30,9 +32,14 @@ func main() {
 	}
 	defer pool.Close()
 
+	staticRoot, err := fs.Sub(frontend.FS, "out")
+	if err != nil {
+		log.Fatalf("frontend static: %v", err)
+	}
+
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(cfg, pool),
+		Handler:           httpapi.NewRouter(cfg, pool, staticRoot),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

@@ -12,8 +12,12 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copia o restante do código fonte
+# Copia o código (inclui backend/frontend/out com stub para o go:embed).
 COPY . .
+
+# Export do Next (frontend_static) deve sobrescrever o stub — senão o COPY acima
+# deixa só o index.html mínimo e o app em produção não carrega.
+COPY ./frontend_static ./frontend/out
 
 # Compila o binário estático para Linux
 # -ldflags="-w -s" remove tabelas de símbolos e debug para reduzir o tamanho

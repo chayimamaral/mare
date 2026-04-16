@@ -8,6 +8,15 @@ REPO="vecontab-repo"
 IMAGE_NAME="backend"
 FULL_IMAGE_PATH="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest"
 
+echo "🚚 Trazendo o frontend para o contexto do backend..."
+rm -rf ./frontend_static
+if [ ! -d ../frontend/out ]; then
+  echo "❌ frontend/out não encontrado."
+  echo "Execute primeiro o build do frontend (ex.: cd ../frontend && ./deploy-frontend.sh)."
+  exit 1
+fi
+cp -r ../frontend/out ./frontend_static
+
 echo "🚀 Build e Deploy do Backend..."
 
 # 1. Build e Push

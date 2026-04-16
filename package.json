@@ -1,0 +1,8 @@
+{
+  "name": "vecontab",
+  "private": true,
+  "description": "MARE / Vecontab — use npm run deploy na raiz para build frontend + imagem backend + Cloud Run",
+  "scripts": {
+    "deploy": "bash ./deploy.sh"
+  }
+}

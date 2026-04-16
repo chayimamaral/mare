@@ -29,3 +29,7 @@ migrations/
 vec_prospect/
 
 config_privada.env
+
+# Artefato de deploy: cópia de ../frontend/out gerada em backend/deploy-backend.sh
+backend/frontend_static/
+backend/frontend/out/

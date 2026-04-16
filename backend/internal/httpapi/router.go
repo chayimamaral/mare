@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"io/fs"
 	"net/http"
 
 	"github.com/chayimamaral/vecontab/backend/internal/auth"
@@ -15,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
+func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -114,9 +115,20 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	registerRoutes(r, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
 		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		})
+	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.NotFound(w, r)
+			return
+		}
+		ServeSPA(staticFS).ServeHTTP(w, r)
 	})
 
 	return r
