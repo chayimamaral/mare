@@ -17,7 +17,7 @@ func NewSalarioMinimoRepository(pool *pgxpool.Pool) *SalarioMinimoRepository {
 }
 
 func (r *SalarioMinimoRepository) List(ctx context.Context) ([]domain.SalarioMinimoNacional, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 		SELECT id::text, ano, valor::float8
 		FROM public.salario_minimo_nacional
 		ORDER BY ano DESC
@@ -43,7 +43,7 @@ func (r *SalarioMinimoRepository) List(ctx context.Context) ([]domain.SalarioMin
 
 func (r *SalarioMinimoRepository) Create(ctx context.Context, ano int, valor float64) (domain.SalarioMinimoNacional, error) {
 	var rec domain.SalarioMinimoNacional
-	if err := r.pool.QueryRow(ctx, `
+	if err := dbQueryRow(ctx, r.pool, `
 		INSERT INTO public.salario_minimo_nacional (ano, valor)
 		VALUES ($1, $2)
 		RETURNING id::text, ano, valor::float8
@@ -55,7 +55,7 @@ func (r *SalarioMinimoRepository) Create(ctx context.Context, ano int, valor flo
 
 func (r *SalarioMinimoRepository) Update(ctx context.Context, id string, ano int, valor float64) (domain.SalarioMinimoNacional, error) {
 	var rec domain.SalarioMinimoNacional
-	if err := r.pool.QueryRow(ctx, `
+	if err := dbQueryRow(ctx, r.pool, `
 		UPDATE public.salario_minimo_nacional
 		SET ano = $1, valor = $2, atualizado_em = now()
 		WHERE id = $3::uuid
@@ -67,7 +67,7 @@ func (r *SalarioMinimoRepository) Update(ctx context.Context, id string, ano int
 }
 
 func (r *SalarioMinimoRepository) Delete(ctx context.Context, id string) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM public.salario_minimo_nacional WHERE id = $1::uuid`, id)
+	tag, err := dbExec(ctx, r.pool, `DELETE FROM public.salario_minimo_nacional WHERE id = $1::uuid`, id)
 	if err != nil {
 		return fmt.Errorf("delete salario minimo nacional: %w", err)
 	}

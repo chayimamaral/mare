@@ -20,6 +20,7 @@ export const RegisterPage: Page = () => {
     const [email, setEmail] = useState('');
     const [nome, setNome] = useState('');
     const [checked, setChecked] = useState(false);
+    const [empresaNome, setEmpresaNome] = useState('');
     const { layoutConfig } = useContext(LayoutContext);
     const { signUp } = useContext(AuthContext);
     const toast = useRef<Toast>(null);
@@ -30,7 +31,7 @@ export const RegisterPage: Page = () => {
 
     async function handleRegister() {
 
-        if (!nome || !email || !password) {
+        if (!nome || !email || !password || !empresaNome) {
             setIsInvalid(true);
             toast?.current?.show({ severity: 'error', summary: 'Erro', detail: 'Preencha todos os campos!', life: 3000 });
             return;
@@ -40,7 +41,8 @@ export const RegisterPage: Page = () => {
         await signUp({
             nome,
             email,
-            password
+            password,
+            empresa_nome: empresaNome.trim(),
         })
 
         toast?.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Conta criada com sucesso!', life: 3000 });
@@ -75,6 +77,19 @@ export const RegisterPage: Page = () => {
                                 Email
                             </label>
                             <InputText id="email1" value={email} onChange={(e) => setEmail(e.target.value)} type="text" placeholder="Email" className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} style={{ padding: '1rem' }} />
+
+                            <label htmlFor="empresaNome1" className="block text-900 text-xl font-medium mb-2">
+                                Empresa/Escritório
+                            </label>
+                            <InputText
+                                id="empresaNome1"
+                                value={empresaNome}
+                                onChange={(e) => setEmpresaNome(e.target.value)}
+                                type="text"
+                                placeholder="ex: Vec Contabilidade"
+                                className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`}
+                                style={{ padding: '1rem' }}
+                            />
 
                             <label htmlFor="password1" className="block text-900 font-medium text-xl mb-2">
                                 Senha

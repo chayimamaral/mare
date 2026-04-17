@@ -17,7 +17,7 @@ func NewSerproServicoEnquadramentoRepository(pool *pgxpool.Pool) *SerproServicoE
 }
 
 func (r *SerproServicoEnquadramentoRepository) ListServicosIDs(ctx context.Context, enquadramentoID, regimeTributarioID string) ([]string, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 		SELECT serpro_servico_id::text
 		FROM public.serpro_servico_enquadramento
 		WHERE enquadramento_id = $1::uuid
@@ -44,7 +44,7 @@ func (r *SerproServicoEnquadramentoRepository) ListServicosIDs(ctx context.Conte
 }
 
 func (r *SerproServicoEnquadramentoRepository) SaveServicosIDs(ctx context.Context, enquadramentoID, regimeTributarioID string, servicosIDs []string) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
 		return fmt.Errorf("begin salvar matriz de conformidade fiscal: %w", err)
 	}

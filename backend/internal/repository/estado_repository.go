@@ -60,7 +60,7 @@ func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([
 	)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, listQuery, args...)
+	rows, err := dbQuery(ctx, r.pool, listQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list estados: %w", err)
 	}
@@ -77,7 +77,7 @@ func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.estado WHERE %s", strings.Join(whereParts, " AND "))
 	var totalRecords int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&totalRecords); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&totalRecords); err != nil {
 		return nil, 0, fmt.Errorf("count estados: %w", err)
 	}
 
@@ -87,7 +87,7 @@ func (r *EstadoRepository) List(ctx context.Context, params EstadoListParams) ([
 func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]domain.Estado, int64, error) {
 	const insertQuery = `INSERT INTO public.estado (nome, sigla) VALUES ($1, $2) RETURNING id, nome, sigla, ativo`
 
-	rows, err := r.pool.Query(ctx, insertQuery, nome, sigla)
+	rows, err := dbQuery(ctx, r.pool, insertQuery, nome, sigla)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create estado: %w", err)
 	}
@@ -113,7 +113,7 @@ func (r *EstadoRepository) Create(ctx context.Context, nome, sigla string) ([]do
 func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) ([]domain.Estado, int64, error) {
 	const query = `UPDATE public.estado SET nome = $1, sigla = $2 WHERE id = $3 RETURNING id, nome, sigla, ativo`
 
-	rows, err := r.pool.Query(ctx, query, nome, sigla, id)
+	rows, err := dbQuery(ctx, r.pool, query, nome, sigla, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update estado: %w", err)
 	}
@@ -139,7 +139,7 @@ func (r *EstadoRepository) Update(ctx context.Context, id, nome, sigla string) (
 func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]domain.Estado, int64, error) {
 	const query = `UPDATE public.estado SET ativo = false WHERE id = $1 RETURNING id, nome, sigla, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete estado: %w", err)
 	}
@@ -165,7 +165,7 @@ func (r *EstadoRepository) Delete(ctx context.Context, id string) ([]domain.Esta
 func (r *EstadoRepository) ListLite(ctx context.Context) ([]domain.Estado, error) {
 	const query = `SELECT id, nome FROM public.estado WHERE ativo = true ORDER BY nome ASC`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, query)
 	if err != nil {
 		return nil, fmt.Errorf("list lite estados: %w", err)
 	}
@@ -187,7 +187,7 @@ func (r *EstadoRepository) countActive(ctx context.Context) (int64, error) {
 	const query = `SELECT count(*) FROM public.estado WHERE ativo = true`
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, query).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query).Scan(&total); err != nil {
 		return 0, fmt.Errorf("count active estados: %w", err)
 	}
 

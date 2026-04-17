@@ -59,7 +59,7 @@ func validRotinaPFCategoria(s string) (string, error) {
 
 func (r *RotinaPFRepository) tenantOwnsRotinaPF(ctx context.Context, rotinaPFID, tenantID string) (bool, error) {
 	var ok bool
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT EXISTS (SELECT 1 FROM public.rotina_pf WHERE id = $1::uuid AND tenant_id = $2)`,
 		rotinaPFID, tenantID,
 	).Scan(&ok)
@@ -74,7 +74,7 @@ func (r *RotinaPFRepository) ListLite(ctx context.Context, tenantID string) ([]d
 		WHERE tenant_id = $1 AND ativo = true
 		ORDER BY nome ASC, id ASC`
 
-	rows, err := r.pool.Query(ctx, q, tenantID)
+	rows, err := dbQuery(ctx, r.pool, q, tenantID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotina_pf lite: %w", err)
 	}
@@ -143,7 +143,7 @@ func (r *RotinaPFRepository) List(ctx context.Context, params RotinaPFListParams
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotina_pf: %w", err)
 	}
@@ -162,7 +162,7 @@ func (r *RotinaPFRepository) List(ctx context.Context, params RotinaPFListParams
 
 	countQ := fmt.Sprintf(`SELECT count(*) FROM public.rotina_pf r WHERE %s`, strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQ, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQ, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotina_pf: %w", err)
 	}
 	return out, total, nil
@@ -184,7 +184,7 @@ func (r *RotinaPFRepository) Create(ctx context.Context, in RotinaPFUpsertInput)
 		RETURNING id::text`
 
 	var id string
-	if err := r.pool.QueryRow(ctx, q, in.TenantID, nome, cat, in.Descricao, in.Ativo).Scan(&id); err != nil {
+	if err := dbQueryRow(ctx, r.pool, q, in.TenantID, nome, cat, in.Descricao, in.Ativo).Scan(&id); err != nil {
 		return nil, 0, fmt.Errorf("create rotina_pf: %w", err)
 	}
 	const one = `
@@ -194,7 +194,7 @@ func (r *RotinaPFRepository) Create(ctx context.Context, in RotinaPFUpsertInput)
 		FROM public.rotina_pf r WHERE r.id = $1::uuid AND r.tenant_id = $2`
 	var row domain.RotinaPFListRow
 	var ts time.Time
-	if err := r.pool.QueryRow(ctx, one, id, in.TenantID).Scan(
+	if err := dbQueryRow(ctx, r.pool, one, id, in.TenantID).Scan(
 		&row.ID, &row.Nome, &row.Categoria, &row.Descricao, &row.Ativo, &ts, &row.ItemCount,
 	); err != nil {
 		return nil, 0, fmt.Errorf("load rotina_pf criada: %w", err)
@@ -213,7 +213,7 @@ func (r *RotinaPFRepository) Update(ctx context.Context, in RotinaPFUpsertInput)
 		return nil, 0, fmt.Errorf("id e nome obrigatorios")
 	}
 
-	cmd, err := r.pool.Exec(ctx, `
+	cmd, err := dbExec(ctx, r.pool, `
 		UPDATE public.rotina_pf
 		SET nome = $1, categoria = $2, descricao = NULLIF(TRIM($3), ''), ativo = $4, atualizado_em = now()
 		WHERE id = $5::uuid AND tenant_id = $6`,
@@ -233,7 +233,7 @@ func (r *RotinaPFRepository) Update(ctx context.Context, in RotinaPFUpsertInput)
 		FROM public.rotina_pf r WHERE r.id = $1::uuid AND r.tenant_id = $2`
 	var row domain.RotinaPFListRow
 	var ts time.Time
-	if err := r.pool.QueryRow(ctx, one, in.ID, in.TenantID).Scan(
+	if err := dbQueryRow(ctx, r.pool, one, in.ID, in.TenantID).Scan(
 		&row.ID, &row.Nome, &row.Categoria, &row.Descricao, &row.Ativo, &ts, &row.ItemCount,
 	); err != nil {
 		return nil, 0, fmt.Errorf("load rotina_pf: %w", err)
@@ -244,7 +244,7 @@ func (r *RotinaPFRepository) Update(ctx context.Context, in RotinaPFUpsertInput)
 
 // SoftDelete marca ativo = false.
 func (r *RotinaPFRepository) SoftDelete(ctx context.Context, id, tenantID string) ([]domain.RotinaPFListRow, int64, error) {
-	cmd, err := r.pool.Exec(ctx, `
+	cmd, err := dbExec(ctx, r.pool, `
 		UPDATE public.rotina_pf SET ativo = false, atualizado_em = now()
 		WHERE id = $1::uuid AND tenant_id = $2`,
 		id, tenantID,
@@ -282,7 +282,7 @@ func (r *RotinaPFRepository) ListItens(ctx context.Context, rotinaPFID, tenantID
 		WHERE i.rotina_pf_id = $1::uuid
 		ORDER BY i.ordem ASC, i.id ASC`
 
-	rows, err := r.pool.Query(ctx, q, rotinaPFID)
+	rows, err := dbQuery(ctx, r.pool, q, rotinaPFID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotina_pf_itens: %w", err)
 	}
@@ -320,7 +320,7 @@ func (r *RotinaPFRepository) CreateItem(ctx context.Context, in RotinaPFItemUpse
 		INSERT INTO public.rotina_pf_itens (rotina_pf_id, ordem, passo_id, descricao, tempo_estimado)
 		VALUES ($1::uuid, $2, $3, NULLIF(TRIM($4), ''), $5)`
 
-	if _, err := r.pool.Exec(ctx, q, in.RotinaPFID, in.Ordem, passoArg, in.Descricao, in.TempoEstimado); err != nil {
+	if _, err := dbExec(ctx, r.pool, q, in.RotinaPFID, in.Ordem, passoArg, in.Descricao, in.TempoEstimado); err != nil {
 		return nil, 0, fmt.Errorf("create rotina_pf_item: %w", err)
 	}
 	return r.ListItens(ctx, in.RotinaPFID, in.TenantID)
@@ -343,7 +343,7 @@ func (r *RotinaPFRepository) UpdateItem(ctx context.Context, in RotinaPFItemUpse
 		passoArg = pid
 	}
 
-	cmd, err := r.pool.Exec(ctx, `
+	cmd, err := dbExec(ctx, r.pool, `
 		UPDATE public.rotina_pf_itens i
 		SET ordem = $1, passo_id = $2, descricao = NULLIF(TRIM($3), ''), tempo_estimado = $4
 		FROM public.rotina_pf r
@@ -368,7 +368,7 @@ func (r *RotinaPFRepository) DeleteItem(ctx context.Context, itemID, rotinaPFID,
 		return nil, 0, fmt.Errorf("rotina_pf nao encontrada neste tenant")
 	}
 
-	cmd, err := r.pool.Exec(ctx, `
+	cmd, err := dbExec(ctx, r.pool, `
 		DELETE FROM public.rotina_pf_itens i
 		USING public.rotina_pf r
 		WHERE i.id = $1::uuid AND i.rotina_pf_id = r.id AND r.tenant_id = $2 AND i.rotina_pf_id = $3::uuid`,
@@ -393,7 +393,7 @@ func (r *RotinaPFRepository) NextOrdem(ctx context.Context, rotinaPFID, tenantID
 		return 0, fmt.Errorf("rotina_pf nao encontrada neste tenant")
 	}
 	var max sql.NullInt64
-	err = r.pool.QueryRow(ctx, `
+	err = dbQueryRow(ctx, r.pool, `
 		SELECT MAX(i.ordem) FROM public.rotina_pf_itens i
 		WHERE i.rotina_pf_id = $1::uuid`, rotinaPFID).Scan(&max)
 	if err != nil {

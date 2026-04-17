@@ -140,7 +140,7 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 		orderBy = fmt.Sprintf("%s %s", field, direction)
 	}
 
-	query := fmt.Sprintf(`
+	sqlQuery := fmt.Sprintf(`
 		SELECT
 			c.id, c.tipo_empresa_id, te.descricao, c.descricao, c.periodicidade, c.abrangencia,
 			COALESCE(c.dia_base::int, 20),
@@ -165,7 +165,7 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list obrigacoes: %w", err)
 	}
@@ -241,7 +241,7 @@ func (r *ObrigacaoRepository) List(ctx context.Context, params ObrigacaoListPara
 		LEFT JOIN public.municipio             mb ON mb.id = cb.municipio_id
 		WHERE %s`, where)
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count obrigacoes: %w", err)
 	}
 
@@ -253,7 +253,7 @@ func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertI
 		SELECT count(*) FROM public.tipoempresa_obrigacao
 		WHERE tipo_empresa_id = $1 AND descricao = $2 AND abrangencia = $3 AND ativo = true`
 	var count int64
-	if err := r.pool.QueryRow(ctx, existsQuery, input.TipoEmpresaID, input.Descricao, input.Abrangencia).Scan(&count); err != nil {
+	if err := dbQueryRow(ctx, r.pool, existsQuery, input.TipoEmpresaID, input.Descricao, input.Abrangencia).Scan(&count); err != nil {
 		return nil, 0, fmt.Errorf("check obrigacao exists: %w", err)
 	}
 	if count > 0 {
@@ -266,7 +266,7 @@ func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertI
 	}
 	tipoCl := normalizeTipoClassificacao(input.TipoClassificacao)
 
-	const query = `
+	const sqlQuery = `
 		INSERT INTO public.tipoempresa_obrigacao (
 			tipo_empresa_id, descricao, periodicidade, abrangencia, valor, observacao,
 			dia_base, mes_base, tipo_classificacao
@@ -274,7 +274,7 @@ func (r *ObrigacaoRepository) Create(ctx context.Context, input ObrigacaoUpsertI
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id, tipo_empresa_id, tipo_classificacao, descricao, periodicidade, abrangencia, valor, observacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query,
+	rows, err := dbQuery(ctx, r.pool, sqlQuery,
 		input.TipoEmpresaID, input.Descricao, input.Periodicidade, input.Abrangencia,
 		obrigacaoNullFloat(input.Valor), obrigacaoNullStr(input.Observacao),
 		dia, mesBaseArg(input.MesBase), tipoCl,
@@ -307,14 +307,14 @@ func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertI
 	}
 	tipoCl := normalizeTipoClassificacao(input.TipoClassificacao)
 
-	const query = `
+	const sqlQuery = `
 		UPDATE public.tipoempresa_obrigacao
 		SET tipo_empresa_id = $1, descricao = $2, periodicidade = $3, abrangencia = $4,
 		    valor = $5, observacao = $6, dia_base = $7, mes_base = $8, tipo_classificacao = $9, atualizado_em = NOW()
 		WHERE id = $10
 		RETURNING id, tipo_empresa_id, tipo_classificacao, descricao, periodicidade, abrangencia, valor, observacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query,
+	rows, err := dbQuery(ctx, r.pool, sqlQuery,
 		input.TipoEmpresaID, input.Descricao, input.Periodicidade, input.Abrangencia,
 		obrigacaoNullFloat(input.Valor), obrigacaoNullStr(input.Observacao),
 		dia, mesBaseArg(input.MesBase), tipoCl,
@@ -341,13 +341,13 @@ func (r *ObrigacaoRepository) Update(ctx context.Context, input ObrigacaoUpsertI
 }
 
 func (r *ObrigacaoRepository) Delete(ctx context.Context, id string) ([]domain.ObrigacaoMutationItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		UPDATE public.tipoempresa_obrigacao
 		SET ativo = false, atualizado_em = NOW()
 		WHERE id = $1
 		RETURNING id, tipo_empresa_id, tipo_classificacao, descricao, periodicidade, abrangencia, valor, observacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete obrigacao: %w", err)
 	}
@@ -404,7 +404,7 @@ func (r *ObrigacaoRepository) upsertRelations(ctx context.Context, id string, in
 	switch input.Abrangencia {
 	case "ESTADUAL":
 		if strings.TrimSpace(input.EstadoID) != "" {
-			_, _ = r.pool.Exec(ctx,
+			_, _ = dbExec(ctx, r.pool,
 				`INSERT INTO public.tipoempresa_obriga_estado (obrigacao_id, estado_id)
 				 VALUES ($1, $2)
 				 ON CONFLICT (obrigacao_id) DO UPDATE SET estado_id = EXCLUDED.estado_id`,
@@ -412,7 +412,7 @@ func (r *ObrigacaoRepository) upsertRelations(ctx context.Context, id string, in
 		}
 	case "MUNICIPAL":
 		if strings.TrimSpace(input.MunicipioID) != "" {
-			_, _ = r.pool.Exec(ctx,
+			_, _ = dbExec(ctx, r.pool,
 				`INSERT INTO public.tipoempresa_obriga_municipio (obrigacao_id, municipio_id)
 				 VALUES ($1, $2)
 				 ON CONFLICT (obrigacao_id) DO UPDATE SET municipio_id = EXCLUDED.municipio_id`,
@@ -420,7 +420,7 @@ func (r *ObrigacaoRepository) upsertRelations(ctx context.Context, id string, in
 		}
 	case "BAIRRO":
 		if strings.TrimSpace(input.MunicipioID) != "" && strings.TrimSpace(input.Bairro) != "" {
-			_, _ = r.pool.Exec(ctx,
+			_, _ = dbExec(ctx, r.pool,
 				`INSERT INTO public.tipoempresa_obriga_bairro (tipoempresa_obrigacao_id, municipio_id, bairro)
 				 VALUES ($1, $2, $3)
 				 ON CONFLICT (tipoempresa_obrigacao_id) DO UPDATE SET municipio_id = EXCLUDED.municipio_id, bairro = EXCLUDED.bairro`,
@@ -430,13 +430,13 @@ func (r *ObrigacaoRepository) upsertRelations(ctx context.Context, id string, in
 }
 
 func (r *ObrigacaoRepository) clearRelations(ctx context.Context, id string) {
-	_, _ = r.pool.Exec(ctx, `DELETE FROM public.tipoempresa_obriga_estado WHERE obrigacao_id = $1`, id)
-	_, _ = r.pool.Exec(ctx, `DELETE FROM public.tipoempresa_obriga_municipio WHERE obrigacao_id = $1`, id)
-	_, _ = r.pool.Exec(ctx, `DELETE FROM public.tipoempresa_obriga_bairro WHERE tipoempresa_obrigacao_id = $1`, id)
+	_, _ = dbExec(ctx, r.pool, `DELETE FROM public.tipoempresa_obriga_estado WHERE obrigacao_id = $1`, id)
+	_, _ = dbExec(ctx, r.pool, `DELETE FROM public.tipoempresa_obriga_municipio WHERE obrigacao_id = $1`, id)
+	_, _ = dbExec(ctx, r.pool, `DELETE FROM public.tipoempresa_obriga_bairro WHERE tipoempresa_obrigacao_id = $1`, id)
 }
 
 func (r *ObrigacaoRepository) upsertServicosCatalogo(ctx context.Context, obrigacaoID string, catalogoServicoIDs []string) {
-	_, _ = r.pool.Exec(ctx, `DELETE FROM public.tipoempresa_obrigacao_servico WHERE tipoempresa_obrigacao_id = $1`, obrigacaoID)
+	_, _ = dbExec(ctx, r.pool, `DELETE FROM public.tipoempresa_obrigacao_servico WHERE tipoempresa_obrigacao_id = $1`, obrigacaoID)
 	if len(catalogoServicoIDs) == 0 {
 		return
 	}
@@ -445,7 +445,7 @@ func (r *ObrigacaoRepository) upsertServicosCatalogo(ctx context.Context, obriga
 		if id == "" {
 			continue
 		}
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 			INSERT INTO public.tipoempresa_obrigacao_servico (
 				tipoempresa_obrigacao_id, catalogo_servico_id, operacao, obrigatorio, ordem, ativo
 			)
@@ -473,7 +473,7 @@ func (r *ObrigacaoRepository) attachServicosSerpro(ctx context.Context, items []
 		return
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 		SELECT
 			v.tipoempresa_obrigacao_id::text,
 			v.catalogo_servico_id::text,

@@ -73,7 +73,7 @@ func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, listQuery, args...)
+	rows, err := dbQuery(ctx, r.pool, listQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cidades: %w", err)
 	}
@@ -100,7 +100,7 @@ func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.municipio c JOIN public.estado e ON c.ufid = e.id WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count cidades: %w", err)
 	}
 
@@ -110,7 +110,7 @@ func (r *CidadeRepository) List(ctx context.Context, params CidadeListParams) ([
 func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string) ([]domain.Cidade, int64, error) {
 	const existsQuery = `SELECT count(*) FROM public.municipio WHERE nome = $1`
 	var count int64
-	if err := r.pool.QueryRow(ctx, existsQuery, nome).Scan(&count); err != nil {
+	if err := dbQueryRow(ctx, r.pool, existsQuery, nome).Scan(&count); err != nil {
 		return nil, 0, fmt.Errorf("check cidade exists: %w", err)
 	}
 
@@ -123,7 +123,7 @@ func (r *CidadeRepository) Create(ctx context.Context, nome, codigo, ufID string
 		VALUES ($1, $2, $3)
 		RETURNING id, nome, codigo, ufid, ativo`
 
-	rows, err := r.pool.Query(ctx, query, nome, codigo, ufID)
+	rows, err := dbQuery(ctx, r.pool, query, nome, codigo, ufID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create cidade: %w", err)
 	}
@@ -148,7 +148,7 @@ func (r *CidadeRepository) Update(ctx context.Context, id, nome, codigo, ufID st
 		WHERE id = $4
 		RETURNING id, nome, codigo, ufid, ativo`
 
-	rows, err := r.pool.Query(ctx, query, nome, codigo, ufID, id)
+	rows, err := dbQuery(ctx, r.pool, query, nome, codigo, ufID, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update cidade: %w", err)
 	}
@@ -173,7 +173,7 @@ func (r *CidadeRepository) Delete(ctx context.Context, id string) ([]domain.Cida
 		WHERE id = $1
 		RETURNING id, nome, codigo, ufid, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete cidade: %w", err)
 	}
@@ -199,7 +199,7 @@ func (r *CidadeRepository) ListLite(ctx context.Context) ([]domain.CidadeLiteIte
 		WHERE c.ativo = true
 		ORDER BY c.nome ASC`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, query)
 	if err != nil {
 		return nil, fmt.Errorf("list cidadeslite: %w", err)
 	}

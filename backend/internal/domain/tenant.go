@@ -6,6 +6,7 @@ type TenantEntity struct {
 	Contato string `json:"contato"`
 	Active  bool   `json:"active"`
 	Plano   string `json:"plano"`
+	SchemaName string `json:"schema_name,omitempty"`
 }
 
 // TenantListRow agrega dados de public.tenant_dados para listagem (SUPER).

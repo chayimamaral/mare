@@ -73,7 +73,7 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 		LIMIT $%d OFFSET $%d`, selectExtra, join, strings.Join(whereParts, " AND "), argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list feriados: %w", err)
 	}
@@ -120,7 +120,7 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.feriados f WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count feriados: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (r *FeriadoRepository) List(ctx context.Context, params FeriadoListParams) 
 func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput) ([]domain.FeriadoMutationItem, int64, error) {
 	const existsQuery = `SELECT count(*) FROM public.feriados WHERE descricao = $1`
 	var count int64
-	if err := r.pool.QueryRow(ctx, existsQuery, input.Descricao).Scan(&count); err != nil {
+	if err := dbQueryRow(ctx, r.pool, existsQuery, input.Descricao).Scan(&count); err != nil {
 		return nil, 0, fmt.Errorf("check feriado exists: %w", err)
 	}
 	if count > 0 {
@@ -142,7 +142,7 @@ func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput
 		VALUES ($1, $2, $3)
 		RETURNING id, descricao, data, feriado, ativo`
 
-	rows, err := r.pool.Query(ctx, query, input.Descricao, input.Data, input.HolidayCode)
+	rows, err := dbQuery(ctx, r.pool, query, input.Descricao, input.Data, input.HolidayCode)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create feriado: %w", err)
 	}
@@ -161,10 +161,10 @@ func (r *FeriadoRepository) Create(ctx context.Context, input FeriadoUpsertInput
 	}
 
 	if input.HolidayCode == "MUNICIPAL" && strings.TrimSpace(input.MunicipioID) != "" {
-		_, _ = r.pool.Exec(ctx, `INSERT INTO public.feriado_municipal (feriado_id, municipio_id) VALUES ($1, $2)`, createdID, input.MunicipioID)
+		_, _ = dbExec(ctx, r.pool, `INSERT INTO public.feriado_municipal (feriado_id, municipio_id) VALUES ($1, $2)`, createdID, input.MunicipioID)
 	}
 	if input.HolidayCode == "ESTADUAL" && strings.TrimSpace(input.EstadoID) != "" {
-		_, _ = r.pool.Exec(ctx, `INSERT INTO public.feriado_estadual (feriado_id, uf_id) VALUES ($1, $2)`, createdID, input.EstadoID)
+		_, _ = dbExec(ctx, r.pool, `INSERT INTO public.feriado_estadual (feriado_id, uf_id) VALUES ($1, $2)`, createdID, input.EstadoID)
 	}
 
 	return feriados, int64(len(feriados)), nil
@@ -177,7 +177,7 @@ func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput
 		WHERE id = $3
 		RETURNING id, descricao, data, feriado, ativo`
 
-	rows, err := r.pool.Query(ctx, query, input.Descricao, input.Data, input.ID)
+	rows, err := dbQuery(ctx, r.pool, query, input.Descricao, input.Data, input.ID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update feriado: %w", err)
 	}
@@ -194,10 +194,10 @@ func (r *FeriadoRepository) Update(ctx context.Context, input FeriadoUpsertInput
 	}
 
 	if strings.TrimSpace(input.MunicipioID) != "" {
-		_, _ = r.pool.Exec(ctx, `UPDATE public.feriado_municipal SET municipio_id = $1 WHERE feriado_id = $2`, input.MunicipioID, input.ID)
+		_, _ = dbExec(ctx, r.pool, `UPDATE public.feriado_municipal SET municipio_id = $1 WHERE feriado_id = $2`, input.MunicipioID, input.ID)
 	}
 	if strings.TrimSpace(input.EstadoID) != "" {
-		_, _ = r.pool.Exec(ctx, `UPDATE public.feriado_estadual SET uf_id = $1 WHERE feriado_id = $2`, input.EstadoID, input.ID)
+		_, _ = dbExec(ctx, r.pool, `UPDATE public.feriado_estadual SET uf_id = $1 WHERE feriado_id = $2`, input.EstadoID, input.ID)
 	}
 
 	return feriados, int64(len(feriados)), nil
@@ -210,7 +210,7 @@ func (r *FeriadoRepository) Delete(ctx context.Context, id string) ([]domain.Fer
 		WHERE id = $1
 		RETURNING id, descricao, data, feriado, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete feriado: %w", err)
 	}

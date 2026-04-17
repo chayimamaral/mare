@@ -99,7 +99,7 @@ ORDER BY %s
 LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotinas: %w", err)
 	}
@@ -130,7 +130,7 @@ LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, arg
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.rotinas r WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -204,7 +204,7 @@ LEFT JOIN public.linkpassos l ON l.passo_id = p.id
 ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, outerOrderBy)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotinas with itens: %w", err)
 	}
@@ -259,7 +259,7 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.rotinas r WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -270,7 +270,7 @@ func (r *RotinaRepository) ListLite(ctx context.Context, municipioID string) ([]
 	if strings.TrimSpace(municipioID) == "" {
 		return r.listRotinasLiteAll(ctx)
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 SELECT r.id, r.descricao, COALESCE(r.tipo_empresa_id::text, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, ''),
 	COALESCE(m.id::text, ''), COALESCE(m.nome, '')
 FROM public.rotinas r
@@ -305,7 +305,7 @@ ORDER BY r.descricao ASC`, municipioID)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -313,7 +313,7 @@ ORDER BY r.descricao ASC`, municipioID)
 }
 
 func (r *RotinaRepository) listRotinasLiteAll(ctx context.Context) ([]domain.RotinaLiteItem, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 SELECT r.id, r.descricao, COALESCE(r.tipo_empresa_id::text, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, ''),
 	COALESCE(m.id::text, ''), COALESCE(m.nome, '')
 FROM public.rotinas r
@@ -348,7 +348,7 @@ ORDER BY m.nome ASC, r.descricao ASC`)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -356,7 +356,7 @@ ORDER BY m.nome ASC, r.descricao ASC`)
 }
 
 func (r *RotinaRepository) Create(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 INSERT INTO public.rotinas (descricao, municipio_id, tipo_empresa_id)
 VALUES ($1, $2, $3)
 RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativo`, input.Descricao, input.MunicipioID, rotinaNullableTipoEmpresaID(input.TipoEmpresaID))
@@ -378,7 +378,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 	}
 
 	if strings.TrimSpace(input.Link) != "" && createdID != "" {
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 INSERT INTO public.linkrotinas (link, rotinas_id)
 VALUES ($1, $2)
 ON CONFLICT (rotinas_id)
@@ -386,7 +386,7 @@ DO UPDATE SET link = $1`, input.Link, createdID)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -394,7 +394,7 @@ DO UPDATE SET link = $1`, input.Link, createdID)
 }
 
 func (r *RotinaRepository) Update(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 UPDATE public.rotinas
 SET descricao = $1, municipio_id = $2, tipo_empresa_id = $3
 WHERE id = $4
@@ -415,7 +415,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 	}
 
 	if strings.TrimSpace(input.Link) != "" {
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 INSERT INTO public.linkrotinas (rotinas_id, link)
 VALUES ($1, $2)
 ON CONFLICT (rotinas_id)
@@ -423,7 +423,7 @@ DO UPDATE SET link = $2`, input.ID, input.Link)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -431,7 +431,7 @@ DO UPDATE SET link = $2`, input.ID, input.Link)
 }
 
 func (r *RotinaRepository) Delete(ctx context.Context, id string) ([]domain.RotinaMutationItem, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 UPDATE public.rotinas
 SET ativo = false
 WHERE id = $1
@@ -452,7 +452,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -460,7 +460,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 }
 
 func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]map[string]any, int64, error) {
-	rows, err := r.pool.Query(ctx, `SELECT * FROM public.rotinaitenlink WHERE rotinas_id = $1`, rotinaID)
+	rows, err := dbQuery(ctx, r.pool, `SELECT * FROM public.rotinaitenlink WHERE rotinas_id = $1`, rotinaID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotinaitens: %w", err)
 	}
@@ -481,7 +481,7 @@ func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -489,7 +489,7 @@ func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]
 }
 
 func (r *RotinaRepository) RotinaItemCreate(ctx context.Context, rotinaID, descricao string, tempoestimado int, link string) ([]map[string]any, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 INSERT INTO public.rotinaitenlink (rotinas_id, descricao, tempoestimado)
 VALUES ($1, $2, $3)
 RETURNING *`, rotinaID, descricao, tempoestimado)
@@ -518,7 +518,7 @@ RETURNING *`, rotinaID, descricao, tempoestimado)
 	}
 
 	if strings.TrimSpace(link) != "" && createdID != nil {
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 INSERT INTO public.rotinaitenlink (link, rotinasitens_id)
 VALUES ($1, $2)
 ON CONFLICT (rotinasitens_id)
@@ -526,7 +526,7 @@ DO UPDATE SET link = $1`, link, createdID)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -534,7 +534,7 @@ DO UPDATE SET link = $1`, link, createdID)
 }
 
 func (r *RotinaRepository) RotinaItemUpdate(ctx context.Context, id, descricao string, tempoestimado int, link string) ([]map[string]any, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 UPDATE public.rotinaitenlink
 SET descricao = $1, tempoestimado = $2
 WHERE id = $3
@@ -559,7 +559,7 @@ RETURNING *`, descricao, tempoestimado, id)
 	}
 
 	if strings.TrimSpace(link) != "" {
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 INSERT INTO public.rotinaitenlink (rotinasitens_id, link)
 VALUES ($1, $2)
 ON CONFLICT (rotinasitens_id)
@@ -567,7 +567,7 @@ DO UPDATE SET link = $2`, id, link)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -575,7 +575,7 @@ DO UPDATE SET link = $2`, id, link)
 }
 
 func (r *RotinaRepository) RotinaItemDelete(ctx context.Context, id string) ([]map[string]any, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 UPDATE public.rotinaitenlink
 SET ativo = false
 WHERE id = $1
@@ -600,7 +600,7 @@ RETURNING *`, id)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -608,7 +608,7 @@ RETURNING *`, id)
 }
 
 func (r *RotinaRepository) ListSelectedItens(ctx context.Context, rotinaID string) ([]domain.RotinaSelectedPassoItem, int64, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 SELECT p.id, p.descricao, p.tempoestimado, p.tipopasso, ri.rotina_id, ri.ordem, COALESCE(l.link, '')
 FROM public.rotinas r
 LEFT JOIN public.rotinaitens ri ON ri.rotina_id = r.id
@@ -641,7 +641,7 @@ ORDER BY ri.ordem ASC`, rotinaID)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -653,7 +653,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 		return nil
 	}
 
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := dbBeginTx(ctx, r.pool, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin tx save selected itens: %w", err)
 	}
@@ -699,7 +699,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 
 func (r *RotinaRepository) RemoveSelectedItens(ctx context.Context, selections []RotinaPassoSelection) error {
 	for _, item := range selections {
-		if _, err := r.pool.Exec(ctx,
+		if _, err := dbExec(ctx, r.pool,
 			`DELETE FROM public.rotinaitens WHERE rotina_id = $1 AND passo_id = $2`,
 			item.RotinaID,
 			item.ID,

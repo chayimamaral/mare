@@ -6,6 +6,7 @@ type Tenant struct {
 	Nome    string `json:"nome"`
 	Contato string `json:"contato,omitempty"`
 	Plano   string `json:"plano,omitempty"`
+	SchemaName string `json:"schema_name,omitempty"`
 }
 
 type User struct {

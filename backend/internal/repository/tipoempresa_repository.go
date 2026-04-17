@@ -61,7 +61,7 @@ func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaList
 		argIndex+1,
 	)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list tipoempresa: %w", err)
 	}
@@ -79,7 +79,7 @@ func (r *TipoEmpresaRepository) List(ctx context.Context, params TipoEmpresaList
 	var total int64
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.tipoempresa WHERE %s", whereClause)
 	countArgs := args[:len(args)-2]
-	if err := r.pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, countArgs...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tipoempresa: %w", err)
 	}
 
@@ -92,7 +92,7 @@ func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, an
 		VALUES ($1, $2)
 		RETURNING id, descricao, anual, ativo`
 
-	rows, err := r.pool.Query(ctx, query, descricao, anual)
+	rows, err := dbQuery(ctx, r.pool, query, descricao, anual)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create tipoempresa: %w", err)
 	}
@@ -108,7 +108,7 @@ func (r *TipoEmpresaRepository) Create(ctx context.Context, descricao string, an
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tipoempresa: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string
 		WHERE id = $3
 		RETURNING id, descricao, anual, ativo`
 
-	rows, err := r.pool.Query(ctx, query, descricao, anual, id)
+	rows, err := dbQuery(ctx, r.pool, query, descricao, anual, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update tipoempresa: %w", err)
 	}
@@ -138,7 +138,7 @@ func (r *TipoEmpresaRepository) Update(ctx context.Context, id, descricao string
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tipoempresa: %w", err)
 	}
 
@@ -152,7 +152,7 @@ func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]domain
 		WHERE id = $1
 		RETURNING id, descricao, anual, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete tipoempresa: %w", err)
 	}
@@ -168,7 +168,7 @@ func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]domain
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.tipoempresa WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tipoempresa: %w", err)
 	}
 
@@ -178,7 +178,7 @@ func (r *TipoEmpresaRepository) Delete(ctx context.Context, id string) ([]domain
 func (r *TipoEmpresaRepository) Lite(ctx context.Context) ([]domain.TipoEmpresaLiteItem, error) {
 	const query = `SELECT id, descricao FROM public.tipoempresa WHERE ativo = true ORDER BY descricao ASC`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, query)
 	if err != nil {
 		return nil, fmt.Errorf("lite tipoempresa: %w", err)
 	}

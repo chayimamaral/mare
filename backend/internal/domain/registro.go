@@ -23,5 +23,6 @@ type RegistroUserRecord struct {
 	Email    string `json:"email"`
 	Role     string `json:"role"`
 	TenantID string `json:"tenantid"`
+	TenantSchema string `json:"tenant_schema,omitempty"`
 	Active   bool   `json:"active"`
 }

@@ -48,6 +48,7 @@ interface SignUpProps {
   nome: string;
   email: string;
   password: string;
+  empresa_nome: string;
 
 }
 
@@ -143,12 +144,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  async function signUp({ nome, email, password, }: SignUpProps) {
+  async function signUp({ nome, email, password, empresa_nome }: SignUpProps) {
     try {
       const response = await api.post("/api/registro", {
         nome,
         email,
         password,
+        empresa_nome,
       })
 
       Router.push('/auth/login')

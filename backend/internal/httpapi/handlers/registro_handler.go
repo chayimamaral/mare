@@ -15,9 +15,10 @@ type RegistroHandler struct {
 }
 
 type registroCreatePayload struct {
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Nome        string `json:"nome"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	EmpresaNome string `json:"empresa_nome"`
 }
 
 type registroUpdatePayload struct {
@@ -64,15 +65,16 @@ func (h *RegistroHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(payload.Nome) == "" || strings.TrimSpace(payload.Email) == "" || strings.TrimSpace(payload.Password) == "" {
+	if strings.TrimSpace(payload.Nome) == "" || strings.TrimSpace(payload.Email) == "" || strings.TrimSpace(payload.Password) == "" || strings.TrimSpace(payload.EmpresaNome) == "" {
 		render.WriteError(w, http.StatusBadRequest, "Informacoes faltando!")
 		return
 	}
 
 	response, err := h.service.Create(r.Context(), service.RegistroCreateInput{
-		Nome:     payload.Nome,
-		Email:    payload.Email,
-		Password: payload.Password,
+		Nome:        payload.Nome,
+		Email:       payload.Email,
+		Password:    payload.Password,
+		EmpresaNome: payload.EmpresaNome,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())

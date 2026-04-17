@@ -33,7 +33,7 @@ func (r *CertificadoClienteRepository) ClienteIDEmpresaTenant(ctx context.Contex
 		INNER JOIN public.cliente c ON c.id = e.cliente_id AND c.ativo = true
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`
 	var cid string
-	if err := r.pool.QueryRow(ctx, q, eid, tid).Scan(&cid); err != nil {
+	if err := dbQueryRow(ctx, r.pool, q, eid, tid).Scan(&cid); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", fmt.Errorf("empresa nao encontrada neste tenant")
 		}
@@ -81,7 +81,7 @@ func (r *CertificadoClienteRepository) UpsertAtivo(
 			validade_ate = EXCLUDED.validade_ate,
 			ativo = true,
 			atualizado_em = NOW()`
-	_, err := r.pool.Exec(ctx, q, cid, pfxCifrado, senhaCifrada, cnpj, titularNome, emitidoPor, validadeDe, validadeAte)
+	_, err := dbExec(ctx, r.pool, q, cid, pfxCifrado, senhaCifrada, cnpj, titularNome, emitidoPor, validadeDe, validadeAte)
 	if err != nil {
 		// Compatibilidade com schema legado (sem cliente_id / emitido_por / validade_de).
 		var pgErr *pgconn.PgError
@@ -107,14 +107,14 @@ func (r *CertificadoClienteRepository) upsertAtivoLegado(
 		ORDER BY e.id
 		LIMIT 1`
 	var empresaID, tenantID string
-	if err := r.pool.QueryRow(ctx, empresaQ, clienteID).Scan(&empresaID, &tenantID); err != nil {
+	if err := dbQueryRow(ctx, r.pool, empresaQ, clienteID).Scan(&empresaID, &tenantID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("empresa nao encontrada para o cliente informado")
 		}
 		return fmt.Errorf("resolver empresa para certificado legado: %w", err)
 	}
 
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := dbBeginTx(ctx, r.pool, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("abrir transacao certificado_cliente legado: %w", err)
 	}
@@ -163,7 +163,7 @@ func (r *CertificadoClienteRepository) GetResumoAtivo(ctx context.Context, clien
 			validade_de, validade_ate
 		FROM public.certificado_cliente
 		WHERE cliente_id = $1 AND ativo = true`
-	row := r.pool.QueryRow(ctx, q, cid)
+	row := dbQueryRow(ctx, r.pool, q, cid)
 	var out CertificadoClienteResumoRow
 	if err := row.Scan(&out.CNPJ, &out.TitularNome, &out.EmitidoPor, &out.ValidadeDe, &out.ValidadeAte); err != nil {
 		var pgErr *pgconn.PgError
@@ -194,7 +194,7 @@ func (r *CertificadoClienteRepository) getResumoAtivoLegado(ctx context.Context,
 		LIMIT 1`
 
 	var out CertificadoClienteResumoRow
-	if err := r.pool.QueryRow(ctx, q, clienteID).Scan(
+	if err := dbQueryRow(ctx, r.pool, q, clienteID).Scan(
 		&out.CNPJ,
 		&out.TitularNome,
 		&out.EmitidoPor,

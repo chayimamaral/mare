@@ -61,7 +61,7 @@ func (r *RegimeTributarioRepository) List(ctx context.Context, params RegimeTrib
 		LIMIT $%d OFFSET $%d`, whereClause, orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, listQuery, args...)
+	rows, err := dbQuery(ctx, r.pool, listQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list regime_tributario: %w", err)
 	}
@@ -87,7 +87,7 @@ func (r *RegimeTributarioRepository) List(ctx context.Context, params RegimeTrib
 
 	countQuery := fmt.Sprintf(`SELECT count(*) FROM public.regime_tributario r WHERE %s`, whereClause)
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count regime_tributario: %w", err)
 	}
 
@@ -100,7 +100,7 @@ func (r *RegimeTributarioRepository) Create(ctx context.Context, nome string, co
 		VALUES ($1, $2, $3::public.tipo_apuracao_regime, $4, $5::jsonb)
 		RETURNING id, nome, codigo_crt, tipo_apuracao::text, ativo, configuracao_json`
 
-	rows, err := r.pool.Query(ctx, query, nome, codigoCRT, tipoApuracao, ativo, configuracaoJSON)
+	rows, err := dbQuery(ctx, r.pool, query, nome, codigoCRT, tipoApuracao, ativo, configuracaoJSON)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create regime_tributario: %w", err)
 	}
@@ -116,7 +116,7 @@ func (r *RegimeTributarioRepository) Update(ctx context.Context, id, nome string
 		WHERE id = $6
 		RETURNING id, nome, codigo_crt, tipo_apuracao::text, ativo, configuracao_json`
 
-	rows, err := r.pool.Query(ctx, query, nome, codigoCRT, tipoApuracao, ativo, configuracaoJSON, id)
+	rows, err := dbQuery(ctx, r.pool, query, nome, codigoCRT, tipoApuracao, ativo, configuracaoJSON, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update regime_tributario: %w", err)
 	}
@@ -132,7 +132,7 @@ func (r *RegimeTributarioRepository) Delete(ctx context.Context, id string) ([]d
 		WHERE id = $1
 		RETURNING id, nome, codigo_crt, tipo_apuracao::text, ativo, configuracao_json`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete regime_tributario: %w", err)
 	}

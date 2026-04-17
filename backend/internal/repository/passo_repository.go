@@ -82,7 +82,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]d
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list passos: %w", err)
 	}
@@ -109,7 +109,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]d
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.passos p WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -122,7 +122,7 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
 
-	rows, err := r.pool.Query(ctx, query, descricao, tempo, tipoPasso, municipioID)
+	rows, err := dbQuery(ctx, r.pool, query, descricao, tempo, tipoPasso, municipioID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("create passo: %w", err)
 	}
@@ -142,11 +142,11 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 	}
 
 	if strings.TrimSpace(link) != "" && createdID != "" {
-		_, _ = r.pool.Exec(ctx, `INSERT INTO public.linkpassos (link, passo_id) VALUES ($1, $2)`, link, createdID)
+		_, _ = dbExec(ctx, r.pool, `INSERT INTO public.linkpassos (link, passo_id) VALUES ($1, $2)`, link, createdID)
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -160,7 +160,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 		WHERE id = $5
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
 
-	rows, err := r.pool.Query(ctx, query, descricao, tempo, tipoPasso, municipioID, id)
+	rows, err := dbQuery(ctx, r.pool, query, descricao, tempo, tipoPasso, municipioID, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update passo: %w", err)
 	}
@@ -178,7 +178,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 	}
 
 	if strings.TrimSpace(link) != "" {
-		_, _ = r.pool.Exec(ctx, `
+		_, _ = dbExec(ctx, r.pool, `
 			INSERT INTO public.linkpassos (passo_id, link)
 			VALUES ($1, $2)
 			ON CONFLICT (passo_id)
@@ -186,7 +186,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -200,7 +200,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.Passo
 		WHERE id = $1
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete passo: %w", err)
 	}
@@ -218,7 +218,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.Passo
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -232,7 +232,7 @@ func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]domain.Pass
 		LEFT JOIN public.linkpassos l ON l.passo_id = p.id
 		WHERE p.id = $1`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get passo by id: %w", err)
 	}
@@ -249,7 +249,7 @@ func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]domain.Pass
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -283,7 +283,7 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 			)
 		ORDER BY p.id, p.descricao ASC`
 
-	rows, err := r.pool.Query(ctx, query, params.MunicipioID, params.RotinaID)
+	rows, err := dbQuery(ctx, r.pool, query, params.MunicipioID, params.RotinaID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list passos por cidade: %w", err)
 	}
@@ -301,7 +301,7 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
