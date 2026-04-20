@@ -34,6 +34,7 @@ export default function CaixaPostal() {
     const isSuper = userRole === 'SUPER';
 
     const [dialogEnviar, setDialogEnviar] = useState(false);
+    const [modoResposta, setModoResposta] = useState(false);
     const [titulo, setTitulo] = useState('');
     const [conteudo, setConteudo] = useState('');
     const [tenantSelecionado, setTenantSelecionado] = useState<TenantOpcao | null>(null);
@@ -76,9 +77,23 @@ export default function CaixaPostal() {
     );
 
     const abrirEnviar = () => {
+        setModoResposta(false);
         setTitulo('');
         setConteudo('');
         setTenantSelecionado(null);
+        setDialogEnviar(true);
+    };
+
+    const abrirResponder = (msg: CaixaPostalMensagem) => {
+        setModoResposta(true);
+        setTitulo(`Re: ${msg.titulo}`);
+        setConteudo('');
+        if (isSuper && msg.remetente_tenantid) {
+            const tenantEncontrado = tenants.find((t) => t.id === msg.remetente_tenantid) ?? null;
+            setTenantSelecionado(tenantEncontrado);
+        } else {
+            setTenantSelecionado(null);
+        }
         setDialogEnviar(true);
     };
 
@@ -171,7 +186,21 @@ export default function CaixaPostal() {
                         <Tag value="Nova" severity="danger" className="text-xs" />
                     )}
                 </div>
-                <small className="text-color-secondary">{formatarData(msg.criado_em)}</small>
+                <div className="flex align-items-center gap-2">
+                    {msg.tipo === 'INBOX' && (
+                        <Button
+                            icon="pi pi-reply"
+                            rounded
+                            text
+                            severity="warning"
+                            tooltip="Responder"
+                            tooltipOptions={{ position: 'top' }}
+                            size="small"
+                            onClick={() => abrirResponder(msg)}
+                        />
+                    )}
+                    <small className="text-color-secondary">{formatarData(msg.criado_em)}</small>
+                </div>
             </div>
             <div className="text-sm mb-1">
                 <span className="text-color-secondary">
@@ -187,7 +216,7 @@ export default function CaixaPostal() {
     const footerDialog = (
         <div className="flex justify-content-end gap-2">
             <Button label="Cancelar" icon="pi pi-times" severity="secondary" outlined onClick={() => setDialogEnviar(false)} />
-            <Button label="Enviar" icon="pi pi-send" loading={enviando} onClick={enviar} />
+            <Button label={modoResposta ? 'Responder' : 'Enviar'} icon={modoResposta ? 'pi pi-reply' : 'pi pi-send'} loading={enviando} onClick={enviar} />
         </div>
     );
 
@@ -288,7 +317,13 @@ export default function CaixaPostal() {
             <Dialog
                 visible={dialogEnviar}
                 onHide={() => setDialogEnviar(false)}
-                header={isSuper ? 'Enviar Aviso/Mensagem' : 'Enviar mensagem para VEC Sistemas'}
+                header={
+                    modoResposta
+                        ? 'Responder Mensagem'
+                        : isSuper
+                            ? 'Enviar Aviso/Mensagem'
+                            : 'Enviar mensagem para VEC Sistemas'
+                }
                 style={{ width: '42rem' }}
                 footer={footerDialog}
                 draggable={false}
@@ -308,6 +343,7 @@ export default function CaixaPostal() {
                                 optionLabel="nome"
                                 placeholder="Todos os tenants (global)"
                                 className="w-full"
+                                disabled={modoResposta && !!tenantSelecionado}
                             />
                         </div>
                     )}

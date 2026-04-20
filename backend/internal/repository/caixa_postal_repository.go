@@ -29,9 +29,12 @@ func (r *CaixaPostalRepository) Insert(ctx context.Context, schemaName string, m
 
 func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]domain.CaixaPostalMensagem, error) {
 	q := fmt.Sprintf(`
-		SELECT id, remetente_id, remetente_nome, tipo, is_global, titulo, conteudo, lida, lida_por, lida_em, criado_em
-		FROM %s.caixa_postal_mensagens
-		ORDER BY criado_em DESC
+		SELECT cpm.id, cpm.remetente_id, u.tenantid AS remetente_tenantid,
+		       cpm.remetente_nome, cpm.tipo, cpm.is_global, cpm.titulo, cpm.conteudo,
+		       cpm.lida, cpm.lida_por, cpm.lida_em, cpm.criado_em
+		FROM %s.caixa_postal_mensagens cpm
+		LEFT JOIN public.usuario u ON u.id = cpm.remetente_id
+		ORDER BY cpm.criado_em DESC
 	`, schemaName)
 
 	rows, err := r.pool.Query(ctx, q)
@@ -44,7 +47,7 @@ func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]
 	for rows.Next() {
 		var m domain.CaixaPostalMensagem
 		err := rows.Scan(
-			&m.ID, &m.RemetenteID, &m.RemetenteNome, &m.Tipo, &m.IsGlobal,
+			&m.ID, &m.RemetenteID, &m.RemetenteTenantID, &m.RemetenteNome, &m.Tipo, &m.IsGlobal,
 			&m.Titulo, &m.Conteudo, &m.Lida, &m.LidaPor, &m.LidaEm, &m.CriadoEm,
 		)
 		if err != nil {

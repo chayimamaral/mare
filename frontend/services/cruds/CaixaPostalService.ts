@@ -3,6 +3,7 @@ import setupAPIClient from '../../components/api/api';
 export interface CaixaPostalMensagem {
     id: string;
     remetente_id?: string;
+    remetente_tenantid?: string;
     remetente_nome: string;
     tipo: 'INBOX' | 'OUTBOX';
     is_global: boolean;
