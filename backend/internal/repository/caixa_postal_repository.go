@@ -113,7 +113,7 @@ func (r *CaixaPostalRepository) GetSuperSchema(ctx context.Context) (string, err
 	q := `
 		SELECT tsc.schema_name
 		FROM public.usuario u
-		JOIN public.tenant_schema_catalog tsc ON u.tenant_id = tsc.tenant_id
+		JOIN public.tenant_schema_catalog tsc ON u.tenantid = tsc.tenant_id
 		WHERE UPPER(TRIM(COALESCE(u.role::text, ''))) = 'SUPER' AND TRIM(tsc.schema_name) <> ''
 		LIMIT 1
 	`
