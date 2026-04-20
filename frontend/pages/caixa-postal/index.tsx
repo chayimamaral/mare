@@ -46,15 +46,16 @@ export default function CaixaPostal() {
         queryFn: () => svc.listar(),
     });
 
-    const { data: tenants = [] } = useQuery<TenantOpcao[]>({
+    const { data: tenantsData } = useQuery<TenantOpcao[]>({
         queryKey: ['tenants-opcoes-caixa-postal'],
         enabled: isSuper,
         queryFn: async () => {
             const api = setupAPIClient(undefined);
             const { data } = await api.get<{ id: string; nome: string }[]>('/api/tenants');
-            return data ?? [];
+            return Array.isArray(data) ? data : [];
         },
     });
+    const tenants: TenantOpcao[] = Array.isArray(tenantsData) ? tenantsData : [];
 
     const inbox = mensagens.filter((m) => m.tipo === 'INBOX');
     const outbox = mensagens.filter((m) => m.tipo === 'OUTBOX');
