@@ -137,8 +137,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
 
+      // Define o usuário imediatamente com os dados do login para o topbar não ficar em branco
+      setUser({ id, nome, email });
+
       try {
-        const me = await api.get('/api/me');
+        // Enriquece com dados completos (tenant) passando o token explicitamente
+        const me = await api.get('/api/me', { headers: { Authorization: `Bearer ${token}` } });
         const meData = me.data?.usuarios?.[0]?.resultado ?? me.data;
         const tenant = meData?.tenant ?? undefined;
         setUser({
@@ -148,11 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           tenant,
         });
       } catch {
-        setUser({
-          id,
-          nome,
-          email,
-        });
+        // já definido acima com dados do login
       }
 
 
@@ -196,12 +196,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function logoutUser() {
     try {
       queryClient.clear();
+      setUser(undefined);
+      api.defaults.headers.common['Authorization'] = '';
       clearAuthTokenCookies(null);
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('vecontab_token');
       }
       Router.push('/auth/login');
-      setUser(undefined)
     } catch (err) {
       //console.log("Erro ao Sair", err)
       const message = err instanceof Error ? err.message : 'Erro ao sair';
