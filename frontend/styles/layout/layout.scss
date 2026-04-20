@@ -124,6 +124,33 @@
 }
 
 /* ---- Caixa Postal ---- */
+.caixa-postal-tabview .p-tabview-nav {
+  border: none !important;
+  border-bottom: none !important;
+}
+
+.caixa-postal-tabview .p-tabview-nav li .p-tabview-nav-link {
+  border: none !important;
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  text-decoration: none !important;
+  white-space: nowrap;
+}
+
+.caixa-postal-tabview .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+  border: none !important;
+  border-bottom: none !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 6px;
+}
+
+.caixa-postal-tabview .p-tabview-panels {
+  box-sizing: border-box;
+  min-height: min(50vh, 30rem);
+  overflow-y: visible;
+  overflow-x: hidden;
+}
+
 .caixa-postal-badge {
   position: absolute;
   top: 4px;

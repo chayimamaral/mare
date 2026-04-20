@@ -219,8 +219,35 @@ export default function CaixaPostal() {
                         />
                     </div>
 
-                    <TabView>
+                    <TabView className="w-full caixa-postal-tabview"
+                        pt={{
+                            root: { style: { maxWidth: '100%' } },
+                            navContainer: {
+                                className: 'w-full',
+                                style: { boxSizing: 'border-box', paddingLeft: 0, borderBottom: 'none' },
+                            },
+                            navContent: {
+                                style: { flex: '1 1 auto', minWidth: 0, overflowX: 'auto', overflowY: 'hidden' },
+                            },
+                            inkbar: { style: { display: 'none' } },
+                            nav: {
+                                style: {
+                                    display: 'flex',
+                                    flexWrap: 'nowrap',
+                                    width: '100%',
+                                    justifyContent: 'flex-start',
+                                    alignItems: 'flex-end',
+                                    columnGap: '1.5rem',
+                                    listStyle: 'none',
+                                    margin: 0,
+                                    paddingLeft: 0,
+                                    paddingRight: 0,
+                                },
+                            },
+                        }}
+                    >
                         <TabPanel
+                            headerStyle={{ whiteSpace: 'nowrap' }}
                             header={
                                 <span>
                                     Recebidas
@@ -240,7 +267,7 @@ export default function CaixaPostal() {
                                 <div>{inbox.map(renderMensagem)}</div>
                             )}
                         </TabPanel>
-                        <TabPanel header="Enviadas">
+                        <TabPanel header="Enviadas" headerStyle={{ whiteSpace: 'nowrap' }}>
                             {isLoading ? (
                                 <p>Carregando...</p>
                             ) : outbox.length === 0 ? (
