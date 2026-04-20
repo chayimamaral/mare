@@ -7,6 +7,7 @@ import { AppTopbarRef } from '../types/types';
 import { LayoutContext } from './context/layoutcontext';
 import AuthContext from '../components/context/AuthContext';
 import { Tooltip } from 'primereact/tooltip';
+import { useCaixaPostal } from '../components/context/CaixaPostalContext';
 
 const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
     const { layoutState, onMenuToggle, showProfileSidebar } = useContext(LayoutContext);
@@ -14,6 +15,7 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
     const topbarmenuRef = useRef(null);
     const topbarmenubuttonRef = useRef(null);
     const { logoutUser, user } = useContext(AuthContext);
+    const { naoLidas } = useCaixaPostal();
     const loggedUserName = user?.nome?.trim() || 'Profile';
     const empresaLabel =
         user?.tenant?.nome?.trim() ||
@@ -57,6 +59,16 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
                     <button type="button" className="btn-dashboard p-link layout-topbar-button" data-pr-tooltip='Dashboard'>
                         <i className="pi pi-home"></i>
                         <span>Dashboard</span>
+                    </button>
+                </Link>
+                <Link href="/caixa-postal">
+                    <Tooltip target=".btn-caixa-postal" position="bottom" />
+                    <button type="button" className="btn-caixa-postal p-link layout-topbar-button" data-pr-tooltip="Caixa Postal">
+                        <i className="pi pi-envelope"></i>
+                        {naoLidas > 0 && (
+                            <span className="caixa-postal-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>
+                        )}
+                        <span>Mensagens</span>
                     </button>
                 </Link>
                 {empresaLabel && (

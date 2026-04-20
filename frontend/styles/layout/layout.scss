@@ -122,3 +122,50 @@
 .p-treetable .p-treetable-tbody > tr.empresa-processo-concluido-row > td * {
   color: #111827 !important;
 }
+
+/* ---- Caixa Postal ---- */
+.caixa-postal-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #e74c3c;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  line-height: 1;
+  z-index: 10;
+}
+
+.btn-caixa-postal {
+  position: relative;
+}
+
+.caixa-postal-mensagem-lida {
+  opacity: 0.6;
+}
+
+.caixa-postal-mensagem-card {
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--surface-card);
+  transition: opacity 0.2s;
+
+  &.lida {
+    border-left-color: #9ca3af;
+    opacity: 0.7;
+  }
+
+  &.outbox {
+    border-left-color: #10b981;
+  }
+}

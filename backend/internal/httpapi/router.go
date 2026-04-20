@@ -105,6 +105,11 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraContadorHandler := handlers.NewIntegraContadorHandler(integraContadorService)
 	integraServicoProcHandler := handlers.NewIntegraContadorServicoProcuracaoHandler(integraServicoProcService)
 	integraTabelaConsumoHandler := handlers.NewIntegraTabelaConsumoHandler(integraTabelaConsumoService)
+
+	caixaPostalRepo := repository.NewCaixaPostalRepository(pool)
+	caixaPostalService := service.NewCaixaPostalService(caixaPostalRepo)
+	caixaPostalHandler := handlers.NewCaixaPostalHandler(caixaPostalService)
+
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
 	requireAdminOnly := apiMiddleware.RequireAnyRole("ADMIN")
@@ -117,7 +122,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -167,6 +172,7 @@ func registerRoutes(
 	integraContadorHandler *handlers.IntegraContadorHandler,
 	integraServicoProcHandler *handlers.IntegraContadorServicoProcuracaoHandler,
 	integraTabelaConsumoHandler *handlers.IntegraTabelaConsumoHandler,
+	caixaPostalHandler *handlers.CaixaPostalHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOnly func(http.Handler) http.Handler,
@@ -347,4 +353,9 @@ func registerRoutes(
 	r.With(requireAuth, requireSuper).Post("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.CreateFaixa)
 	r.With(requireAuth, requireSuper).Put("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.UpdateFaixa)
 	r.With(requireAuth, requireSuper).Put("/integra-contador/tabela-consumo/delete", integraTabelaConsumoHandler.DeleteFaixa)
+
+	r.With(requireAuth).Get("/caixa-postal/count-nao-lidas", caixaPostalHandler.UnreadCount)
+	r.With(requireAuth).Get("/caixa-postal", caixaPostalHandler.List)
+	r.With(requireAuth).Post("/caixa-postal/enviar", caixaPostalHandler.Send)
+	r.With(requireAuth).Put("/caixa-postal/{id}/ler", caixaPostalHandler.Read)
 }
