@@ -64,7 +64,7 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
                 <Link href="/caixa-postal">
                     <Tooltip target=".btn-caixa-postal" position="bottom" />
                     <button type="button" className="btn-caixa-postal p-link layout-topbar-button" data-pr-tooltip="Caixa Postal">
-                        <i className="pi pi-envelope"></i>
+                        <i className={classNames('pi pi-envelope', { 'text-red-500': naoLidas > 0, 'fadein animation-iteration-infinite animation-duration-1000': naoLidas > 0 })}></i>
                         {naoLidas > 0 && (
                             <span className="caixa-postal-badge">{naoLidas > 99 ? '99+' : naoLidas}</span>
                         )}
