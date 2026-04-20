@@ -28,13 +28,13 @@ func NewEmpresaAgendaRepository(pool *pgxpool.Pool) *EmpresaAgendaRepository {
 // ── Listar agenda de uma empresa ─────────────────────────────────────────────
 
 func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID string) ([]domain.EmpresaAgendaItem, error) {
-	const query = `
+	const sqlQuery = `
 		SELECT id, empresa_id, template_id, descricao, data_vencimento::text, status, valor_estimado
 		FROM public.empresa_agenda
 		WHERE empresa_id = $1
 		ORDER BY data_vencimento ASC`
 
-	rows, err := r.pool.Query(ctx, query, empresaID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, empresaID)
 	if err != nil {
 		return nil, fmt.Errorf("list empresa_agenda: %w", err)
 	}
@@ -55,7 +55,7 @@ func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID s
 // ── Atualizar status de um item (escopo tenant) ─────────────────────────────
 
 func (r *EmpresaAgendaRepository) UpdateStatusForTenant(ctx context.Context, tenantID, id, status string) error {
-	ct, err := r.pool.Exec(ctx, `
+	ct, err := dbExec(ctx, r.pool, `
 		UPDATE public.empresa_agenda ea
 		SET status = $1, atualizado_em = NOW()
 		FROM public.empresa e
@@ -85,7 +85,7 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 	var err error
 	switch {
 	case hasDate && valorEstimado != nil:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_agenda ea
 			SET data_vencimento = $1::date, valor_estimado = $2, atualizado_em = NOW()
 			FROM public.empresa e
@@ -96,7 +96,7 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 			rowsAff = ct.RowsAffected()
 		}
 	case hasDate:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_agenda ea
 			SET data_vencimento = $1::date, atualizado_em = NOW()
 			FROM public.empresa e
@@ -107,7 +107,7 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 			rowsAff = ct.RowsAffected()
 		}
 	default:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_agenda ea
 			SET valor_estimado = $1, atualizado_em = NOW()
 			FROM public.empresa e
@@ -200,8 +200,8 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 	return append(items, catalog...), nil
 }
 
-func scanAcompanhamentoRows(ctx context.Context, pool *pgxpool.Pool, query string, tenantID string) ([]domain.EmpresaAgendaAcompanhamentoItem, error) {
-	rows, err := pool.Query(ctx, query, tenantID)
+func scanAcompanhamentoRows(ctx context.Context, pool *pgxpool.Pool, sqlQuery string, tenantID string) ([]domain.EmpresaAgendaAcompanhamentoItem, error) {
+	rows, err := dbQuery(ctx, pool, sqlQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list acompanhamento: %w", err)
 	}
@@ -248,7 +248,7 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 		FROM public.tipoempresa_obrigacao
 		WHERE tipo_empresa_id = $1 AND ativo = true`
 
-	tmplRows, err := r.pool.Query(ctx, tmplQuery, tipoEmpresaID)
+	tmplRows, err := dbQuery(ctx, r.pool, tmplQuery, tipoEmpresaID)
 	if err != nil {
 		return nil, fmt.Errorf("buscar templates: %w", err)
 	}
@@ -279,7 +279,7 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 	tmplRows.Close()
 
 	// 2) Transação: persiste tipo na empresa e regenera instâncias da agenda
-	tx, err := r.pool.Begin(ctx)
+	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}

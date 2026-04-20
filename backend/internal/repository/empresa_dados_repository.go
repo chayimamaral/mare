@@ -95,7 +95,7 @@ func (r *EmpresaDadosRepository) GetByEmpresa(ctx context.Context, empresaID, te
 		LEFT JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`
 
-	row := r.pool.QueryRow(ctx, q, empresaID, tenantID)
+	row := dbQueryRow(ctx, r.pool, q, empresaID, tenantID)
 
 	var (
 		id                                             string
@@ -163,7 +163,7 @@ func (r *EmpresaDadosRepository) Upsert(ctx context.Context, in EmpresaDadosUpse
 		cap = nil
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
 		return fmt.Errorf("iniciar transacao dados complementares: %w", err)
 	}

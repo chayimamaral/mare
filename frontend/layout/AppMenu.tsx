@@ -75,6 +75,11 @@ const AppMenu = () => {
             icon: 'pi pi-fw pi-user',
             to: '/cliente-pf',
           },
+          {
+            label: 'Caixa Postal',
+            icon: 'pi pi-fw pi-envelope',
+            to: '/caixa-postal',
+          },
         ],
       },
       {
@@ -200,18 +205,6 @@ const AppMenu = () => {
             ],
           },
           {
-            label: 'Tenants',
-            icon: 'pi pi-fw pi-server',
-            visible: userRole === 'SUPER',
-            items: [
-              {
-                label: 'Manutenção',
-                icon: 'pi pi-fw pi-table',
-                to: '/tenants',
-              },
-            ],
-          },
-          {
             label: 'Monitor',
             icon: 'pi pi-fw pi-chart-line',
             visible: podeVerMonitor,
@@ -275,6 +268,23 @@ const AppMenu = () => {
                     visible: userRole === 'SUPER',
                   },
                 ],
+              },
+            ],
+          },
+          {
+            label: 'Gestão de Tenants',
+            icon: 'pi pi-fw pi-server',
+            visible: userRole === 'SUPER',
+            items: [
+              {
+                label: 'Manutenção',
+                icon: 'pi pi-fw pi-table',
+                to: '/tenants',
+              },
+              {
+                label: 'Broadcast & Sessões',
+                icon: 'pi pi-fw pi-megaphone',
+                to: '/admin/broadcast',
               },
             ],
           },

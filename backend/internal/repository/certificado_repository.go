@@ -33,7 +33,7 @@ func (r *CertificadoRepository) GetAtivoPorTenant(ctx context.Context, tenantID 
 		FROM public.certificado_tenant
 		WHERE tenant_id = $1 AND ativo = true`
 
-	row := r.pool.QueryRow(ctx, q, tid)
+	row := dbQueryRow(ctx, r.pool, q, tid)
 
 	var c domain.Certificado
 	var criado, atualizado time.Time
@@ -76,7 +76,7 @@ func (r *CertificadoRepository) UpsertAtivo(ctx context.Context, c *domain.Certi
 			ativo = true,
 			atualizado_em = NOW()`
 
-	_, err := r.pool.Exec(ctx, q,
+	_, err := dbExec(ctx, r.pool, q,
 		strings.TrimSpace(c.Tenant),
 		c.PFXCifrado,
 		c.SenhaCifrada,
@@ -104,7 +104,7 @@ func (r *CertificadoRepository) GetResumoAtivoPorTenant(ctx context.Context, ten
 		FROM public.certificado_tenant
 		WHERE tenant_id = $1 AND ativo = true`
 
-	row := r.pool.QueryRow(ctx, q, tid)
+	row := dbQueryRow(ctx, r.pool, q, tid)
 
 	var c domain.Certificado
 	var criado, atualizado time.Time

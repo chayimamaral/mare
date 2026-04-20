@@ -18,7 +18,7 @@ func NewAgendaRepository(pool *pgxpool.Pool) *AgendaRepository {
 }
 
 func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]domain.AgendaEvent, error) {
-	const query = `
+	const sqlQuery = `
 		SELECT
 			a.id,
 			COALESCE(cli.nome, ''),
@@ -53,7 +53,7 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]d
 		LEFT JOIN public.rotinas r ON r.id = a.rotina_id
 		WHERE a.tenant_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list agenda events: %w", err)
 	}
@@ -82,7 +82,7 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]d
 }
 
 func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID string) ([]domain.AgendaEvent, error) {
-	const query = `
+	const sqlQuery = `
 		SELECT
 			ai.id,
 			COALESCE(NULLIF(btrim(COALESCE(ai.descricao, '')), ''), p.descricao, ''),
@@ -117,7 +117,7 @@ func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID 
 		WHERE ai.agenda_id = $1
 		  AND a.tenant_id = $2`
 
-	rows, err := r.pool.Query(ctx, query, agendaID, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, agendaID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list agenda detail events: %w", err)
 	}
@@ -158,7 +158,7 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 		)`
 
 	var owned bool
-	if err := r.pool.QueryRow(ctx, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
+	if err := dbQueryRow(ctx, r.pool, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
 	}
 	if !owned {
@@ -202,7 +202,7 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 	}
 
 	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
-	if _, err := r.pool.Exec(ctx, updateQuery, agendaItemID, agendaID); err != nil {
+	if _, err := dbExec(ctx, r.pool, updateQuery, agendaItemID, agendaID); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("concluir passo da agenda: %w", err)
 	}
 
@@ -235,7 +235,7 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 		)`
 
 	var owned bool
-	if err := r.pool.QueryRow(ctx, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
+	if err := dbQueryRow(ctx, r.pool, ownershipQuery, agendaItemID, agendaID, tenantID).Scan(&owned); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("validar ownership agenda item: %w", err)
 	}
 	if !owned {
@@ -278,7 +278,7 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 	}
 
 	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
-	if _, err := r.pool.Exec(ctx, updateQuery, agendaItemID, agendaID); err != nil {
+	if _, err := dbExec(ctx, r.pool, updateQuery, agendaItemID, agendaID); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("reabrir passo da agenda: %w", err)
 	}
 
@@ -323,7 +323,7 @@ func (r *AgendaRepository) todosPassosConcluidos(ctx context.Context, agendaID s
 	}
 
 	var pendentes int64
-	if err := r.pool.QueryRow(ctx, query, agendaID).Scan(&pendentes); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query, agendaID).Scan(&pendentes); err != nil {
 		return false, fmt.Errorf("contar passos pendentes da agenda: %w", err)
 	}
 
@@ -360,7 +360,7 @@ func (r *AgendaRepository) marcarAgendaConcluida(ctx context.Context, agendaID s
 	}
 
 	query := fmt.Sprintf("UPDATE public.agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
-	if _, err := r.pool.Exec(ctx, query, agendaID); err != nil {
+	if _, err := dbExec(ctx, r.pool, query, agendaID); err != nil {
 		return fmt.Errorf("marcar agenda concluida: %w", err)
 	}
 
@@ -397,7 +397,7 @@ func (r *AgendaRepository) desmarcarAgendaConcluida(ctx context.Context, agendaI
 	}
 
 	query := fmt.Sprintf("UPDATE public.agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
-	if _, err := r.pool.Exec(ctx, query, agendaID); err != nil {
+	if _, err := dbExec(ctx, r.pool, query, agendaID); err != nil {
 		return fmt.Errorf("desmarcar agenda concluida: %w", err)
 	}
 
@@ -425,7 +425,7 @@ func (r *AgendaRepository) InsertAgendaItem(ctx context.Context, tenantID, agend
 	}
 
 	var owned bool
-	if err := r.pool.QueryRow(ctx, `
+	if err := dbQueryRow(ctx, r.pool, `
 		SELECT EXISTS (SELECT 1 FROM public.agenda a WHERE a.id = $1 AND a.tenant_id = $2)`,
 		agendaID, tenantID,
 	).Scan(&owned); err != nil {
@@ -443,7 +443,7 @@ func (r *AgendaRepository) InsertAgendaItem(ctx context.Context, tenantID, agend
 	}
 
 	var newID string
-	if err := r.pool.QueryRow(ctx, `
+	if err := dbQueryRow(ctx, r.pool, `
 		INSERT INTO public.agendaitens (agenda_id, passo_id, inicio, termino, descricao)
 		VALUES ($1, NULL, $2::date, $3::date, $4)
 		RETURNING id`,
@@ -482,7 +482,7 @@ func (r *AgendaRepository) agendaEncerrada(ctx context.Context, agendaID string)
 	if len(conds) > 0 {
 		var done bool
 		q := fmt.Sprintf("SELECT (%s) FROM public.agenda a WHERE a.id = $1", strings.Join(conds, " OR "))
-		if err := r.pool.QueryRow(ctx, q, agendaID).Scan(&done); err != nil {
+		if err := dbQueryRow(ctx, r.pool, q, agendaID).Scan(&done); err != nil {
 			return false, fmt.Errorf("validar status de conclusao da agenda: %w", err)
 		}
 		if done {
@@ -492,7 +492,7 @@ func (r *AgendaRepository) agendaEncerrada(ctx context.Context, agendaID string)
 
 	// Fallback por itens: se houver itens e todos estiverem concluídos, considera encerrada.
 	var totalItens int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1`, agendaID).Scan(&totalItens); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1`, agendaID).Scan(&totalItens); err != nil {
 		return false, fmt.Errorf("contar itens da agenda: %w", err)
 	}
 	if totalItens == 0 {
@@ -561,7 +561,7 @@ func (r *AgendaRepository) UpdateAgendaItem(ctx context.Context, tenantID, agend
 		WHERE ai.id = $1 AND ai.agenda_id = $2 AND ai.agenda_id = a.id AND a.tenant_id = $3`,
 		strings.Join(setParts, ", "))
 
-	ct, err := r.pool.Exec(ctx, q, args...)
+	ct, err := dbExec(ctx, r.pool, q, args...)
 	if err != nil {
 		return fmt.Errorf("atualizar item da agenda: %w", err)
 	}
@@ -578,7 +578,7 @@ func (r *AgendaRepository) DeleteAgendaItem(ctx context.Context, tenantID, agend
 	if agendaID == "" || itemID == "" {
 		return fmt.Errorf("agenda_id e id do item sao obrigatorios")
 	}
-	ct, err := r.pool.Exec(ctx, `
+	ct, err := dbExec(ctx, r.pool, `
 		DELETE FROM public.agendaitens ai
 		USING public.agenda a
 		WHERE ai.id = $1 AND ai.agenda_id = $2 AND a.id = ai.agenda_id AND a.tenant_id = $3`,
@@ -603,7 +603,7 @@ func (r *AgendaRepository) columnExists(ctx context.Context, tableName, columnNa
 		)`
 
 	var exists bool
-	if err := r.pool.QueryRow(ctx, query, tableName, columnName).Scan(&exists); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query, tableName, columnName).Scan(&exists); err != nil {
 		return false, fmt.Errorf("verificar coluna %s.%s: %w", tableName, columnName, err)
 	}
 

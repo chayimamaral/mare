@@ -13,6 +13,7 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/config"
 	"github.com/chayimamaral/vecontab/backend/internal/db"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi"
+	apiMiddleware "github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/worker"
 )
@@ -31,6 +32,12 @@ func main() {
 		log.Fatalf("connect postgres: %v", err)
 	}
 	defer pool.Close()
+
+	// Compatibilidade com tokens antigos sem tenant.schema_name.
+	apiMiddleware.SetTenantSchemaResolver(func(ctx context.Context, tenantID string) (string, error) {
+		return db.ResolveTenantSchema(ctx, pool, tenantID)
+	})
+	apiMiddleware.SetTenantConnPool(pool)
 
 	staticRoot, err := fs.Sub(frontend.FS, "out")
 	if err != nil {

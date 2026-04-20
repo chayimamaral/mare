@@ -9,7 +9,9 @@ import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import '../styles/layout/layout.scss';
 import { AuthProvider } from '../components/context/AuthContext';
+import { CaixaPostalProvider } from '../components/context/CaixaPostalContext';
 import { useRouteClientGuard } from '../components/hooks/useClientGuards';
+import { useIdleLogout } from '../components/hooks/useIdleLogout';
 // import userPersistedState from '../components/utils/usePersistedState';
 
 type Props = AppProps & {
@@ -18,6 +20,8 @@ type Props = AppProps & {
 
 function AppContent({ Component, pageProps }: Props) {
     useRouteClientGuard();
+    useIdleLogout(); // Monitor de inatividade padrão (15 mins)
+
 
     if (Component.getLayout) {
         return <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;
@@ -83,7 +87,9 @@ export default function App({ Component, pageProps }: Props) {
     return (
         <QueryClientProvider client={queryClient}>
             <AuthProvider>
-                <AppContent Component={Component} pageProps={pageProps} />
+                <CaixaPostalProvider>
+                    <AppContent Component={Component} pageProps={pageProps} />
+                </CaixaPostalProvider>
             </AuthProvider>
         </QueryClientProvider>
     );

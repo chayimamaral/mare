@@ -24,7 +24,7 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertChavesSuper(ctx context.Context
 	if tid == "" {
 		return fmt.Errorf("tenant_id obrigatorio")
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := dbExec(ctx, r.pool, `
 		INSERT INTO public.integra_contador_chave_autenticacao (tenant_id, consumer_key, consumer_secret, atualizado_em)
 		VALUES ($1, $2, $3, NOW())
 		ON CONFLICT (tenant_id) DO UPDATE
@@ -46,7 +46,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesSuper(ctx context.Context, t
 		return out, nil
 	}
 	out.TenantID = tid
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT COALESCE(consumer_key, ''), COALESCE(consumer_secret, '')
 		FROM public.integra_contador_chave_autenticacao
 		WHERE tenant_id = $1
@@ -66,7 +66,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesSuper(ctx context.Context, t
 // Usado na autenticação Serpro com certificado A1 do tenant do escritório (parâmetro separado no serviço).
 func (r *ConfiguracaoIntegracaoRepository) GetChavesIntegraTenantPlataforma(ctx context.Context) (domain.ChavesSuper, error) {
 	var out domain.ChavesSuper
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT k.tenant_id::text, COALESCE(k.consumer_key, ''), COALESCE(k.consumer_secret, '')
 		FROM public.integra_contador_chave_autenticacao k
 		INNER JOIN (
@@ -87,7 +87,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesIntegraTenantPlataforma(ctx 
 }
 
 func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context.Context, item domain.TenantConfiguracoes) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := dbExec(ctx, r.pool, `
 		INSERT INTO public.tenant_configuracoes (
 			tenant_id,
 			gerar_das_por_procuracao,
@@ -124,7 +124,7 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context
 
 func (r *ConfiguracaoIntegracaoRepository) GetTenantConfiguracoes(ctx context.Context, tenantID string) (domain.TenantConfiguracoes, error) {
 	var out domain.TenantConfiguracoes
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT
 			tenant_id::text,
 			COALESCE(gerar_das_por_procuracao, false),

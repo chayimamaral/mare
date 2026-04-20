@@ -20,7 +20,7 @@ func NewTenantRepository(pool *pgxpool.Pool) *TenantRepository {
 func (r *TenantRepository) Create(ctx context.Context, nome, contato, plano string) (domain.TenantEntity, error) {
 	const existsQuery = `SELECT count(*) FROM public.tenant WHERE nome = $1`
 	var count int64
-	if err := r.pool.QueryRow(ctx, existsQuery, nome).Scan(&count); err != nil {
+	if err := dbQueryRow(ctx, r.pool, existsQuery, nome).Scan(&count); err != nil {
 		return domain.TenantEntity{}, fmt.Errorf("check tenant exists: %w", err)
 	}
 
@@ -28,7 +28,7 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato, plano stri
 		return domain.TenantEntity{}, fmt.Errorf("Empresa ja cadastrada")
 	}
 
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := dbBeginTx(ctx, r.pool, pgx.TxOptions{})
 	if err != nil {
 		return domain.TenantEntity{}, fmt.Errorf("begin tx create tenant: %w", err)
 	}
@@ -73,7 +73,7 @@ func (r *TenantRepository) Detail(ctx context.Context, id string) (domain.Tenant
 		WHERE id = $1::uuid`
 
 	var tenant domain.TenantEntity
-	if err := r.pool.QueryRow(ctx, query, id).Scan(
+	if err := dbQueryRow(ctx, r.pool, query, id).Scan(
 		&tenant.ID,
 		&tenant.Nome,
 		&tenant.Contato,
@@ -97,7 +97,7 @@ func (r *TenantRepository) Update(ctx context.Context, id, nome, contato, plano 
 		RETURNING id, COALESCE(nome, ''), COALESCE(contato, ''), COALESCE(active, false), COALESCE(plano::text, '')`
 
 	var tenant domain.TenantEntity
-	if err := r.pool.QueryRow(ctx, query, nome, active, contato, plano, id).Scan(
+	if err := dbQueryRow(ctx, r.pool, query, nome, active, contato, plano, id).Scan(
 		&tenant.ID,
 		&tenant.Nome,
 		&tenant.Contato,
@@ -111,7 +111,7 @@ func (r *TenantRepository) Update(ctx context.Context, id, nome, contato, plano 
 }
 
 func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]domain.TenantEntity, error) {
-	query := `
+	sqlQuery := `
 		SELECT id,
 		       COALESCE(nome, ''),
 		       COALESCE(contato, ''),
@@ -122,7 +122,7 @@ func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]d
 	args := []any{tenantID}
 
 	if role == "SUPER" {
-		query = `
+		sqlQuery = `
 			SELECT id,
 			       COALESCE(nome, ''),
 			       COALESCE(contato, ''),
@@ -133,7 +133,7 @@ func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]d
 		args = []any{}
 	}
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list tenants: %w", err)
 	}
@@ -159,7 +159,7 @@ func (r *TenantRepository) List(ctx context.Context, role, tenantID string) ([]d
 }
 
 func (r *TenantRepository) ListWithDadosForSuper(ctx context.Context) ([]domain.TenantListRow, error) {
-	const query = `
+	const sqlQuery = `
 		SELECT t.id,
 		       COALESCE(t.nome, ''),
 		       COALESCE(t.contato, ''),
@@ -173,7 +173,7 @@ func (r *TenantRepository) ListWithDadosForSuper(ctx context.Context) ([]domain.
 		WHERE NULLIF(BTRIM(COALESCE(t.nome, '')), '') IS NOT NULL
 		ORDER BY COALESCE(t.nome, '')`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list tenants with dados: %w", err)
 	}

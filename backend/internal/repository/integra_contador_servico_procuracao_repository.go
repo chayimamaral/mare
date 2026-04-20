@@ -39,7 +39,7 @@ func (r *IntegraContadorServicoProcuracaoRepository) List(ctx context.Context, i
 		 WHERE %s
 		 ORDER BY id_sistema, id_servico`, where)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list integra_contador_servicos: %w", err)
 	}

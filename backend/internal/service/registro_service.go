@@ -9,9 +9,10 @@ import (
 )
 
 type RegistroCreateInput struct {
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Nome        string `json:"nome"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	EmpresaNome string `json:"empresa_nome"`
 }
 
 type RegistroUpdateInput struct {
@@ -114,9 +115,10 @@ func (s *RegistroService) Create(ctx context.Context, input RegistroCreateInput)
 	}
 
 	return s.repo.Create(ctx, repository.RegistroCreateInput{
-		Nome:     input.Nome,
-		Email:    input.Email,
-		Password: string(passwordHash),
+		Nome:        input.Nome,
+		Email:       input.Email,
+		Password:    string(passwordHash),
+		EmpresaNome: input.EmpresaNome,
 	})
 }
 

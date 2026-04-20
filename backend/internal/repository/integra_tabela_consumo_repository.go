@@ -47,7 +47,7 @@ func (r *IntegraTabelaConsumoRepository) ListFaixas(ctx context.Context, tipo st
 	}
 	query += " ORDER BY tipo ASC, faixa ASC"
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list integra tabela consumo: %w", err)
 	}
@@ -82,8 +82,7 @@ func (r *IntegraTabelaConsumoRepository) CreateFaixa(ctx context.Context, input 
 		VALUES ($1,$2,$3,$4,$5)
 		RETURNING id, tipo, faixa, quantidade_de, quantidade_ate, preco, ativo`
 	var out domain.IntegraTabelaConsumoFaixa
-	if err := r.pool.QueryRow(
-		ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		query,
 		input.Tipo,
 		input.Faixa,
@@ -111,8 +110,7 @@ func (r *IntegraTabelaConsumoRepository) UpdateFaixa(ctx context.Context, input 
 		 WHERE id = $6 AND ativo = true
 		RETURNING id, tipo, faixa, quantidade_de, quantidade_ate, preco, ativo`
 	var out domain.IntegraTabelaConsumoFaixa
-	if err := r.pool.QueryRow(
-		ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		query,
 		input.Tipo,
 		input.Faixa,
@@ -139,7 +137,7 @@ func (r *IntegraTabelaConsumoRepository) DeleteFaixa(ctx context.Context, id str
 		UPDATE public.integra_contador_tabela_consumo
 		   SET ativo = false, atualizado_em = now()
 		 WHERE id = $1 AND ativo = true`
-	ct, err := r.pool.Exec(ctx, query, id)
+	ct, err := dbExec(ctx, r.pool, query, id)
 	if err != nil {
 		return fmt.Errorf("delete integra tabela consumo: %w", err)
 	}
@@ -157,7 +155,7 @@ func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in 
 		   AND lower(tipo) = lower($2)
 		   AND date_trunc('month', processado_em) = date_trunc('month', now())`
 	var consumoAtual int
-	if err := r.pool.QueryRow(ctx, consumoMesQuery, in.TenantID, in.Tipo).Scan(&consumoAtual); err != nil {
+	if err := dbQueryRow(ctx, r.pool, consumoMesQuery, in.TenantID, in.Tipo).Scan(&consumoAtual); err != nil {
 		return domain.IntegraContadorGasto{}, fmt.Errorf("consulta consumo mensal: %w", err)
 	}
 	consumoMes := consumoAtual + in.Quantidade
@@ -173,7 +171,7 @@ func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in 
 		 LIMIT 1`
 	var faixa int
 	var preco float64
-	if err := r.pool.QueryRow(ctx, faixaQuery, in.Tipo, consumoMes).Scan(&faixa, &preco); err != nil {
+	if err := dbQueryRow(ctx, r.pool, faixaQuery, in.Tipo, consumoMes).Scan(&faixa, &preco); err != nil {
 		return domain.IntegraContadorGasto{}, fmt.Errorf("faixa de consumo nao encontrada para tipo '%s' e consumo %d", in.Tipo, consumoMes)
 	}
 
@@ -185,8 +183,7 @@ func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in 
 			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING id, tenant_id, empresa_documento, tipo, id_sistema, id_servico, quantidade, consumo_mes, faixa_aplicada, preco_unitario, valor_total, to_char(processado_em, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`
 	var out domain.IntegraContadorGasto
-	if err := r.pool.QueryRow(
-		ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		insertQuery,
 		in.TenantID,
 		in.EmpresaDocumento,
@@ -233,7 +230,7 @@ func (r *IntegraTabelaConsumoRepository) ListGastos(ctx context.Context, tenantI
 	}
 	query += " ORDER BY processado_em DESC, id DESC"
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list gastos integra contador: %w", err)
 	}

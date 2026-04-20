@@ -13,6 +13,7 @@ type TenantClaims struct {
 	Nome    string `json:"nome"`
 	Contato string `json:"contato"`
 	Plano   string `json:"plano"`
+	SchemaName string `json:"schema_name,omitempty"`
 }
 
 type Claims struct {

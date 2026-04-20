@@ -52,7 +52,7 @@ func (r *CatalogoServicoRepository) List(ctx context.Context, secao string, incl
 		 WHERE %s
 		 ORDER BY secao ASC, sequencial ASC, codigo ASC, id ASC`, where)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list catalogo_servico: %w", err)
 	}
@@ -93,8 +93,7 @@ func (r *CatalogoServicoRepository) Create(ctx context.Context, input CatalogoSe
 		          COALESCE(to_char(data_implantacao, 'YYYY-MM-DD'), ''), tipo, descricao, ativo`
 
 	var item domain.CatalogoServico
-	if err := r.pool.QueryRow(
-		ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		q,
 		input.Secao,
 		input.Sequencial,
@@ -132,8 +131,7 @@ func (r *CatalogoServicoRepository) Update(ctx context.Context, input CatalogoSe
 		          COALESCE(to_char(data_implantacao, 'YYYY-MM-DD'), ''), tipo, descricao, ativo`
 
 	var item domain.CatalogoServico
-	if err := r.pool.QueryRow(
-		ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		q,
 		input.Secao,
 		input.Sequencial,
@@ -166,7 +164,7 @@ func (r *CatalogoServicoRepository) Delete(ctx context.Context, id string) error
 		UPDATE public.catalogo_servico_integra_contador
 		   SET ativo = false, atualizado_em = now()
 		 WHERE id = $1 AND ativo = true`
-	ct, err := r.pool.Exec(ctx, q, id)
+	ct, err := dbExec(ctx, r.pool, q, id)
 	if err != nil {
 		return fmt.Errorf("delete catalogo_servico: %w", err)
 	}

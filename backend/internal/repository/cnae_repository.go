@@ -133,7 +133,7 @@ func (r *CnaeRepository) List(ctx context.Context, params CnaeListParams) ([]dom
 	)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, query, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cnae: %w", err)
 	}
@@ -150,7 +150,7 @@ func (r *CnaeRepository) List(ctx context.Context, params CnaeListParams) ([]dom
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM %s WHERE %s", cnaeListFrom, whereClause)
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count cnae: %w", err)
 	}
 
@@ -166,7 +166,7 @@ func (r *CnaeRepository) lookupIbgeHierarchy(ctx context.Context, sub7 string) (
 		JOIN public.ibge_cnae_divisao d ON d.id = g.divisao_id
 		JOIN public.ibge_cnae_secao s ON s.id = d.secao_id
 		WHERE sc.codigo = $1::bpchar`
-	err = r.pool.QueryRow(ctx, q, sub7).Scan(&secao, &divisao, &grupo, &classe, &denominacao)
+	err = dbQueryRow(ctx, r.pool, q, sub7).Scan(&secao, &divisao, &grupo, &classe, &denominacao)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", "", "", "", "", false, nil
 	}
@@ -205,7 +205,7 @@ func (r *CnaeRepository) upsertCnaeIbgeHierarquia(ctx context.Context, sub, seca
 			divisao = EXCLUDED.divisao,
 			grupo = EXCLUDED.grupo,
 			classe = EXCLUDED.classe`
-	_, err := r.pool.Exec(ctx, q, sub, secao, divisao, grupo, classe)
+	_, err := dbExec(ctx, r.pool, q, sub, secao, divisao, grupo, classe)
 	return err
 }
 
@@ -235,7 +235,7 @@ func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, clas
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, secao, divisao, grupo, classe, subclasse, denominacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query, sec, div, grp, cls, sub, den)
+	rows, err := dbQuery(ctx, r.pool, query, sec, div, grp, cls, sub, den)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -266,7 +266,7 @@ func (r *CnaeRepository) Create(ctx context.Context, secao, divisao, grupo, clas
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count cnae: %w", err)
 	}
 
@@ -284,7 +284,7 @@ func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, 
 		WHERE id = $7
 		RETURNING id, secao, divisao, grupo, classe, subclasse, denominacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query, sec, div, grp, cls, sub, den, id)
+	rows, err := dbQuery(ctx, r.pool, query, sec, div, grp, cls, sub, den, id)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -315,7 +315,7 @@ func (r *CnaeRepository) Update(ctx context.Context, id, secao, divisao, grupo, 
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count cnae: %w", err)
 	}
 
@@ -329,7 +329,7 @@ func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]domain.CnaeRe
 		WHERE id = $1
 		RETURNING id, secao, divisao, grupo, classe, subclasse, denominacao, ativo`
 
-	rows, err := r.pool.Query(ctx, query, id)
+	rows, err := dbQuery(ctx, r.pool, query, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete cnae: %w", err)
 	}
@@ -345,7 +345,7 @@ func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]domain.CnaeRe
 	}
 
 	var total int64
-	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.cnae WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count cnae: %w", err)
 	}
 
@@ -353,7 +353,7 @@ func (r *CnaeRepository) Delete(ctx context.Context, id string) ([]domain.CnaeRe
 }
 
 func (r *CnaeRepository) Lite(ctx context.Context) ([]domain.CnaeLiteItem, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id, denominacao, subclasse FROM public.cnae WHERE ativo = true ORDER BY denominacao ASC`)
+	rows, err := dbQuery(ctx, r.pool, `SELECT id, denominacao, subclasse FROM public.cnae WHERE ativo = true ORDER BY denominacao ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("lite cnae: %w", err)
 	}
@@ -376,7 +376,7 @@ func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]domain.Cn
 	if sub == "" {
 		return nil, nil
 	}
-	rows, err := r.pool.Query(ctx, `SELECT id FROM public.cnae WHERE ativo = true AND subclasse = $1`, sub)
+	rows, err := dbQuery(ctx, r.pool, `SELECT id FROM public.cnae WHERE ativo = true AND subclasse = $1`, sub)
 	if err != nil {
 		return nil, fmt.Errorf("validate cnae: %w", err)
 	}
@@ -396,7 +396,7 @@ func (r *CnaeRepository) Validate(ctx context.Context, cnae string) ([]domain.Cn
 	}
 
 	var ibgeExists bool
-	if err := r.pool.QueryRow(ctx,
+	if err := dbQueryRow(ctx, r.pool,
 		`SELECT EXISTS (SELECT 1 FROM public.ibge_cnae_subclasse WHERE codigo = $1::bpchar)`,
 		sub,
 	).Scan(&ibgeExists); err != nil {

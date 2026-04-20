@@ -101,14 +101,98 @@
   /* Ocupa todo o espaço vertical disponível */
 }
 
-.empresa-processo-nao-iniciado-row>td {
+.p-treetable .p-treetable-tbody > tr.empresa-processo-nao-iniciado-row > td {
   background: #fde8e8 !important;
+  color: #111827 !important;
 }
 
-.empresa-processo-em-andamento-row>td {
+.p-treetable .p-treetable-tbody > tr.empresa-processo-em-andamento-row > td {
   background: #fff4cc !important;
+  color: #111827 !important;
 }
 
-.empresa-processo-concluido-row>td {
+.p-treetable .p-treetable-tbody > tr.empresa-processo-concluido-row > td {
   background: #dcfce7 !important;
+  color: #111827 !important;
+}
+
+/* Garante contraste do texto na TreeTable (Empresas e Cliente PF). */
+.p-treetable .p-treetable-tbody > tr.empresa-processo-nao-iniciado-row > td *,
+.p-treetable .p-treetable-tbody > tr.empresa-processo-em-andamento-row > td *,
+.p-treetable .p-treetable-tbody > tr.empresa-processo-concluido-row > td * {
+  color: #111827 !important;
+}
+
+/* ---- Caixa Postal ---- */
+.caixa-postal-tabview .p-tabview-nav {
+  border: none !important;
+  border-bottom: none !important;
+}
+
+.caixa-postal-tabview .p-tabview-nav li .p-tabview-nav-link {
+  border: none !important;
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  text-decoration: none !important;
+  white-space: nowrap;
+}
+
+.caixa-postal-tabview .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+  border: none !important;
+  border-bottom: none !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-radius: 6px;
+}
+
+.caixa-postal-tabview .p-tabview-panels {
+  box-sizing: border-box;
+  min-height: min(50vh, 30rem);
+  overflow-y: visible;
+  overflow-x: hidden;
+}
+
+.caixa-postal-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: #e74c3c;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  line-height: 1;
+  z-index: 10;
+}
+
+.btn-caixa-postal {
+  position: relative;
+}
+
+.caixa-postal-mensagem-lida {
+  opacity: 0.6;
+}
+
+.caixa-postal-mensagem-card {
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--surface-card);
+  transition: opacity 0.2s;
+
+  &.lida {
+    border-left-color: #9ca3af;
+    opacity: 0.7;
+  }
+
+  &.outbox {
+    border-left-color: #10b981;
+  }
 }

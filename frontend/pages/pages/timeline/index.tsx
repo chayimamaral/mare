@@ -4,7 +4,14 @@ import React from 'react';
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
 import { Timeline } from 'primereact/timeline';
-import { CustomEvent } from '../../../types/types';
+type CustomEvent = {
+    status?: string;
+    date?: string;
+    icon?: string;
+    color?: string;
+    image?: string;
+    name?: string;
+};
 
 const TimelineDemo = () => {
     const customEvents: CustomEvent[] = [

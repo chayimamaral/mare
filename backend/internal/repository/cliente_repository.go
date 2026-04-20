@@ -42,7 +42,7 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 
 	var c domain.Cliente
 	var doc, munID sql.NullString
-	if err := r.pool.QueryRow(ctx, q, id, tenantID).Scan(
+	if err := dbQueryRow(ctx, r.pool, q, id, tenantID).Scan(
 		&c.ID,
 		&c.TenantID,
 		&c.TipoPessoa,
@@ -96,7 +96,7 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 		ORDER BY c.nome ASC
 		LIMIT $2 OFFSET $3`
 
-	rows, err := r.pool.Query(ctx, q, tenantID, limit, offset)
+	rows, err := dbQuery(ctx, r.pool, q, tenantID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list clientes: %w", err)
 	}

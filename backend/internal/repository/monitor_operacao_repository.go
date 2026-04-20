@@ -55,7 +55,7 @@ VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb)
 RETURNING id::text
 `
 	var id string
-	err := r.pool.QueryRow(ctx, q,
+	err := dbQueryRow(ctx, r.pool, q,
 		tid,
 		row.UserID,
 		strings.TrimSpace(row.Origem),
@@ -84,7 +84,7 @@ ON CONFLICT DO NOTHING`
 		if cid == "" {
 			continue
 		}
-		if _, err := r.pool.Exec(ctx, q, mid, cid); err != nil {
+		if _, err := dbExec(ctx, r.pool, q, mid, cid); err != nil {
 			return fmt.Errorf("insert monitor_operacao_compromisso: %w", err)
 		}
 	}
@@ -132,7 +132,7 @@ WHERE 1=1`
 		q += fmt.Sprintf(" AND mo.criado_em::date <= $%d::date", len(args)+1)
 		args = append(args, filterDataAte)
 	}
-	err := r.pool.QueryRow(ctx, q, args...).Scan(&n)
+	err := dbQueryRow(ctx, r.pool, q, args...).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("count monitor_operacao: %w", err)
 	}
@@ -193,7 +193,7 @@ WHERE 1=1`
 	q += fmt.Sprintf(" ORDER BY mo.criado_em DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 	args = append(args, limit, offset)
 
-	rows, err := r.pool.Query(ctx, q, args...)
+	rows, err := dbQuery(ctx, r.pool, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list monitor_operacao: %w", err)
 	}
@@ -267,7 +267,7 @@ LEFT JOIN public.empresa e ON e.id = ec.empresa_id
 LEFT JOIN public.cliente c ON c.id = e.cliente_id
 WHERE rel.monitor_operacao_id = ANY($1::uuid[])
 ORDER BY rel.criado_em ASC, ec.vencimento ASC, ec.descricao ASC`
-	rows, err := r.pool.Query(ctx, q, monitorIDs)
+	rows, err := dbQuery(ctx, r.pool, q, monitorIDs)
 	if err != nil {
 		return fmt.Errorf("list monitor_operacao_compromisso: %w", err)
 	}

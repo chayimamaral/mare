@@ -30,7 +30,7 @@ func (r *NodeRepository) Nodes(ctx context.Context) ([]domain.NodePasso, error) 
 		)
 		SELECT id, descricao, parent_id FROM tree`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, query)
 	if err != nil {
 		return nil, fmt.Errorf("nodes query: %w", err)
 	}
@@ -53,7 +53,7 @@ func (r *NodeRepository) Family(ctx context.Context) (any, error) {
 	const query = `SELECT get_passos_nested() AS dados`
 
 	var dados any
-	if err := r.pool.QueryRow(ctx, query).Scan(&dados); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query).Scan(&dados); err != nil {
 		return nil, fmt.Errorf("family query: %w", err)
 	}
 
@@ -64,7 +64,7 @@ func (r *NodeRepository) Family(ctx context.Context) (any, error) {
 func (r *NodeRepository) Recurso(ctx context.Context) ([]domain.NodePasso, error) {
 	const query = `SELECT id, descricao, parent_id FROM passos`
 
-	rows, err := r.pool.Query(ctx, query)
+	rows, err := dbQuery(ctx, r.pool, query)
 	if err != nil {
 		return nil, fmt.Errorf("recurso query: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/chayimamaral/vecontab/backend/internal/domain"
@@ -28,9 +29,10 @@ type RegistroUpdateInput struct {
 }
 
 type RegistroCreateInput struct {
-	Nome     string
-	Email    string
-	Password string
+	Nome        string
+	Email       string
+	Password    string
+	EmpresaNome string
 }
 
 type RegistroRepository struct {
@@ -39,6 +41,46 @@ type RegistroRepository struct {
 
 func NewRegistroRepository(pool *pgxpool.Pool) *RegistroRepository {
 	return &RegistroRepository{pool: pool}
+}
+
+var slugNonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
+var slugMultiUnderscore = regexp.MustCompile(`_+`)
+
+func schemaSlugBaseFromEmpresaNome(nome string) string {
+	s := strings.ToLower(strings.TrimSpace(nome))
+	s = slugNonAlnum.ReplaceAllString(s, "_")
+	s = slugMultiUnderscore.ReplaceAllString(s, "_")
+	s = strings.Trim(s, "_")
+	if s == "" {
+		return "tenant"
+	}
+	if len(s) > 54 {
+		s = s[:54]
+	}
+	return s
+}
+
+func buildUniqueSchemaSlug(ctx context.Context, tx pgx.Tx, empresaNome string) (string, error) {
+	base := schemaSlugBaseFromEmpresaNome(empresaNome)
+	candidate := base
+	for i := 1; i <= 9999; i++ {
+		var exists bool
+		if err := tx.QueryRow(
+			ctx,
+			`SELECT EXISTS(SELECT 1 FROM public.tenant_schema_catalog WHERE schema_name = $1)`,
+			candidate,
+		).Scan(&exists); err != nil {
+			return "", fmt.Errorf("check schema slug exists: %w", err)
+		}
+		if !exists {
+			return candidate, nil
+		}
+		candidate = fmt.Sprintf("%s_%d", base, i)
+		if len(candidate) > 63 {
+			candidate = candidate[:63]
+		}
+	}
+	return "", fmt.Errorf("nao foi possivel gerar slug unico para empresa")
 }
 
 func nullStringPtr(ns sql.NullString) *string {
@@ -98,7 +140,7 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.tenant_dados WHERE tenantid = $1::uuid LIMIT 1`
 
 	record, err := scanDadosComplementares("", func(dest ...any) error {
-		return r.pool.QueryRow(ctx, query, tenantID).Scan(dest...)
+		return dbQueryRow(ctx, r.pool, query, tenantID).Scan(dest...)
 	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -112,7 +154,7 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 func (r *RegistroRepository) UpdateByUser(ctx context.Context, userID string, input RegistroUpdateInput) (domain.DadosComplementaresRecord, error) {
 	const tenantQuery = `SELECT tenantid FROM public.usuario WHERE id = $1::uuid`
 	var tenantID string
-	if err := r.pool.QueryRow(ctx, tenantQuery, userID).Scan(&tenantID); err != nil {
+	if err := dbQueryRow(ctx, r.pool, tenantQuery, userID).Scan(&tenantID); err != nil {
 		return domain.DadosComplementaresRecord{}, fmt.Errorf("find tenant by user: %w", err)
 	}
 
@@ -135,8 +177,9 @@ func (r *RegistroRepository) UpdateByUser(ctx context.Context, userID string, in
 		RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
 
 	record, err := scanDadosComplementares(tenantID, func(dest ...any) error {
-		return r.pool.QueryRow(
+		return dbQueryRow(
 			ctx,
+			r.pool,
 			query,
 			input.CNPJ,
 			input.CEP,
@@ -171,7 +214,7 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 		SELECT $1::uuid
 		WHERE NOT EXISTS (SELECT 1 FROM public.tenant_dados td WHERE td.tenantid = $2::uuid)`
 
-	if _, err := r.pool.Exec(ctx, ensureRow, tenantID, tenantID); err != nil {
+	if _, err := dbExec(ctx, r.pool, ensureRow, tenantID, tenantID); err != nil {
 		return domain.DadosComplementaresRecord{}, fmt.Errorf("ensure tenant_dados: %w", err)
 	}
 
@@ -194,8 +237,9 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 		RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
 
 	record, err := scanDadosComplementares(tenantID, func(dest ...any) error {
-		return r.pool.QueryRow(
+		return dbQueryRow(
 			ctx,
+			r.pool,
 			query,
 			input.CNPJ,
 			input.CEP,
@@ -220,7 +264,7 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 }
 
 func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInput) (domain.RegistroUserRecord, error) {
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := dbBeginTx(ctx, r.pool, pgx.TxOptions{})
 	if err != nil {
 		return domain.RegistroUserRecord{}, fmt.Errorf("begin tx registro create: %w", err)
 	}
@@ -235,12 +279,21 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 		return domain.RegistroUserRecord{}, fmt.Errorf("Usuario ja cadastrado")
 	}
 
+	empresaNome := strings.TrimSpace(input.EmpresaNome)
+	if empresaNome == "" {
+		return domain.RegistroUserRecord{}, fmt.Errorf("nome da empresa/escritorio obrigatorio")
+	}
+	empresaSlug, err := buildUniqueSchemaSlug(ctx, tx, empresaNome)
+	if err != nil {
+		return domain.RegistroUserRecord{}, err
+	}
+
 	const tenantQuery = `
 		INSERT INTO public.tenant (nome, active, plano, contato)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 	var tenantID string
-	if err := tx.QueryRow(ctx, tenantQuery, input.Nome, true, "DEMO", input.Nome).Scan(&tenantID); err != nil {
+	if err := tx.QueryRow(ctx, tenantQuery, empresaNome, true, "DEMO", input.Nome).Scan(&tenantID); err != nil {
 		return domain.RegistroUserRecord{}, fmt.Errorf("create tenant: %w", err)
 	}
 
@@ -267,6 +320,18 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 	); err != nil {
 		return domain.RegistroUserRecord{}, fmt.Errorf("create user: %w", err)
 	}
+
+	var schemaName string
+	if err := tx.QueryRow(
+		ctx,
+		`SELECT public.provision_tenant_schema($1::uuid, $2::text, $3::uuid)`,
+		tenantID,
+		empresaSlug,
+		record.ID,
+	).Scan(&schemaName); err != nil {
+		return domain.RegistroUserRecord{}, fmt.Errorf("provision tenant schema: %w", err)
+	}
+	record.TenantSchema = schemaName
 
 	if err := tx.Commit(ctx); err != nil {
 		return domain.RegistroUserRecord{}, fmt.Errorf("commit registro create: %w", err)

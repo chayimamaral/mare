@@ -30,14 +30,16 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 			t.active,
 			t.nome,
 			COALESCE(t.contato, ''),
-			COALESCE(t.plano::text, '')
+			COALESCE(t.plano::text, ''),
+			COALESCE(tsc.schema_name, '')
 		FROM public.usuario u
 		JOIN public.tenant t ON t.id = u.tenantid
+		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
 		WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
 		LIMIT 1`
 
 	var user domain.User
-	if err := r.pool.QueryRow(ctx, query, email).Scan(
+	if err := dbQueryRow(ctx, r.pool, query, email).Scan(
 		&user.ID,
 		&user.Nome,
 		&user.Email,
@@ -49,6 +51,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 		&user.Tenant.Nome,
 		&user.Tenant.Contato,
 		&user.Tenant.Plano,
+		&user.Tenant.SchemaName,
 	); err != nil {
 		return nil, fmt.Errorf("find user by email: %w", err)
 	}
@@ -67,13 +70,15 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 			u.role,
 			t.id,
 			t.active,
-			t.nome
+			t.nome,
+			COALESCE(tsc.schema_name, '')
 		FROM public.usuario u
 		JOIN public.tenant t ON t.id = u.tenantid
+		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
 		WHERE u.id = $1::uuid`
 
 	var user domain.User
-	if err := r.pool.QueryRow(ctx, query, userID).Scan(
+	if err := dbQueryRow(ctx, r.pool, query, userID).Scan(
 		&user.ID,
 		&user.Nome,
 		&user.Email,
@@ -83,6 +88,7 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 		&user.Tenant.ID,
 		&user.Tenant.Active,
 		&user.Tenant.Nome,
+		&user.Tenant.SchemaName,
 	); err != nil {
 		return domain.UserDetailResponse{}, fmt.Errorf("detail user: %w", err)
 	}
@@ -98,9 +104,10 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 					TenantID: user.TenantID,
 					Role:     user.Role,
 					Tenant: domain.UserDetailTenant{
-						ID:     user.Tenant.ID,
-						Active: user.Tenant.Active,
-						Nome:   user.Tenant.Nome,
+						ID:         user.Tenant.ID,
+						Active:     user.Tenant.Active,
+						Nome:       user.Tenant.Nome,
+						SchemaName: user.Tenant.SchemaName,
 					},
 				},
 			},
@@ -115,7 +122,7 @@ func (r *UserRepository) UserRole(ctx context.Context, userID string) (domain.Us
 		WHERE u.id = $1::uuid`
 
 	var id, email, tenantID, role string
-	if err := r.pool.QueryRow(ctx, query, userID).Scan(&id, &email, &tenantID, &role); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query, userID).Scan(&id, &email, &tenantID, &role); err != nil {
 		return domain.UserRoleResponse{}, fmt.Errorf("user role: %w", err)
 	}
 
@@ -129,7 +136,7 @@ func (r *UserRepository) TenantID(ctx context.Context, userID string) (domain.Us
 		WHERE u.id = $1::uuid`
 
 	var tenantID string
-	if err := r.pool.QueryRow(ctx, query, userID).Scan(&tenantID); err != nil {
+	if err := dbQueryRow(ctx, r.pool, query, userID).Scan(&tenantID); err != nil {
 		return domain.UserTenantIDResponse{}, fmt.Errorf("tenant id: %w", err)
 	}
 
@@ -191,7 +198,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 	)
 	args = append(args, rows, first)
 
-	rowsData, err := r.pool.Query(ctx, listQuery, args...)
+	rowsData, err := dbQuery(ctx, r.pool, listQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list usuarios: %w", err)
 	}
@@ -210,7 +217,7 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 
 	countQuery := fmt.Sprintf("SELECT count(*) FROM public.usuario u WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count usuarios: %w", err)
 	}
 
@@ -218,12 +225,12 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 }
 
 func (r *UserRepository) Create(ctx context.Context, nome, email, password, role, tenantID string) ([]domain.UserListItem, error) {
-	const query = `
+	const sqlQuery = `
 		INSERT INTO public.usuario (nome, email, password, role, tenantid, active)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING id, nome, email, role, tenantid, active`
 
-	rows, err := r.pool.Query(ctx, query, nome, email, password, role, tenantID, true)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, nome, email, password, role, tenantID, true)
 	if err != nil {
 		return nil, fmt.Errorf("create usuario: %w", err)
 	}
@@ -244,7 +251,7 @@ func (r *UserRepository) Create(ctx context.Context, nome, email, password, role
 }
 
 func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
-	query := `
+	sqlQuery := `
 		UPDATE public.usuario
 		SET nome = $1,
 			email = $2,
@@ -255,7 +262,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 	args := []any{nome, email, role, tenantID, id}
 
 	if requesterRole != "SUPER" {
-		query = `
+		sqlQuery = `
 			UPDATE public.usuario
 			SET nome = $1,
 				email = $2,
@@ -266,7 +273,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 		args = append(args, requesterTenantID)
 	}
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("update usuario: %w", err)
 	}
@@ -291,7 +298,7 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
-	query := `
+	sqlQuery := `
 		UPDATE public.usuario
 		SET active = false
 		WHERE id = $1
@@ -299,7 +306,7 @@ func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requeste
 	args := []any{id}
 
 	if requesterRole != "SUPER" {
-		query = `
+		sqlQuery = `
 			UPDATE public.usuario
 			SET active = false
 			WHERE id = $1 AND tenantid = $2
@@ -307,7 +314,7 @@ func (r *UserRepository) Delete(ctx context.Context, id, requesterRole, requeste
 		args = append(args, requesterTenantID)
 	}
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("delete usuario: %w", err)
 	}
@@ -337,7 +344,7 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, userID, passwordHas
 		SET password = $1
 		WHERE id = $2`
 
-	if _, err := r.pool.Exec(ctx, query, passwordHash, userID); err != nil {
+	if _, err := dbExec(ctx, r.pool, query, passwordHash, userID); err != nil {
 		return fmt.Errorf("update usuario password: %w", err)
 	}
 

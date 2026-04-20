@@ -73,8 +73,9 @@ func (r *EmpresaCompromissoRepository) GerarCompromissosEmpresa(ctx context.Cont
 
 func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Context, dataRef time.Time) (int, error) {
 	var total int
-	err := r.pool.QueryRow(
+	err := dbQueryRow(
 		ctx,
+		r.pool,
 		`SELECT public.gerar_compromissos_geral($1::date)`,
 		dataRef.Format("2006-01-02"),
 	).Scan(&total)
@@ -86,7 +87,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Contex
 
 func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, empresaID, tenantID string) (empresaGeracaoContext, error) {
 	var out empresaGeracaoContext
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT e.id, e.tenant_id, COALESCE(c.municipio_id, ed.municipio_id), m.ufid, COALESCE(NULLIF(TRIM(c.bairro), ''), ''),
 		       COALESCE(NULLIF(TRIM(c.tipo_empresa_id::text), ''), '')
 		FROM public.empresa e
@@ -175,7 +176,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 		return nil, err
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
@@ -306,7 +307,7 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 		WHERE e.ativo = true AND e.tenant_id = $1
 		ORDER BY c.nome ASC, ec.vencimento ASC, ec.descricao ASC`
 
-	rows, err := r.pool.Query(ctx, q, tenantID)
+	rows, err := dbQuery(ctx, r.pool, q, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list acompanhamento empresa compromissos: %w", err)
 	}
@@ -329,7 +330,7 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 }
 
 func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoEmpresaOption, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 		SELECT e.id, c.nome
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
@@ -357,7 +358,7 @@ func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := dbQuery(ctx, r.pool, `
 		SELECT c.id::text, c.descricao, COALESCE(c.periodicidade, 'MENSAL')
 		FROM public.tipoempresa_obrigacao c
 		WHERE c.ativo = true
@@ -409,7 +410,7 @@ func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context
 
 func (r *EmpresaCompromissoRepository) CreateManualForTenant(ctx context.Context, tenantID string, in EmpresaCompromissoCreateManualInput) (string, error) {
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		INSERT INTO public.empresa_compromissos (
 			descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia
 		)
@@ -441,7 +442,7 @@ func (r *EmpresaCompromissoRepository) UpdateStatusForTenant(ctx context.Context
 	if status != "pendente" && status != "concluido" {
 		return fmt.Errorf("status invalido (pendente|concluido)")
 	}
-	ct, err := r.pool.Exec(ctx, `
+	ct, err := dbExec(ctx, r.pool, `
 		UPDATE public.empresa_compromissos ec
 		SET status = $1, atualizado_em = NOW()
 		FROM public.empresa e
@@ -470,7 +471,7 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 	var err error
 	switch {
 	case hasDate && valor != nil:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_compromissos ec
 			SET vencimento = $1::date, valor = $2, atualizado_em = NOW()
 			FROM public.empresa e
@@ -481,7 +482,7 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 			rowsAff = ct.RowsAffected()
 		}
 	case hasDate:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_compromissos ec
 			SET vencimento = $1::date, atualizado_em = NOW()
 			FROM public.empresa e
@@ -492,7 +493,7 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 			rowsAff = ct.RowsAffected()
 		}
 	default:
-		ct, e := r.pool.Exec(ctx, `
+		ct, e := dbExec(ctx, r.pool, `
 			UPDATE public.empresa_compromissos ec
 			SET valor = $1, atualizado_em = NOW()
 			FROM public.empresa e

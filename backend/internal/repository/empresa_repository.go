@@ -187,7 +187,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		}
 	}
 
-	query := fmt.Sprintf(`
+	sqlQuery := fmt.Sprintf(`
 		SELECT
 			e.id,
 			c.nome,
@@ -236,7 +236,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
 	args = append(args, params.Rows, params.First)
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list empresa: %w", err)
 	}
@@ -289,7 +289,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		"SELECT count(*) FROM public.empresa e INNER JOIN public.cliente c ON c.id = e.cliente_id WHERE %s",
 		strings.Join(whereParts, " AND "))
 	var total int64
-	if err := r.pool.QueryRow(ctx, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count empresa: %w", err)
 	}
 
@@ -301,7 +301,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		SELECT count(*) FROM public.cliente c
 		WHERE c.tenant_id = $1 AND lower(trim(c.nome)) = lower(trim($2)) AND c.ativo = true`
 	var count int64
-	if err := r.pool.QueryRow(ctx, existsQuery, input.TenantID, input.Nome).Scan(&count); err != nil {
+	if err := dbQueryRow(ctx, r.pool, existsQuery, input.TenantID, input.Nome).Scan(&count); err != nil {
 		return nil, 0, fmt.Errorf("check cliente exists: %w", err)
 	}
 	if count > 0 {
@@ -318,7 +318,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
 		return nil, 0, fmt.Errorf("begin create empresa: %w", err)
 	}
@@ -400,7 +400,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	tipo := normalizeEmpresaTipoPessoa(input.TipoPessoa)
 	doc := strings.TrimSpace(input.Documento)
 
-	const query = `
+	const sqlQuery = `
 		UPDATE public.cliente c
 		SET nome = $1,
 		    tenant_id = $2,
@@ -425,7 +425,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
 	regimeArg := empresaRegimeTributarioIDParam(tipo, input.RegimeTributarioID)
 	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
-	rows, err := r.pool.Query(ctx, query, input.Nome, input.TenantID, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), regimeArg, tipoEmpresaArg)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, input.Nome, input.TenantID, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), regimeArg, tipoEmpresaArg)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update empresa: %w", err)
 	}
@@ -463,14 +463,14 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 }
 
 func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		UPDATE public.empresa e
 		SET iniciado = true
 		FROM public.cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
 		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
-	rows, err := r.pool.Query(ctx, query, id, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, id, tenantID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("iniciar processo empresa: %w", err)
 	}
@@ -512,7 +512,7 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 		argIndex++
 	}
 
-	query := fmt.Sprintf(`
+	sqlQuery := fmt.Sprintf(`
 		SELECT
 			ep.id::text,
 			ep.empresa_id::text,
@@ -528,7 +528,7 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 		WHERE %s
 		ORDER BY ep.criado_em DESC, ep.id DESC`, strings.Join(whereParts, " AND "))
 
-	rows, err := r.pool.Query(ctx, query, args...)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list empresa processos: %w", err)
 	}
@@ -560,12 +560,12 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 }
 
 func (r *EmpresaRepository) CreateProcesso(ctx context.Context, input EmpresaProcessoInput) ([]domain.EmpresaProcessoItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		INSERT INTO public.empresa_processos (tenant_id, empresa_id, rotina_id, descricao)
 		VALUES ($1, $2, NULLIF($3::text, '')::uuid, $4)
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
 
-	rows, err := r.pool.Query(ctx, query, input.TenantID, input.EmpresaID, strings.TrimSpace(input.RotinaID), strings.TrimSpace(input.Descricao))
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, input.TenantID, input.EmpresaID, strings.TrimSpace(input.RotinaID), strings.TrimSpace(input.Descricao))
 	if err != nil {
 		return nil, 0, fmt.Errorf("create empresa processo: %w", err)
 	}
@@ -597,13 +597,13 @@ func (r *EmpresaRepository) CreateProcesso(ctx context.Context, input EmpresaPro
 }
 
 func (r *EmpresaRepository) IniciarProcessoFilho(ctx context.Context, processoID, tenantID string) ([]domain.EmpresaProcessoItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		UPDATE public.empresa_processos ep
 		SET iniciado = true, atualizado_em = NOW()
 		WHERE ep.id = $1 AND ep.tenant_id = $2 AND ep.ativo = true
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
 
-	rows, err := r.pool.Query(ctx, query, processoID, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, processoID, tenantID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("iniciar empresa processo: %w", err)
 	}
@@ -667,20 +667,20 @@ func (r *EmpresaRepository) ensureAgendaForProcesso(ctx context.Context, empresa
 		FROM nova_agenda na
 		WHERE a.id = na.id`
 
-	if _, err := r.pool.Exec(ctx, q, empresaID, tenantID, rotinaID); err != nil {
+	if _, err := dbExec(ctx, r.pool, q, empresaID, tenantID, rotinaID); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (r *EmpresaRepository) MarcarCompromissosProcesso(ctx context.Context, processoID, tenantID string) ([]domain.EmpresaProcessoItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		UPDATE public.empresa_processos ep
 		SET compromissos_gerados = true, passos_concluidos = true, atualizado_em = NOW()
 		WHERE ep.id = $1 AND ep.tenant_id = $2 AND ep.ativo = true
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
 
-	rows, err := r.pool.Query(ctx, query, processoID, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, processoID, tenantID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("marcar compromissos processo: %w", err)
 	}
@@ -709,14 +709,14 @@ func (r *EmpresaRepository) MarcarCompromissosProcesso(ctx context.Context, proc
 }
 
 func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
-	const query = `
+	const sqlQuery = `
 		UPDATE public.empresa e
 		SET ativo = false
 		FROM public.cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
 		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
-	rows, err := r.pool.Query(ctx, query, id, tenantID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, id, tenantID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("delete empresa: %w", err)
 	}
@@ -749,7 +749,7 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 
 // MunicipioEUfIDs retorna municipio_id e ufid do município da empresa (escopo tenant).
 func (r *EmpresaRepository) MunicipioEUfIDs(ctx context.Context, empresaID, tenantID string) (municipioID string, ufID string, err error) {
-	err = r.pool.QueryRow(ctx, `
+	err = dbQueryRow(ctx, r.pool, `
 		SELECT COALESCE(c.municipio_id, ed.municipio_id)::text, m.ufid
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
@@ -767,7 +767,7 @@ func (r *EmpresaRepository) MunicipioEUfIDs(ctx context.Context, empresaID, tena
 // TipoEmpresaIDFromRotina retorna o tipo de empresa do cliente ou da rotina do processo mais recente.
 func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresaID string) (string, error) {
 	var tid *string
-	err := r.pool.QueryRow(ctx, `
+	err := dbQueryRow(ctx, r.pool, `
 		SELECT COALESCE(
 			NULLIF(TRIM(c.tipo_empresa_id::text), ''),
 			NULLIF(TRIM(r.tipo_empresa_id::text), '')

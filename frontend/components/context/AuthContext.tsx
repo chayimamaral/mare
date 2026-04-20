@@ -2,6 +2,7 @@ import { createContext, ReactNode, useEffect, useState } from 'react';
 import { setCookie, parseCookies } from 'nookies';
 import Router from 'next/router';
 import { AxiosError } from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 
 import api from '../api/apiClient';
 import {
@@ -15,7 +16,7 @@ interface AuthContextData {
   user?: UserProps | undefined;
   isAuthenticated: boolean;
   signIn: (credentials: SignInProps) => Promise<void>;
-  signUp: (credentials: SignUpProps) => Promise<void>;
+  signUp: (credentials: SignUpProps) => Promise<SignUpResult>;
   logoutUser: () => Promise<void>;
 }
 
@@ -28,6 +29,9 @@ interface UserProps {
 
 interface Tenant {
   id: string;
+  nome?: string;
+  schema_name?: string;
+  schemaName?: string;
 }
 
 interface SubscriptionProps {
@@ -48,7 +52,18 @@ interface SignUpProps {
   nome: string;
   email: string;
   password: string;
+  empresa_nome: string;
 
+}
+
+interface SignUpResult {
+  id: string;
+  nome: string;
+  email: string;
+  role: string;
+  tenantid: string;
+  tenant_schema?: string;
+  active: boolean;
 }
 
 const AuthContext = createContext({} as AuthContextData)
@@ -70,6 +85,7 @@ export function signOut() {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserProps>()
   const isAuthenticated = !!user;
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
@@ -119,13 +135,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // ignore
       }
 
-      setUser({
-        id,
-        nome,
-        email
-      })
-
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+      // Define o usuário imediatamente com os dados do login para o topbar não ficar em branco
+      setUser({ id, nome, email });
+
+      try {
+        // Enriquece com dados completos (tenant) passando o token explicitamente
+        const me = await api.get('/api/me', { headers: { Authorization: `Bearer ${token}` } });
+        const meData = me.data?.usuarios?.[0]?.resultado ?? me.data;
+        const tenant = meData?.tenant ?? undefined;
+        setUser({
+          id: meData?.id ?? id,
+          nome: meData?.nome ?? nome,
+          email: meData?.email ?? email,
+          tenant,
+        });
+      } catch {
+        // já definido acima com dados do login
+      }
 
 
       Router.push('/')
@@ -143,30 +171,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  async function signUp({ nome, email, password, }: SignUpProps) {
+  async function signUp({ nome, email, password, empresa_nome }: SignUpProps): Promise<SignUpResult> {
     try {
       const response = await api.post("/api/registro", {
         nome,
         email,
         password,
+        empresa_nome,
       })
 
       Router.push('/auth/login')
+      return response.data as SignUpResult;
 
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao registrar usuário';
+      const axiosErr = err as AxiosError<{ error?: string; message?: string }>;
+      const message =
+        axiosErr.response?.data?.error ||
+        axiosErr.response?.data?.message ||
+        (err instanceof Error ? err.message : 'Erro ao registrar usuário');
       throw new Error(message)
     }
   }
 
   async function logoutUser() {
     try {
+      queryClient.clear();
+      setUser(undefined);
+      api.defaults.headers.common['Authorization'] = '';
       clearAuthTokenCookies(null);
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('vecontab_token');
       }
       Router.push('/auth/login');
-      setUser(undefined)
     } catch (err) {
       //console.log("Erro ao Sair", err)
       const message = err instanceof Error ? err.message : 'Erro ao sair';
