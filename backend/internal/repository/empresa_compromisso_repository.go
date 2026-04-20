@@ -72,17 +72,146 @@ func (r *EmpresaCompromissoRepository) GerarCompromissosEmpresa(ctx context.Cont
 }
 
 func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Context, dataRef time.Time) (int, error) {
-	var total int
-	err := dbQueryRow(
-		ctx,
-		r.pool,
-		`SELECT public.gerar_compromissos_geral($1::date)`,
-		dataRef.Format("2006-01-02"),
-	).Scan(&total)
+	rows, err := dbQuery(ctx, r.pool, `
+		SELECT tenant_id::text, schema_name
+		FROM public.tenant_schema_catalog
+		WHERE NULLIF(BTRIM(schema_name), '') IS NOT NULL
+		ORDER BY tenant_id`)
 	if err != nil {
-		return 0, fmt.Errorf("executar gerar_compromissos_geral: %w", err)
+		return 0, fmt.Errorf("listar tenants para geracao geral: %w", err)
+	}
+	defer rows.Close()
+
+	type tenantRow struct {
+		TenantID   string
+		SchemaName string
+	}
+	var tenants []tenantRow
+	for rows.Next() {
+		var t tenantRow
+		if err := rows.Scan(&t.TenantID, &t.SchemaName); err != nil {
+			return 0, fmt.Errorf("scan tenant_schema_catalog: %w", err)
+		}
+		tenants = append(tenants, t)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	total := 0
+	for _, t := range tenants {
+		var eids []string
+		err := withTenantSchemaContextByName(ctx, r.pool, t.SchemaName, func(inner context.Context) error {
+			erows, qerr := dbQuery(inner, r.pool, `
+				SELECT e.id::text
+				FROM empresa e
+				WHERE e.ativo = true AND e.iniciado = true
+				  AND NOT EXISTS (SELECT 1 FROM empresa_compromissos ec WHERE ec.empresa_id = e.id)
+				ORDER BY e.id ASC`)
+			if qerr != nil {
+				return qerr
+			}
+			defer erows.Close()
+			for erows.Next() {
+				var eid string
+				if err := erows.Scan(&eid); err != nil {
+					return err
+				}
+				eids = append(eids, eid)
+			}
+			return erows.Err()
+		})
+		if err != nil {
+			return total, fmt.Errorf("tenant %s schema %s: listar empresas: %w", t.TenantID, t.SchemaName, err)
+		}
+		for _, eid := range eids {
+			items, gerr := r.GerarCompromissosEmpresaScoped(ctx, t.TenantID, dataRef, eid)
+			if gerr != nil {
+				return total, fmt.Errorf("tenant %s empresa %s: %w", t.TenantID, eid, gerr)
+			}
+			total += len(items)
+		}
 	}
 	return total, nil
+}
+
+// GerarCompromissosEmpresaScoped executa a geracao com conexao e search_path do tenant (uso worker / jobs).
+func (r *EmpresaCompromissoRepository) GerarCompromissosEmpresaScoped(ctx context.Context, tenantID string, dataRef time.Time, empresaID string) ([]domain.EmpresaCompromissoItem, error) {
+	tid := strings.TrimSpace(tenantID)
+	eid := strings.TrimSpace(empresaID)
+	var items []domain.EmpresaCompromissoItem
+	err := withTenantSchemaContext(ctx, r.pool, tid, func(inner context.Context) error {
+		var err error
+		items, err = r.GerarCompromissosEmpresa(inner, tid, dataRef, eid)
+		return err
+	})
+	return items, err
+}
+
+// ListEmpresaAlvosWorker retorna empresas iniciadas sem compromissos, percorrendo todos os schemas do catalogo.
+func (r *EmpresaCompromissoRepository) ListEmpresaAlvosWorker(ctx context.Context) ([]struct {
+	TenantID  string
+	EmpresaID string
+}, error) {
+	rows, err := dbQuery(ctx, r.pool, `
+		SELECT tenant_id::text, schema_name
+		FROM public.tenant_schema_catalog
+		WHERE NULLIF(BTRIM(schema_name), '') IS NOT NULL
+		ORDER BY tenant_id`)
+	if err != nil {
+		return nil, fmt.Errorf("listar tenants worker: %w", err)
+	}
+	defer rows.Close()
+
+	type tenantRow struct {
+		TenantID   string
+		SchemaName string
+	}
+	var tenants []tenantRow
+	for rows.Next() {
+		var t tenantRow
+		if err := rows.Scan(&t.TenantID, &t.SchemaName); err != nil {
+			return nil, fmt.Errorf("scan tenant_schema_catalog: %w", err)
+		}
+		tenants = append(tenants, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var alvos []struct {
+		TenantID  string
+		EmpresaID string
+	}
+	for _, t := range tenants {
+		err := withTenantSchemaContextByName(ctx, r.pool, t.SchemaName, func(inner context.Context) error {
+			erows, qerr := dbQuery(inner, r.pool, `
+				SELECT e.id::text
+				FROM empresa e
+				WHERE e.ativo = true AND e.iniciado = true
+				  AND NOT EXISTS (SELECT 1 FROM empresa_compromissos ec WHERE ec.empresa_id = e.id)
+				ORDER BY e.id ASC`)
+			if qerr != nil {
+				return qerr
+			}
+			defer erows.Close()
+			for erows.Next() {
+				var eid string
+				if err := erows.Scan(&eid); err != nil {
+					return err
+				}
+				alvos = append(alvos, struct {
+					TenantID  string
+					EmpresaID string
+				}{TenantID: t.TenantID, EmpresaID: eid})
+			}
+			return erows.Err()
+		})
+		if err != nil {
+			return nil, fmt.Errorf("tenant %s: %w", t.TenantID, err)
+		}
+	}
+	return alvos, nil
 }
 
 func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, empresaID, tenantID string) (empresaGeracaoContext, error) {
@@ -90,9 +219,9 @@ func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, e
 	err := dbQueryRow(ctx, r.pool, `
 		SELECT e.id, e.tenant_id, COALESCE(c.municipio_id, ed.municipio_id), m.ufid, COALESCE(NULLIF(TRIM(c.bairro), ''), ''),
 		       COALESCE(NULLIF(TRIM(c.tipo_empresa_id::text), ''), '')
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
+		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		INNER JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`,
 		empresaID, tenantID,
@@ -108,7 +237,7 @@ func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, e
 
 func (r *EmpresaCompromissoRepository) countByEmpresaTx(ctx context.Context, tx pgx.Tx, empresaID string) (int64, error) {
 	var n int64
-	err := tx.QueryRow(ctx, `SELECT count(*) FROM public.empresa_compromissos WHERE empresa_id = $1`, empresaID).Scan(&n)
+	err := tx.QueryRow(ctx, `SELECT count(*) FROM empresa_compromissos WHERE empresa_id = $1`, empresaID).Scan(&n)
 	return n, err
 }
 
@@ -196,7 +325,7 @@ func (r *EmpresaCompromissoRepository) GerarCompromissos(ctx context.Context, em
 	}
 
 	const ins = `
-		INSERT INTO public.empresa_compromissos (descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia)
+		INSERT INTO empresa_compromissos (descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia)
 		VALUES ($1, $2, $3::timestamptz, $4, 'pendente', $5, $6::uuid, COALESCE($7::date, date_trunc('month', $3::timestamptz)::date))
 		RETURNING id, descricao, valor, vencimento::text, COALESCE(observacao, ''), status, empresa_id, tipoempresa_obrigacao_id::text`
 
@@ -300,9 +429,9 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 			END,
 			ec.id::text,
 			ec.valor
-		FROM public.empresa_compromissos ec
-		INNER JOIN public.empresa e ON e.id = ec.empresa_id
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		FROM empresa_compromissos ec
+		INNER JOIN empresa e ON e.id = ec.empresa_id
+		INNER JOIN cliente c ON c.id = e.cliente_id
 		INNER JOIN public.tipoempresa_obrigacao cf ON cf.id = ec.tipoempresa_obrigacao_id
 		WHERE e.ativo = true AND e.tenant_id = $1
 		ORDER BY c.nome ASC, ec.vencimento ASC, ec.descricao ASC`
@@ -332,8 +461,8 @@ func (r *EmpresaCompromissoRepository) ListAcompanhamentoByTenant(ctx context.Co
 func (r *EmpresaCompromissoRepository) ListEmpresaOptionsByTenant(ctx context.Context, tenantID string) ([]domain.EmpresaCompromissoEmpresaOption, error) {
 	rows, err := dbQuery(ctx, r.pool, `
 		SELECT e.id, c.nome
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
 		WHERE e.ativo = true AND e.tenant_id = $1
 		ORDER BY c.nome ASC`, strings.TrimSpace(tenantID))
 	if err != nil {
@@ -411,14 +540,14 @@ func (r *EmpresaCompromissoRepository) ListObrigacaoOptionsByEmpresa(ctx context
 func (r *EmpresaCompromissoRepository) CreateManualForTenant(ctx context.Context, tenantID string, in EmpresaCompromissoCreateManualInput) (string, error) {
 	var id string
 	err := dbQueryRow(ctx, r.pool, `
-		INSERT INTO public.empresa_compromissos (
+		INSERT INTO empresa_compromissos (
 			descricao, valor, vencimento, observacao, status, empresa_id, tipoempresa_obrigacao_id, competencia
 		)
 		SELECT
 			$1, $2, $3::timestamptz, $4, $5, $6, $7::uuid, date_trunc('month', $3::date)::date
 		WHERE EXISTS (
 			SELECT 1
-			FROM public.empresa e
+			FROM empresa e
 			WHERE e.id = $6 AND e.tenant_id = $8 AND e.ativo = true
 		)
 		RETURNING id::text`,
@@ -443,9 +572,9 @@ func (r *EmpresaCompromissoRepository) UpdateStatusForTenant(ctx context.Context
 		return fmt.Errorf("status invalido (pendente|concluido)")
 	}
 	ct, err := dbExec(ctx, r.pool, `
-		UPDATE public.empresa_compromissos ec
+		UPDATE empresa_compromissos ec
 		SET status = $1, atualizado_em = NOW()
-		FROM public.empresa e
+		FROM empresa e
 		WHERE ec.id = $2::uuid AND ec.empresa_id = e.id AND e.tenant_id = $3`,
 		status, id, tenantID)
 	if err != nil {
@@ -472,9 +601,9 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 	switch {
 	case hasDate && valor != nil:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_compromissos ec
+			UPDATE empresa_compromissos ec
 			SET vencimento = $1::date, valor = $2, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ec.id = $3::uuid AND ec.empresa_id = e.id AND e.tenant_id = $4`,
 			strings.TrimSpace(*dataVencimento), *valor, itemID, tenantID)
 		err = e
@@ -483,9 +612,9 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 		}
 	case hasDate:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_compromissos ec
+			UPDATE empresa_compromissos ec
 			SET vencimento = $1::date, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ec.id = $2::uuid AND ec.empresa_id = e.id AND e.tenant_id = $3`,
 			strings.TrimSpace(*dataVencimento), itemID, tenantID)
 		err = e
@@ -494,9 +623,9 @@ func (r *EmpresaCompromissoRepository) UpdateItem(ctx context.Context, tenantID,
 		}
 	default:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_compromissos ec
+			UPDATE empresa_compromissos ec
 			SET valor = $1, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ec.id = $2::uuid AND ec.empresa_id = e.id AND e.tenant_id = $3`,
 			*valor, itemID, tenantID)
 		err = e

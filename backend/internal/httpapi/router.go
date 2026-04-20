@@ -264,7 +264,7 @@ func registerRoutes(
 
 	r.With(requireAuth).Get("/empresas", empresaHandler.List)
 	r.With(requireAuth).Get("/clientes", clienteHandler.List)
-	// ADMIN do tenant + SUPER (VEC): cadastro/manutenção de cliente em public.cliente; não usar requireAdminOnly (excluía SUPER).
+	// ADMIN do tenant + SUPER (VEC): cadastro/manutenção de cliente no schema do tenant; não usar requireAdminOnly (excluía SUPER).
 	r.With(requireAuth, requireAdmin).Post("/empresa", empresaHandler.Create)
 	r.With(requireAuth, requireAdmin).Put("/updateempresa", empresaHandler.Update)
 	r.With(requireAuth, requireAdmin).Put("/deleteempresa", empresaHandler.Delete)
@@ -323,6 +323,7 @@ func registerRoutes(
 	r.With(requireAuth).Get("/empresacompromissos/form-options", empresaCompromissoHandler.FormOptions)
 	r.With(requireAuth).Get("/empresacompromissos/obrigacoes", empresaCompromissoHandler.ObrigacoesByEmpresa)
 	r.With(requireAuth, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
+	r.With(requireAuth, requireSuper).Post("/empresacompromissos/gerar-geral", empresaCompromissoHandler.GerarGeralTodosTenants)
 	r.With(requireAuth, requireAdmin).Get("/monitor/operacoes", monitorOperacaoHandler.List)
 	r.With(requireAuth).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
 	r.With(requireAuth).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)

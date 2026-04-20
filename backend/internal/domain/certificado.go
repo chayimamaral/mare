@@ -10,7 +10,7 @@ import "time"
 type Certificado struct {
 	ID     string `json:"id"`
 	Tenant string `json:"tenant_id"`
-	// EmpresaID referencia public.empresa.id (cliente PJ/PF atendido pelo escritório).
+	// EmpresaID referencia empresa.id no schema do tenant (cliente PJ/PF atendido pelo escritório).
 	EmpresaID string `json:"empresa_id"`
 
 	// PFXCifrado e SenhaCifrada são produzidos por certseal.Seal (nonce||ciphertext).

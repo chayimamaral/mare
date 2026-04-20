@@ -150,7 +150,7 @@ func (r *IntegraTabelaConsumoRepository) DeleteFaixa(ctx context.Context, id str
 func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in IntegraRegistrarGastoInput) (domain.IntegraContadorGasto, error) {
 	const consumoMesQuery = `
 		SELECT COALESCE(SUM(quantidade), 0)
-		  FROM public.integra_contador_gasto
+		  FROM integra_contador_gasto
 		 WHERE tenant_id = $1
 		   AND lower(tipo) = lower($2)
 		   AND date_trunc('month', processado_em) = date_trunc('month', now())`
@@ -177,7 +177,7 @@ func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in 
 
 	valorTotal := preco * float64(in.Quantidade)
 	const insertQuery = `
-		INSERT INTO public.integra_contador_gasto
+		INSERT INTO integra_contador_gasto
 			(tenant_id, empresa_documento, tipo, id_sistema, id_servico, quantidade, consumo_mes, faixa_aplicada, preco_unitario, valor_total)
 		VALUES
 			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -217,7 +217,7 @@ func (r *IntegraTabelaConsumoRepository) RegistrarGasto(ctx context.Context, in 
 func (r *IntegraTabelaConsumoRepository) ListGastos(ctx context.Context, tenantID, empresaDocumento, tipo string) ([]domain.IntegraContadorGasto, error) {
 	query := `
 		SELECT id, tenant_id, empresa_documento, tipo, id_sistema, id_servico, quantidade, consumo_mes, faixa_aplicada, preco_unitario, valor_total, to_char(processado_em, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-		  FROM public.integra_contador_gasto
+		  FROM integra_contador_gasto
 		 WHERE tenant_id = $1`
 	args := []any{tenantID}
 	if strings.TrimSpace(empresaDocumento) != "" {

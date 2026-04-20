@@ -69,7 +69,7 @@ func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosList
 			e.sigla,
 			t.id,
 			t.descricao
-		FROM public.grupopassos g
+		FROM grupopassos g
 		JOIN public.municipio m ON m.id = g.municipio_id
 		JOIN public.tipoempresa t ON t.id = g.tipoempresa_id
 		JOIN public.estado e ON e.id = m.ufid
@@ -107,7 +107,7 @@ func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosList
 		})
 	}
 
-	countQuery := fmt.Sprintf("SELECT count(*) FROM public.grupopassos g WHERE %s", strings.Join(whereParts, " AND "))
+	countQuery := fmt.Sprintf("SELECT count(*) FROM grupopassos g WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
 	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
@@ -118,7 +118,7 @@ func (r *GrupoPassosRepository) List(ctx context.Context, params GrupoPassosList
 
 func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipioID, tipoEmpresaID string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
-		INSERT INTO public.grupopassos (descricao, municipio_id, tipoempresa_id)
+		INSERT INTO grupopassos (descricao, municipio_id, tipoempresa_id)
 		VALUES ($1, $2, $3)
 		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
 
@@ -139,7 +139,7 @@ func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipio
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM grupopassos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
 	}
 
@@ -148,7 +148,7 @@ func (r *GrupoPassosRepository) Create(ctx context.Context, descricao, municipio
 
 func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, municipioID, tipoEmpresaID string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
-		UPDATE public.grupopassos
+		UPDATE grupopassos
 		SET descricao = $1, municipio_id = $2, tipoempresa_id = $3
 		WHERE id = $4
 		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
@@ -170,7 +170,7 @@ func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, munic
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM grupopassos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
 	}
 
@@ -179,7 +179,7 @@ func (r *GrupoPassosRepository) Update(ctx context.Context, id, descricao, munic
 
 func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
-		UPDATE public.grupopassos
+		UPDATE grupopassos
 		SET ativo = false
 		WHERE id = $1
 		RETURNING id, descricao, municipio_id, tipoempresa_id, ativo`
@@ -201,7 +201,7 @@ func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]domain
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM grupopassos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
 	}
 
@@ -211,7 +211,7 @@ func (r *GrupoPassosRepository) Delete(ctx context.Context, id string) ([]domain
 func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]domain.GrupoPassosMutationItem, int64, error) {
 	const query = `
 		SELECT id, descricao, municipio_id, tipoempresa_id, ativo
-		FROM public.grupopassos
+		FROM grupopassos
 		WHERE id = $1`
 
 	rows, err := dbQuery(ctx, r.pool, query, id)
@@ -231,7 +231,7 @@ func (r *GrupoPassosRepository) GetByID(ctx context.Context, id string) ([]domai
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.grupopassos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM grupopassos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count grupopassos: %w", err)
 	}
 

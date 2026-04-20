@@ -77,7 +77,7 @@ export const LoginPage: Page = () => {
                             <label htmlFor="password1" className="block text-900 font-medium text-xl mb-2">
                                 Senha
                             </label>
-                            <Password inputId="password1" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" toggleMask className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} inputClassName="w-full p-3 md:w-30rem"></Password>
+                            <Password inputId="password1" value={password} onChange={(e) => setPassword(e.target.value)} feedback={false} placeholder="Senha" toggleMask className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} inputClassName="w-full p-3 md:w-30rem"></Password>
 
                             <div className="flex align-items-center justify-content-between mb-5 gap-5">
 

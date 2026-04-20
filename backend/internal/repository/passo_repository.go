@@ -73,8 +73,8 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]d
 			m.id,
 			m.nome,
 			e.sigla
-		FROM public.passos p
-		LEFT JOIN public.linkpassos l ON l.passo_id = p.id
+		FROM passos p
+		LEFT JOIN linkpassos l ON l.passo_id = p.id
 		JOIN public.municipio m ON m.id = p.municipio_id
 		JOIN public.estado e ON e.id = m.ufid
 		WHERE %s
@@ -107,7 +107,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]d
 		})
 	}
 
-	countQuery := fmt.Sprintf("SELECT count(*) FROM public.passos p WHERE %s", strings.Join(whereParts, " AND "))
+	countQuery := fmt.Sprintf("SELECT count(*) FROM passos p WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
 	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
@@ -118,7 +118,7 @@ func (r *PassoRepository) List(ctx context.Context, params PassoListParams) ([]d
 
 func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo int, tipoPasso, municipioID, link string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
-		INSERT INTO public.passos (descricao, tempoestimado, tipopasso, municipio_id)
+		INSERT INTO passos (descricao, tempoestimado, tipopasso, municipio_id)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
 
@@ -142,11 +142,11 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 	}
 
 	if strings.TrimSpace(link) != "" && createdID != "" {
-		_, _ = dbExec(ctx, r.pool, `INSERT INTO public.linkpassos (link, passo_id) VALUES ($1, $2)`, link, createdID)
+		_, _ = dbExec(ctx, r.pool, `INSERT INTO linkpassos (link, passo_id) VALUES ($1, $2)`, link, createdID)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -155,7 +155,7 @@ func (r *PassoRepository) Create(ctx context.Context, descricao string, tempo in
 
 func (r *PassoRepository) Update(ctx context.Context, id, descricao string, tempo int, tipoPasso, municipioID, link string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
-		UPDATE public.passos
+		UPDATE passos
 		SET descricao = $1, tempoestimado = $2, tipopasso = $3, municipio_id = $4
 		WHERE id = $5
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
@@ -179,14 +179,14 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 
 	if strings.TrimSpace(link) != "" {
 		_, _ = dbExec(ctx, r.pool, `
-			INSERT INTO public.linkpassos (passo_id, link)
+			INSERT INTO linkpassos (passo_id, link)
 			VALUES ($1, $2)
 			ON CONFLICT (passo_id)
 			DO UPDATE SET link = $2`, id, link)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -195,7 +195,7 @@ func (r *PassoRepository) Update(ctx context.Context, id, descricao string, temp
 
 func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.PassoMutationItem, int64, error) {
 	const query = `
-		UPDATE public.passos
+		UPDATE passos
 		SET ativo = false
 		WHERE id = $1
 		RETURNING id, descricao, tempoestimado, tipopasso, municipio_id, ativo`
@@ -218,7 +218,7 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.Passo
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -228,8 +228,8 @@ func (r *PassoRepository) Delete(ctx context.Context, id string) ([]domain.Passo
 func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]domain.PassoDetailItem, int64, error) {
 	const query = `
 		SELECT p.id, p.descricao, p.tempoestimado, p.tipopasso, p.municipio_id, COALESCE(l.link, '')
-		FROM public.passos p
-		LEFT JOIN public.linkpassos l ON l.passo_id = p.id
+		FROM passos p
+		LEFT JOIN linkpassos l ON l.passo_id = p.id
 		WHERE p.id = $1`
 
 	rows, err := dbQuery(ctx, r.pool, query, id)
@@ -249,7 +249,7 @@ func (r *PassoRepository) GetByID(ctx context.Context, id string) ([]domain.Pass
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 
@@ -270,14 +270,14 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 			COALESCE(ri.rotina_id::text, ''),
 			ri.ordem,
 			COALESCE(l.link, '')
-		FROM public.passos p
-		LEFT JOIN public.linkpassos l ON l.passo_id = p.id
-		LEFT JOIN public.rotinaitens ri ON ri.passo_id = p.id
+		FROM passos p
+		LEFT JOIN linkpassos l ON l.passo_id = p.id
+		LEFT JOIN rotinaitens ri ON ri.passo_id = p.id
 		WHERE p.ativo = true
 			AND p.municipio_id = $1
 			AND NOT EXISTS (
 				SELECT 1
-				FROM public.rotinaitens ri2
+				FROM rotinaitens ri2
 				WHERE ri2.passo_id = p.id
 					AND ri2.rotina_id = $2
 			)
@@ -301,7 +301,7 @@ func (r *PassoRepository) ListByCidade(ctx context.Context, params PassoCidadePa
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.passos WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM passos WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count passos: %w", err)
 	}
 

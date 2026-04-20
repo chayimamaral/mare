@@ -25,7 +25,7 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertChavesSuper(ctx context.Context
 		return fmt.Errorf("tenant_id obrigatorio")
 	}
 	_, err := dbExec(ctx, r.pool, `
-		INSERT INTO public.integra_contador_chave_autenticacao (tenant_id, consumer_key, consumer_secret, atualizado_em)
+		INSERT INTO integra_contador_chave_autenticacao (tenant_id, consumer_key, consumer_secret, atualizado_em)
 		VALUES ($1, $2, $3, NOW())
 		ON CONFLICT (tenant_id) DO UPDATE
 		SET consumer_key = EXCLUDED.consumer_key,
@@ -48,7 +48,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesSuper(ctx context.Context, t
 	out.TenantID = tid
 	err := dbQueryRow(ctx, r.pool, `
 		SELECT COALESCE(consumer_key, ''), COALESCE(consumer_secret, '')
-		FROM public.integra_contador_chave_autenticacao
+		FROM integra_contador_chave_autenticacao
 		WHERE tenant_id = $1
 	`, tid).Scan(&out.ConsumerKey, &out.ConsumerSecret)
 	if err != nil {
@@ -68,7 +68,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesIntegraTenantPlataforma(ctx 
 	var out domain.ChavesSuper
 	err := dbQueryRow(ctx, r.pool, `
 		SELECT k.tenant_id::text, COALESCE(k.consumer_key, ''), COALESCE(k.consumer_secret, '')
-		FROM public.integra_contador_chave_autenticacao k
+		FROM integra_contador_chave_autenticacao k
 		INNER JOIN (
 			SELECT DISTINCT u.tenantid
 			FROM public.usuario u
@@ -88,7 +88,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesIntegraTenantPlataforma(ctx 
 
 func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context.Context, item domain.TenantConfiguracoes) error {
 	_, err := dbExec(ctx, r.pool, `
-		INSERT INTO public.tenant_configuracoes (
+		INSERT INTO tenant_configuracoes (
 			tenant_id,
 			gerar_das_por_procuracao,
 			gerar_darf_dctfweb_por_procuracao,
@@ -137,7 +137,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetTenantConfiguracoes(ctx context.Co
 			COALESCE(emitido_por, ''),
 			COALESCE(validade_de::text, ''),
 			COALESCE(validade_ate::text, '')
-		FROM public.tenant_configuracoes
+		FROM tenant_configuracoes
 		WHERE tenant_id = $1::uuid
 	`, tenantID).Scan(
 		&out.TenantID,

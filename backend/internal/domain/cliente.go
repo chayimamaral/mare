@@ -9,7 +9,7 @@ const (
 )
 
 // Cliente unifica o cadastro de PF e PJ no domínio.
-// Persistência: public.cliente + public.empresa (operação); ID exposto nas rotas de cliente = empresa.id; opcional public.clientes_dados.
+// Persistência: tabelas cliente, empresa (e opcional clientes_dados) no schema do tenant (search_path); ID exposto nas rotas de cliente = empresa.id.
 // RotinaID e Cnaes são obrigatórios na regra de negócio para PJ; para PF permanecem nulos.
 type Cliente struct {
 	ID          string     `json:"id"`
@@ -19,7 +19,7 @@ type Cliente struct {
 	Documento   string     `json:"documento"` // CPF ou CNPJ (formato definido na camada de aplicação)
 	MunicipioID *string `json:"municipioId,omitempty"`
 	RotinaID    *string `json:"rotinaId,omitempty"`
-	// RotinaPF: template federal/sazonal para PF (public.rotina_pf).
+	// RotinaPF: template federal/sazonal para PF (tabela rotina_pf no schema do tenant).
 	RotinaPFID   *string `json:"rotinaPfId,omitempty"`
 	RotinaPFNome string  `json:"rotinaPfNome,omitempty"`
 	CategoriaPF  string  `json:"categoriaPf,omitempty"`

@@ -63,7 +63,7 @@ func (s *EmpresaCompromissoService) Gerar(ctx context.Context, empresaID, tenant
 		return EmpresaCompromissoGerarResponse{}, fmt.Errorf("tenant nao identificado")
 	}
 
-	items, err := s.repo.GerarCompromissosEmpresa(ctx, tid, dataInicio, eid)
+	items, err := s.repo.GerarCompromissosEmpresaScoped(ctx, tid, dataInicio, eid)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "compromissos ja gerados para esta empresa") {
 			return EmpresaCompromissoGerarResponse{
@@ -80,6 +80,11 @@ func (s *EmpresaCompromissoService) Gerar(ctx context.Context, empresaID, tenant
 		Quantidade: len(items),
 		Message:    fmt.Sprintf("%d compromissos gerados", len(items)),
 	}, nil
+}
+
+// GerarGeralTodosTenants percorre tenant_schema_catalog (tabela em public) e gera compromissos para cada empresa elegivel em cada schema (SUPER / jobs).
+func (s *EmpresaCompromissoService) GerarGeralTodosTenants(ctx context.Context, dataRef time.Time) (int, error) {
+	return s.repo.GerarCompromissosGeral(ctx, dataRef)
 }
 
 func (s *EmpresaCompromissoService) AcompanhamentoByTenant(ctx context.Context, tenantID string) (EmpresaCompromissoAcompanhamentoResponse, error) {

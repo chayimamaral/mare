@@ -34,6 +34,11 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato, plano stri
 	}
 	defer tx.Rollback(ctx)
 
+	schemaSlug, err := buildUniqueSchemaSlug(ctx, tx, nome)
+	if err != nil {
+		return domain.TenantEntity{}, err
+	}
+
 	const query = `
 		INSERT INTO public.tenant (nome, contato, active, plano)
 		VALUES ($1, $2, $3, $4::public.plano)
@@ -50,9 +55,22 @@ func (r *TenantRepository) Create(ctx context.Context, nome, contato, plano stri
 		return domain.TenantEntity{}, fmt.Errorf("create tenant: %w", err)
 	}
 
-	const dadosQuery = `INSERT INTO public.tenant_dados (tenantid) VALUES ($1)`
+	if err := tx.QueryRow(
+		ctx,
+		`SELECT public.provision_tenant_schema($1::uuid, $2::text, NULL)`,
+		tenant.ID,
+		schemaSlug,
+	).Scan(&tenant.SchemaName); err != nil {
+		return domain.TenantEntity{}, fmt.Errorf("provision tenant schema: %w", err)
+	}
+
+	if err := setTxTenantSearchPath(ctx, tx, tenant.SchemaName); err != nil {
+		return domain.TenantEntity{}, fmt.Errorf("set tenant search_path: %w", err)
+	}
+
+	const dadosQuery = `INSERT INTO tenant_dados (tenantid) VALUES ($1) ON CONFLICT DO NOTHING`
 	if _, err := tx.Exec(ctx, dadosQuery, tenant.ID); err != nil {
-		return domain.TenantEntity{}, fmt.Errorf("create tenant_dados: %w", err)
+		return domain.TenantEntity{}, fmt.Errorf("create tenant_dados local: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -165,11 +183,9 @@ func (r *TenantRepository) ListWithDadosForSuper(ctx context.Context) ([]domain.
 		       COALESCE(t.contato, ''),
 		       COALESCE(t.active, false),
 		       COALESCE(t.plano::text, ''),
-		       COALESCE(td.cnpj::text, ''),
-		       COALESCE(td.razaosocial::text, ''),
-		       COALESCE(td.fantasia::text, '')
+		       COALESCE(tsc.schema_name, '')
 		FROM public.tenant t
-		LEFT JOIN public.tenant_dados td ON td.tenantid = t.id
+		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
 		WHERE NULLIF(BTRIM(COALESCE(t.nome, '')), '') IS NOT NULL
 		ORDER BY COALESCE(t.nome, '')`
 
@@ -182,17 +198,27 @@ func (r *TenantRepository) ListWithDadosForSuper(ctx context.Context) ([]domain.
 	out := make([]domain.TenantListRow, 0)
 	for rows.Next() {
 		var row domain.TenantListRow
+		var schemaName string
 		if err := rows.Scan(
 			&row.ID,
 			&row.Nome,
 			&row.Contato,
 			&row.Active,
 			&row.Plano,
-			&row.CNPJ,
-			&row.RazaoSocial,
-			&row.Fantasia,
+			&schemaName,
 		); err != nil {
 			return nil, fmt.Errorf("scan tenant list row: %w", err)
+		}
+		if schemaName != "" {
+			if err := withTenantSchemaContext(ctx, r.pool, row.ID, func(inner context.Context) error {
+				return dbQueryRow(inner, r.pool, `
+					SELECT COALESCE(cnpj::text, ''), COALESCE(razaosocial::text, ''), COALESCE(fantasia::text, '')
+					FROM tenant_dados
+					WHERE tenantid = $1::uuid
+					LIMIT 1`, row.ID).Scan(&row.CNPJ, &row.RazaoSocial, &row.Fantasia)
+			}); err != nil && err != pgx.ErrNoRows {
+				return nil, fmt.Errorf("load tenant_dados local: %w", err)
+			}
 		}
 		out = append(out, row)
 	}

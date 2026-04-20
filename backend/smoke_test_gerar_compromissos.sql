@@ -1,152 +1,62 @@
--- Smoke test: geração de compromissos (issue #40)
--- Uso:
---   1) Ajuste os parâmetros no bloco "params".
---   2) Execute em homolog/dev.
---   3) Verifique os SELECTs de validação.
+-- =============================================================================
+-- Diagnostico EF-916 / compromissos (leitura apenas — nao altera dados)
+-- =============================================================================
+-- Modelo atual:
+--   - Negocio do escritorio: tabelas no SCHEMA do tenant (ex.: escritorio_xyz).
+--   - Global em public: tenant, usuario, tenant_schema_catalog, tipoempresa_obrigacao,
+--     municipio, feriados, CNAE, etc.
+--   - Geracao de compromissos: API Go POST .../empresacompromissos/gerar ou worker
+--     (nao depende de public.gerar_compromissos_*).
 --
--- Observação:
---   Este roteiro NÃO dá COMMIT. No final, você pode COMMIT ou ROLLBACK.
+-- Banco novo / zerado:
+--   1) Migrations: vecontab/migrations (000_ordem_aplicacao.txt).
+--   2) Cadastro pela aplicacao (tenant + usuario + schema provisionado).
+--   3) Clientes e empresas pela aplicacao (dados no schema do tenant).
+--   4) Compromissos pela UI/API ou cron do worker.
+--
+-- Como usar este arquivo:
+--   Copie o UUID do tenant (SELECT abaixo), depois nas secoes 3–4 substitua
+--   TROQUE_TENANT_UUID pelo valor.
+-- =============================================================================
 
-BEGIN;
+-- 1) Tenants e schema catalogado
+SELECT t.id AS tenant_id,
+       t.nome,
+       t.active,
+       c.schema_name
+FROM public.tenant t
+LEFT JOIN public.tenant_schema_catalog c ON c.tenant_id = t.id
+ORDER BY t.nome;
 
--- =====================================================================
--- 0) Parâmetros
--- =====================================================================
-WITH params AS (
-    SELECT
-        '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text  AS tenant_id,
-        '00000000-0000-0000-0000-000000000000'::text AS empresa_id, -- obrigatório para teste por empresa
-        CURRENT_DATE::date                            AS data_referencia
-)
-SELECT * FROM params;
+-- 2) Usuarios (amostra)
+SELECT u.id, u.email, u.role, u.tenantid, u.active
+FROM public.usuario u
+ORDER BY u.email
+LIMIT 30;
 
--- =====================================================================
--- 1) Pré-checagem rápida
--- =====================================================================
--- Tenants/empresas/obrigações elegíveis
-WITH params AS (
-    SELECT
-        '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text  AS tenant_id,
-        NULL::text                  AS empresa_id
-)
-SELECT
-    e.id AS empresa_id,
-    e.nome,
-    r.tipo_empresa_id,
-    o.id AS obrigacao_id,
-    o.descricao,
-    o.periodicidade,
-    o.abrangencia,
-    o.dia_base,
-    o.mes_base,
-    o.tipo_classificacao
-FROM public.empresa e
-INNER JOIN public.rotinas r ON r.id = e.rotina_id AND r.ativo = true
-INNER JOIN public.tipoempresa_obrigacao o ON o.tipo_empresa_id = r.tipo_empresa_id AND o.ativo = true
-INNER JOIN params p ON p.tenant_id = e.tenant_id
-WHERE e.ativo = true
-  AND (p.empresa_id IS NULL OR e.id = p.empresa_id)
-ORDER BY e.nome, o.descricao
+-- 3) Conferir schema do seu tenant (substitua o UUID)
+SELECT schema_name
+FROM public.tenant_schema_catalog
+WHERE tenant_id = 'TROQUE_TENANT_UUID'::uuid;
+
+-- 4) Apos saber o schema_name (ex.: meu_escritorio), rode em sessao separada:
+--    SET search_path TO meu_escritorio, public;
+--    SELECT count(*) AS empresas FROM empresa WHERE ativo = true;
+--    SELECT count(*) AS compromissos FROM empresa_compromissos;
+--
+--    Ou em uma linha (troque o schema):
+--    SELECT count(*) FROM meu_escritorio.empresa WHERE ativo = true;
+
+-- 5) Templates de obrigacao globais (para geracao bater com tipo_empresa do cliente)
+SELECT id, descricao, tipo_empresa_id, periodicidade, ativo
+FROM public.tipoempresa_obrigacao
+WHERE ativo = true
+ORDER BY tipo_empresa_id, descricao
 LIMIT 100;
 
--- =====================================================================
--- 2) Execução da function
--- =====================================================================
-WITH params AS (
-    SELECT
-        '00000000-0000-0000-0000-000000000000'::text AS empresa_id,
-        CURRENT_DATE::date                           AS data_referencia
-)
-SELECT public.gerar_compromissos_empresa(
-    p.empresa_id,
-    p.data_referencia
-) AS total_inserido_empresa
-FROM params p;
-
--- =====================================================================
--- 3) Idempotência: segunda execução deve inserir 0
--- =====================================================================
-WITH params AS (
-    SELECT
-        '00000000-0000-0000-0000-000000000000'::text AS empresa_id,
-        CURRENT_DATE::date                           AS data_referencia
-)
-SELECT public.gerar_compromissos_empresa(
-    p.empresa_id,
-    p.data_referencia
-) AS total_inserido_segunda_execucao
-FROM params p;
-
--- =====================================================================
--- 3.1) Geração geral (todos os tenants/empresas)
--- =====================================================================
-SELECT public.gerar_compromissos_geral(
-    (date_trunc('month', CURRENT_DATE) + interval '1 month')::date
-) AS total_inserido_geral;
-
--- =====================================================================
--- 4) Validação de duplicidade por chave composta
--- =====================================================================
-WITH params AS (
-    SELECT '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text AS tenant_id
-)
-SELECT
-    ec.empresa_id,
-    ec.tipoempresa_obrigacao_id,
-    ec.competencia,
-    COUNT(*) AS qtd
-FROM public.empresa_compromissos ec
-INNER JOIN public.empresa e ON e.id = ec.empresa_id
-INNER JOIN params p ON p.tenant_id = e.tenant_id
-GROUP BY ec.empresa_id, ec.tipoempresa_obrigacao_id, ec.competencia
-HAVING COUNT(*) > 1;
--- esperado: 0 linhas
-
--- =====================================================================
--- 5) Validação de periodicidade (amostra)
--- =====================================================================
-WITH params AS (
-    SELECT '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text AS tenant_id
-)
-SELECT
-    e.nome AS empresa,
-    o.descricao,
-    o.periodicidade,
-    o.mes_base,
-    ec.competencia,
-    ec.vencimento::date AS vencimento,
-    ec.valor
-FROM public.empresa_compromissos ec
-INNER JOIN public.empresa e ON e.id = ec.empresa_id
-INNER JOIN public.tipoempresa_obrigacao o ON o.id = ec.tipoempresa_obrigacao_id
-INNER JOIN params p ON p.tenant_id = e.tenant_id
-WHERE ec.competencia = date_trunc('month', CURRENT_DATE)::date
-ORDER BY empresa, o.descricao
-LIMIT 200;
-
--- =====================================================================
--- 6) Validação de vencimento em fim de semana
--- =====================================================================
-WITH params AS (
-    SELECT '5bf1a2bc-b39e-4af6-97df-bb70326373ab'::text AS tenant_id
-)
-SELECT
-    e.nome AS empresa,
-    o.descricao,
-    ec.vencimento::date AS vencimento,
-    EXTRACT(ISODOW FROM ec.vencimento::date) AS isodow
-FROM public.empresa_compromissos ec
-INNER JOIN public.empresa e ON e.id = ec.empresa_id
-INNER JOIN public.tipoempresa_obrigacao o ON o.id = ec.tipoempresa_obrigacao_id
-INNER JOIN params p ON p.tenant_id = e.tenant_id
-WHERE ec.competencia = date_trunc('month', CURRENT_DATE)::date
-  AND EXTRACT(ISODOW FROM ec.vencimento::date) IN (6, 7)
-ORDER BY empresa, o.descricao;
--- esperado: idealmente 0 linhas
-
--- =====================================================================
--- 7) Encerramento
--- =====================================================================
--- COMMIT;
-ROLLBACK;
-
+-- =============================================================================
+-- Legado (issue #40): modelo antigo em public + funcoes SQL — nao usar em EF-916
+-- =============================================================================
+-- BEGIN;
+-- SELECT public.gerar_compromissos_empresa(...);
+-- ROLLBACK;

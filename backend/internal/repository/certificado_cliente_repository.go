@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,8 +29,8 @@ func (r *CertificadoClienteRepository) ClienteIDEmpresaTenant(ctx context.Contex
 	}
 	const q = `
 		SELECT c.id::text
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id AND c.ativo = true
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id AND c.ativo = true
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`
 	var cid string
 	if err := dbQueryRow(ctx, r.pool, q, eid, tid).Scan(&cid); err != nil {
@@ -66,7 +66,7 @@ func (r *CertificadoClienteRepository) UpsertAtivo(
 		return fmt.Errorf("blobs cifrados obrigatorios")
 	}
 	const q = `
-		INSERT INTO public.certificado_cliente (
+		INSERT INTO certificado_cliente (
 			cliente_id, pfx_cifrado, senha_cifrada, cnpj, titular_nome, emitido_por,
 			validade_de, validade_ate, ativo, atualizado_em
 		)
@@ -102,7 +102,7 @@ func (r *CertificadoClienteRepository) upsertAtivoLegado(
 ) error {
 	const empresaQ = `
 		SELECT e.id::text, e.tenant_id::text
-		FROM public.empresa e
+		FROM empresa e
 		WHERE e.cliente_id = $1 AND e.ativo = true
 		ORDER BY e.id
 		LIMIT 1`
@@ -121,7 +121,7 @@ func (r *CertificadoClienteRepository) upsertAtivoLegado(
 	defer tx.Rollback(ctx)
 
 	const qUpdate = `
-		UPDATE public.certificado_cliente
+		UPDATE certificado_cliente
 		SET tenant_id = $2::uuid,
 			pfx_cifrado = $3,
 			senha_cifrada = $4,
@@ -137,7 +137,7 @@ func (r *CertificadoClienteRepository) upsertAtivoLegado(
 	}
 	if tag.RowsAffected() == 0 {
 		const qInsert = `
-			INSERT INTO public.certificado_cliente (
+			INSERT INTO certificado_cliente (
 				empresa_id, tenant_id, pfx_cifrado, senha_cifrada, cnpj, titular_nome,
 				validade_ate, ativo, atualizado_em
 			)
@@ -161,7 +161,7 @@ func (r *CertificadoClienteRepository) GetResumoAtivo(ctx context.Context, clien
 	const q = `
 		SELECT COALESCE(cnpj, ''), COALESCE(titular_nome, ''), COALESCE(emitido_por, ''),
 			validade_de, validade_ate
-		FROM public.certificado_cliente
+		FROM certificado_cliente
 		WHERE cliente_id = $1 AND ativo = true`
 	row := dbQueryRow(ctx, r.pool, q, cid)
 	var out CertificadoClienteResumoRow
@@ -186,8 +186,8 @@ func (r *CertificadoClienteRepository) getResumoAtivoLegado(ctx context.Context,
 			'' AS emitido_por,
 			COALESCE(cc.criado_em, NOW()) AS validade_de,
 			cc.validade_ate
-		FROM public.certificado_cliente cc
-		INNER JOIN public.empresa e ON e.id = cc.empresa_id
+		FROM certificado_cliente cc
+		INNER JOIN empresa e ON e.id = cc.empresa_id
 		WHERE e.cliente_id = $1
 		  AND cc.ativo = true
 		ORDER BY cc.atualizado_em DESC

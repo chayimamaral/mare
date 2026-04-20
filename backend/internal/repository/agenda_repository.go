@@ -47,10 +47,10 @@ func (r *AgendaRepository) ListEvents(ctx context.Context, tenantID string) ([]d
 				WHEN CURRENT_DATE < a.inicio THEN '#A0D6B4'
 				ELSE ''
 			END AS border_color
-		FROM public.agenda a
-		LEFT JOIN public.empresa e ON e.id = a.empresa_id
-		LEFT JOIN public.cliente cli ON cli.id = e.cliente_id
-		LEFT JOIN public.rotinas r ON r.id = a.rotina_id
+		FROM agenda a
+		LEFT JOIN empresa e ON e.id = a.empresa_id
+		LEFT JOIN cliente cli ON cli.id = e.cliente_id
+		LEFT JOIN rotinas r ON r.id = a.rotina_id
 		WHERE a.tenant_id = $1`
 
 	rows, err := dbQuery(ctx, r.pool, sqlQuery, tenantID)
@@ -111,9 +111,9 @@ func (r *AgendaRepository) DetailEvents(ctx context.Context, tenantID, agendaID 
 				WHEN CURRENT_DATE < COALESCE(ai.inicio, a.inicio) THEN '#A0D6B4'
 				ELSE ''
 			END AS border_color
-		FROM public.agendaitens ai
-		LEFT JOIN public.agenda a ON a.id = ai.agenda_id
-		LEFT JOIN public.passos p ON p.id = ai.passo_id
+		FROM agendaitens ai
+		LEFT JOIN agenda a ON a.id = ai.agenda_id
+		LEFT JOIN passos p ON p.id = ai.passo_id
 		WHERE ai.agenda_id = $1
 		  AND a.tenant_id = $2`
 
@@ -150,8 +150,8 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 	const ownershipQuery = `
 		SELECT EXISTS (
 			SELECT 1
-			FROM public.agendaitens ai
-			JOIN public.agenda a ON a.id = ai.agenda_id
+			FROM agendaitens ai
+			JOIN agenda a ON a.id = ai.agenda_id
 			WHERE ai.id = $1
 			  AND ai.agenda_id = $2
 			  AND a.tenant_id = $3
@@ -201,7 +201,7 @@ func (r *AgendaRepository) ConcluirPasso(ctx context.Context, tenantID, agendaID
 		return domain.ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
 	}
 
-	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
+	updateQuery := fmt.Sprintf("UPDATE agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
 	if _, err := dbExec(ctx, r.pool, updateQuery, agendaItemID, agendaID); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("concluir passo da agenda: %w", err)
 	}
@@ -227,8 +227,8 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 	const ownershipQuery = `
 		SELECT EXISTS (
 			SELECT 1
-			FROM public.agendaitens ai
-			JOIN public.agenda a ON a.id = ai.agenda_id
+			FROM agendaitens ai
+			JOIN agenda a ON a.id = ai.agenda_id
 			WHERE ai.id = $1
 			  AND ai.agenda_id = $2
 			  AND a.tenant_id = $3
@@ -277,7 +277,7 @@ func (r *AgendaRepository) ReabrirPasso(ctx context.Context, tenantID, agendaID,
 		return domain.ConcluirPassoResult{}, fmt.Errorf("schema de agendaitens sem coluna de conclusao suportada")
 	}
 
-	updateQuery := fmt.Sprintf("UPDATE public.agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
+	updateQuery := fmt.Sprintf("UPDATE agendaitens SET %s WHERE id = $1 AND agenda_id = $2", strings.Join(setParts, ", "))
 	if _, err := dbExec(ctx, r.pool, updateQuery, agendaItemID, agendaID); err != nil {
 		return domain.ConcluirPassoResult{}, fmt.Errorf("reabrir passo da agenda: %w", err)
 	}
@@ -313,11 +313,11 @@ func (r *AgendaRepository) todosPassosConcluidos(ctx context.Context, agendaID s
 	query := ""
 	switch {
 	case hasConcluido:
-		query = `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1 AND COALESCE(concluido, false) = false`
+		query = `SELECT count(*) FROM agendaitens WHERE agenda_id = $1 AND COALESCE(concluido, false) = false`
 	case hasStatus:
-		query = `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1 AND lower(COALESCE(status, '')) NOT IN ('concluido', 'concluida', 'dispensado')`
+		query = `SELECT count(*) FROM agendaitens WHERE agenda_id = $1 AND lower(COALESCE(status, '')) NOT IN ('concluido', 'concluida', 'dispensado')`
 	case hasConcluidoEm:
-		query = `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1 AND concluido_em IS NULL`
+		query = `SELECT count(*) FROM agendaitens WHERE agenda_id = $1 AND concluido_em IS NULL`
 	default:
 		return false, nil
 	}
@@ -359,7 +359,7 @@ func (r *AgendaRepository) marcarAgendaConcluida(ctx context.Context, agendaID s
 		return nil
 	}
 
-	query := fmt.Sprintf("UPDATE public.agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
 	if _, err := dbExec(ctx, r.pool, query, agendaID); err != nil {
 		return fmt.Errorf("marcar agenda concluida: %w", err)
 	}
@@ -396,7 +396,7 @@ func (r *AgendaRepository) desmarcarAgendaConcluida(ctx context.Context, agendaI
 		return nil
 	}
 
-	query := fmt.Sprintf("UPDATE public.agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
+	query := fmt.Sprintf("UPDATE agenda SET %s WHERE id = $1", strings.Join(setParts, ", "))
 	if _, err := dbExec(ctx, r.pool, query, agendaID); err != nil {
 		return fmt.Errorf("desmarcar agenda concluida: %w", err)
 	}
@@ -426,7 +426,7 @@ func (r *AgendaRepository) InsertAgendaItem(ctx context.Context, tenantID, agend
 
 	var owned bool
 	if err := dbQueryRow(ctx, r.pool, `
-		SELECT EXISTS (SELECT 1 FROM public.agenda a WHERE a.id = $1 AND a.tenant_id = $2)`,
+		SELECT EXISTS (SELECT 1 FROM agenda a WHERE a.id = $1 AND a.tenant_id = $2)`,
 		agendaID, tenantID,
 	).Scan(&owned); err != nil {
 		return "", fmt.Errorf("validar agenda: %w", err)
@@ -444,7 +444,7 @@ func (r *AgendaRepository) InsertAgendaItem(ctx context.Context, tenantID, agend
 
 	var newID string
 	if err := dbQueryRow(ctx, r.pool, `
-		INSERT INTO public.agendaitens (agenda_id, passo_id, inicio, termino, descricao)
+		INSERT INTO agendaitens (agenda_id, passo_id, inicio, termino, descricao)
 		VALUES ($1, NULL, $2::date, $3::date, $4)
 		RETURNING id`,
 		agendaID, inicio, termino, descricao,
@@ -481,7 +481,7 @@ func (r *AgendaRepository) agendaEncerrada(ctx context.Context, agendaID string)
 
 	if len(conds) > 0 {
 		var done bool
-		q := fmt.Sprintf("SELECT (%s) FROM public.agenda a WHERE a.id = $1", strings.Join(conds, " OR "))
+		q := fmt.Sprintf("SELECT (%s) FROM agenda a WHERE a.id = $1", strings.Join(conds, " OR "))
 		if err := dbQueryRow(ctx, r.pool, q, agendaID).Scan(&done); err != nil {
 			return false, fmt.Errorf("validar status de conclusao da agenda: %w", err)
 		}
@@ -492,7 +492,7 @@ func (r *AgendaRepository) agendaEncerrada(ctx context.Context, agendaID string)
 
 	// Fallback por itens: se houver itens e todos estiverem concluídos, considera encerrada.
 	var totalItens int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.agendaitens WHERE agenda_id = $1`, agendaID).Scan(&totalItens); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM agendaitens WHERE agenda_id = $1`, agendaID).Scan(&totalItens); err != nil {
 		return false, fmt.Errorf("contar itens da agenda: %w", err)
 	}
 	if totalItens == 0 {
@@ -556,8 +556,8 @@ func (r *AgendaRepository) UpdateAgendaItem(ctx context.Context, tenantID, agend
 	}
 
 	q := fmt.Sprintf(`
-		UPDATE public.agendaitens ai SET %s
-		FROM public.agenda a
+		UPDATE agendaitens ai SET %s
+		FROM agenda a
 		WHERE ai.id = $1 AND ai.agenda_id = $2 AND ai.agenda_id = a.id AND a.tenant_id = $3`,
 		strings.Join(setParts, ", "))
 
@@ -579,8 +579,8 @@ func (r *AgendaRepository) DeleteAgendaItem(ctx context.Context, tenantID, agend
 		return fmt.Errorf("agenda_id e id do item sao obrigatorios")
 	}
 	ct, err := dbExec(ctx, r.pool, `
-		DELETE FROM public.agendaitens ai
-		USING public.agenda a
+		DELETE FROM agendaitens ai
+		USING agenda a
 		WHERE ai.id = $1 AND ai.agenda_id = $2 AND a.id = ai.agenda_id AND a.tenant_id = $3`,
 		itemID, agendaID, tenantID)
 	if err != nil {

@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/chayimamaral/vecontab/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,28 +18,58 @@ func NewCaixaPostalRepository(pool *pgxpool.Pool) *CaixaPostalRepository {
 	return &CaixaPostalRepository{pool: pool}
 }
 
+var tenantSchemaRegex = regexp.MustCompile(`^[a-z][a-z0-9_]{2,62}$`)
+
+func normalizeSchemaName(schemaName string) (string, error) {
+	s := strings.TrimSpace(strings.ToLower(schemaName))
+	if !tenantSchemaRegex.MatchString(s) {
+		return "", fmt.Errorf("schema invalido")
+	}
+	return s, nil
+}
+
+func quoteIdentLocal(ident string) string {
+	return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
+}
+
+func tenantTable(schemaName, tableName string) (string, error) {
+	normalized, err := normalizeSchemaName(schemaName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", quoteIdentLocal(normalized), quoteIdentLocal(tableName)), nil
+}
+
 func (r *CaixaPostalRepository) Insert(ctx context.Context, schemaName string, msg domain.CaixaPostalMensagem) error {
+	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
+	if err != nil {
+		return err
+	}
 	q := fmt.Sprintf(`
-		INSERT INTO %s.caixa_postal_mensagens 
+		INSERT INTO %s
 		(remetente_id, remetente_nome, tipo, is_global, titulo, conteudo)
 		VALUES ($1, $2, $3, $4, $5, $6)
-	`, schemaName)
+	`, tableName)
 
-	_, err := r.pool.Exec(ctx, q, msg.RemetenteID, msg.RemetenteNome, msg.Tipo, msg.IsGlobal, msg.Titulo, msg.Conteudo)
+	_, err = dbExec(ctx, r.pool, q, msg.RemetenteID, msg.RemetenteNome, msg.Tipo, msg.IsGlobal, msg.Titulo, msg.Conteudo)
 	return err
 }
 
 func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]domain.CaixaPostalMensagem, error) {
+	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
+	if err != nil {
+		return nil, err
+	}
 	q := fmt.Sprintf(`
 		SELECT cpm.id, cpm.remetente_id, u.tenantid AS remetente_tenantid,
 		       cpm.remetente_nome, cpm.tipo, cpm.is_global, cpm.titulo, cpm.conteudo,
 		       cpm.lida, cpm.lida_por, cpm.lida_em, cpm.criado_em
-		FROM %s.caixa_postal_mensagens cpm
+		FROM %s cpm
 		LEFT JOIN public.usuario u ON u.id = cpm.remetente_id
 		ORDER BY cpm.criado_em DESC
-	`, schemaName)
+	`, tableName)
 
-	rows, err := r.pool.Query(ctx, q)
+	rows, err := dbQuery(ctx, r.pool, q)
 	if err != nil {
 		return nil, err
 	}
@@ -59,31 +91,39 @@ func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]
 }
 
 func (r *CaixaPostalRepository) CountUnread(ctx context.Context, schemaName string) (int, error) {
+	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
+	if err != nil {
+		return 0, err
+	}
 	q := fmt.Sprintf(`
 		SELECT count(*)
-		FROM %s.caixa_postal_mensagens
+		FROM %s
 		WHERE lida = false AND tipo = 'INBOX'
-	`, schemaName)
+	`, tableName)
 
 	var count int
-	err := r.pool.QueryRow(ctx, q).Scan(&count)
+	err = dbQueryRow(ctx, r.pool, q).Scan(&count)
 	return count, err
 }
 
 func (r *CaixaPostalRepository) MarkAsRead(ctx context.Context, schemaName, msgID, userID string) error {
+	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
+	if err != nil {
+		return err
+	}
 	q := fmt.Sprintf(`
-		UPDATE %s.caixa_postal_mensagens 
+		UPDATE %s
 		SET lida = true, lida_por = $1, lida_em = now()
 		WHERE id = $2 AND lida = false
-	`, schemaName)
+	`, tableName)
 
-	_, err := r.pool.Exec(ctx, q, userID, msgID)
+	_, err = dbExec(ctx, r.pool, q, userID, msgID)
 	return err
 }
 
 func (r *CaixaPostalRepository) GetAllActiveSchemas(ctx context.Context) ([]string, error) {
 	q := `SELECT DISTINCT schema_name FROM public.tenant_schema_catalog WHERE TRIM(schema_name) <> ''`
-	rows, err := r.pool.Query(ctx, q)
+	rows, err := dbQuery(ctx, r.pool, q)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +142,7 @@ func (r *CaixaPostalRepository) GetAllActiveSchemas(ctx context.Context) ([]stri
 
 func (r *CaixaPostalRepository) GetSchemaByTenantID(ctx context.Context, tenantID string) (string, error) {
 	var schema string
-	err := r.pool.QueryRow(ctx,
+	err := dbQueryRow(ctx, r.pool,
 		`SELECT schema_name FROM public.tenant_schema_catalog WHERE tenant_id = $1::uuid`,
 		tenantID,
 	).Scan(&schema)
@@ -121,7 +161,7 @@ func (r *CaixaPostalRepository) GetSuperSchema(ctx context.Context) (string, err
 		LIMIT 1
 	`
 	var schema string
-	err := r.pool.QueryRow(ctx, q).Scan(&schema)
+	err := dbQueryRow(ctx, r.pool, q).Scan(&schema)
 	if err != nil {
 		return "", fmt.Errorf("schema VEC Sistemas (SUPER) não encontrado")
 	}

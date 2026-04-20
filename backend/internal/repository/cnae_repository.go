@@ -37,7 +37,7 @@ func SubclasseSomenteDigitos(s string) string {
 	return nonDigit.ReplaceAllString(strings.TrimSpace(s), "")
 }
 
-// cnaeHierarquiaListada: descrições da listagem — public.cnae, depois cnae_ibge_hierarquia, depois
+// cnaeHierarquiaListada: descrições da listagem — tabela cnae em public, depois cnae_ibge_hierarquia, depois
 // modelo relacional ibge_cnae_* (015). Assim linhas antigas só com subclasse+denominação exibem a hierarquia.
 func cnaeHierarquiaListada(col, ibgeCol string) string {
 	return fmt.Sprintf(

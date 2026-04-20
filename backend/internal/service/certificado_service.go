@@ -101,7 +101,7 @@ func (s *CertificadoService) UpsertPFX(ctx context.Context, tenantID string, pfx
 	return s.repo.UpsertAtivo(ctx, row)
 }
 
-// UpsertPFXCliente valida PKCS#12 e persiste em public.certificado_cliente (1:1 com cliente_id).
+// UpsertPFXCliente valida PKCS#12 e persiste em certificado_cliente no schema do tenant (1:1 com cliente_id).
 func (s *CertificadoService) UpsertPFXCliente(ctx context.Context, tenantID, empresaID string, pfx []byte, senhaPlana, cnpjHint, titularHint string) error {
 	if s == nil || s.repoCliente == nil {
 		return fmt.Errorf("repositorio certificado_cliente nao configurado")

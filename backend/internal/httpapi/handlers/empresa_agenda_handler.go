@@ -91,7 +91,7 @@ func (h *EmpresaAgendaHandler) Gerar(w http.ResponseWriter, r *http.Request) {
 		dataInicio = parsed
 	}
 
-	response, err := h.service.GerarAgenda(r.Context(), p.EmpresaID, p.TipoEmpresaID, dataInicio)
+	response, err := h.service.GerarAgenda(r.Context(), tenantID, p.EmpresaID, p.TipoEmpresaID, dataInicio)
 	if h.monitor != nil {
 		tid := tenantID
 		uid := strings.TrimSpace(middleware.UserID(r.Context()))

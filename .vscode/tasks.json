@@ -1,36 +1,55 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "VContab: Rodar Tudo",
-      "dependsOn": [
-        "VContab: Backend",
-        "VContab: Frontend"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    },
-    {
-      "label": "VContab: Backend",
-      "type": "shell",
-      "command": "cd backend && go run cmd/api/main.go",
-      "isBackground": true,
-      "presentation": {
-        "group": "vcontab-group",
-        "panel": "dedicated"
-      }
-    },
-    {
-      "label": "VContab: Frontend",
-      "type": "shell",
-      "command": "cd frontend && npm run dev",
-      "isBackground": true,
-      "presentation": {
-        "group": "vcontab-group",
-        "panel": "dedicated"
-      }
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "VContab: Rodar Tudo",
+			"dependsOn": [
+				"VContab: Backend",
+				"VContab: Frontend"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "VContab: Backend",
+			"type": "shell",
+			"command": "cd backend && go run cmd/api/main.go",
+			"isBackground": true,
+			"presentation": {
+				"group": "vcontab-group",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "VContab: Frontend",
+			"type": "shell",
+			"command": "cd frontend && npm run dev",
+			"isBackground": true,
+			"presentation": {
+				"group": "vcontab-group",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "VContab: Testes Backend EF-916",
+			"type": "shell",
+			"command": "go",
+			"args": [
+				"test",
+				"./internal/repository",
+				"./internal/service"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "VContab: Testes Backend EF-916 Corrigido",
+			"type": "shell",
+			"command": "cd backend && go test ./internal/repository ./internal/service",
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
 }
