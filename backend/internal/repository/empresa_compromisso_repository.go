@@ -72,17 +72,9 @@ func (r *EmpresaCompromissoRepository) GerarCompromissosEmpresa(ctx context.Cont
 }
 
 func (r *EmpresaCompromissoRepository) GerarCompromissosGeral(ctx context.Context, dataRef time.Time) (int, error) {
-	var total int
-	err := dbQueryRow(
-		ctx,
-		r.pool,
-		`SELECT public.gerar_compromissos_geral($1::date)`,
-		dataRef.Format("2006-01-02"),
-	).Scan(&total)
-	if err != nil {
-		return 0, fmt.Errorf("executar gerar_compromissos_geral: %w", err)
-	}
-	return total, nil
+	_ = ctx
+	_ = dataRef
+	return 0, fmt.Errorf("geracao geral sem tenant foi desabilitada no EF-916; informe tenant explicitamente")
 }
 
 func (r *EmpresaCompromissoRepository) loadGeracaoContext(ctx context.Context, empresaID, tenantID string) (empresaGeracaoContext, error) {

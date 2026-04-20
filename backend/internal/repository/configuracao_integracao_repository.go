@@ -88,7 +88,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetChavesIntegraTenantPlataforma(ctx 
 
 func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context.Context, item domain.TenantConfiguracoes) error {
 	_, err := dbExec(ctx, r.pool, `
-		INSERT INTO public.tenant_configuracoes (
+		INSERT INTO tenant_configuracoes (
 			tenant_id,
 			gerar_das_por_procuracao,
 			gerar_darf_dctfweb_por_procuracao,
@@ -137,7 +137,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetTenantConfiguracoes(ctx context.Co
 			COALESCE(emitido_por, ''),
 			COALESCE(validade_de::text, ''),
 			COALESCE(validade_ate::text, '')
-		FROM public.tenant_configuracoes
+		FROM tenant_configuracoes
 		WHERE tenant_id = $1::uuid
 	`, tenantID).Scan(
 		&out.TenantID,

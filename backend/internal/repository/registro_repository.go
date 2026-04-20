@@ -137,10 +137,21 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 		return domain.DadosComplementaresRecord{}, nil
 	}
 
-	const query = `SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes FROM public.tenant_dados WHERE tenantid = $1::uuid LIMIT 1`
-
-	record, err := scanDadosComplementares("", func(dest ...any) error {
-		return dbQueryRow(ctx, r.pool, query, tenantID).Scan(dest...)
+	var record domain.DadosComplementaresRecord
+	err := withTenantSchemaContext(ctx, r.pool, tenantID, func(inner context.Context) error {
+		const query = `
+			SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes
+			FROM tenant_dados
+			WHERE tenantid = $1::uuid
+			LIMIT 1`
+		loaded, loadErr := scanDadosComplementares("", func(dest ...any) error {
+			return dbQueryRow(inner, r.pool, query, tenantID).Scan(dest...)
+		})
+		if loadErr != nil {
+			return loadErr
+		}
+		record = loaded
+		return nil
 	})
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -157,50 +168,7 @@ func (r *RegistroRepository) UpdateByUser(ctx context.Context, userID string, in
 	if err := dbQueryRow(ctx, r.pool, tenantQuery, userID).Scan(&tenantID); err != nil {
 		return domain.DadosComplementaresRecord{}, fmt.Errorf("find tenant by user: %w", err)
 	}
-
-	const query = `
-		UPDATE public.tenant_dados
-		SET cnpj = $1,
-			cep = $2,
-			endereco = $3,
-			bairro = $4,
-			cidade = $5,
-			estado = $6,
-			telefone = $7,
-			email = $8,
-			ie = $9,
-			im = $10,
-			razaosocial = $11,
-			fantasia = $12,
-			observacoes = $13
-		WHERE tenantid = $14
-		RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
-
-	record, err := scanDadosComplementares(tenantID, func(dest ...any) error {
-		return dbQueryRow(
-			ctx,
-			r.pool,
-			query,
-			input.CNPJ,
-			input.CEP,
-			input.Endereco,
-			input.Bairro,
-			input.Cidade,
-			input.Estado,
-			input.Telefone,
-			input.Email,
-			input.IE,
-			input.IM,
-			input.RazaoSocial,
-			input.Fantasia,
-			input.Observacoes,
-			tenantID,
-		).Scan(dest...)
-	})
-	if err != nil {
-		return domain.DadosComplementaresRecord{}, fmt.Errorf("update registro: %w", err)
-	}
-	return record, nil
+	return r.UpdateByTenantID(ctx, tenantID, input)
 }
 
 func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID string, input RegistroUpdateInput) (domain.DadosComplementaresRecord, error) {
@@ -209,53 +177,60 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 		return domain.DadosComplementaresRecord{}, fmt.Errorf("tenant id obrigatorio")
 	}
 
-	const ensureRow = `
-		INSERT INTO public.tenant_dados (tenantid)
-		SELECT $1::uuid
-		WHERE NOT EXISTS (SELECT 1 FROM public.tenant_dados td WHERE td.tenantid = $2::uuid)`
+	var record domain.DadosComplementaresRecord
+	err := withTenantSchemaContext(ctx, r.pool, tenantID, func(inner context.Context) error {
+		const ensureRow = `
+			INSERT INTO tenant_dados (tenantid)
+			SELECT $1::uuid
+			WHERE NOT EXISTS (SELECT 1 FROM tenant_dados td WHERE td.tenantid = $2::uuid)`
+		if _, err := dbExec(inner, r.pool, ensureRow, tenantID, tenantID); err != nil {
+			return err
+		}
 
-	if _, err := dbExec(ctx, r.pool, ensureRow, tenantID, tenantID); err != nil {
-		return domain.DadosComplementaresRecord{}, fmt.Errorf("ensure tenant_dados: %w", err)
-	}
+		const query = `
+			UPDATE tenant_dados
+			SET cnpj = $1,
+				cep = $2,
+				endereco = $3,
+				bairro = $4,
+				cidade = $5,
+				estado = $6,
+				telefone = $7,
+				email = $8,
+				ie = $9,
+				im = $10,
+				razaosocial = $11,
+				fantasia = $12,
+				observacoes = $13
+			WHERE tenantid = $14::uuid
+			RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
 
-	const query = `
-		UPDATE public.tenant_dados
-		SET cnpj = $1,
-			cep = $2,
-			endereco = $3,
-			bairro = $4,
-			cidade = $5,
-			estado = $6,
-			telefone = $7,
-			email = $8,
-			ie = $9,
-			im = $10,
-			razaosocial = $11,
-			fantasia = $12,
-			observacoes = $13
-		WHERE tenantid = $14::uuid
-		RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
-
-	record, err := scanDadosComplementares(tenantID, func(dest ...any) error {
-		return dbQueryRow(
-			ctx,
-			r.pool,
-			query,
-			input.CNPJ,
-			input.CEP,
-			input.Endereco,
-			input.Bairro,
-			input.Cidade,
-			input.Estado,
-			input.Telefone,
-			input.Email,
-			input.IE,
-			input.IM,
-			input.RazaoSocial,
-			input.Fantasia,
-			input.Observacoes,
-			tenantID,
-		).Scan(dest...)
+		loaded, loadErr := scanDadosComplementares(tenantID, func(dest ...any) error {
+			return dbQueryRow(
+				inner,
+				r.pool,
+				query,
+				input.CNPJ,
+				input.CEP,
+				input.Endereco,
+				input.Bairro,
+				input.Cidade,
+				input.Estado,
+				input.Telefone,
+				input.Email,
+				input.IE,
+				input.IM,
+				input.RazaoSocial,
+				input.Fantasia,
+				input.Observacoes,
+				tenantID,
+			).Scan(dest...)
+		})
+		if loadErr != nil {
+			return loadErr
+		}
+		record = loaded
+		return nil
 	})
 	if err != nil {
 		return domain.DadosComplementaresRecord{}, fmt.Errorf("update tenant_dados: %w", err)
@@ -297,13 +272,6 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 		return domain.RegistroUserRecord{}, fmt.Errorf("create tenant: %w", err)
 	}
 
-	const dadosQuery = `
-		INSERT INTO public.tenant_dados (tenantid)
-		VALUES ($1)`
-	if _, err := tx.Exec(ctx, dadosQuery, tenantID); err != nil {
-		return domain.RegistroUserRecord{}, fmt.Errorf("create tenant_dados: %w", err)
-	}
-
 	const userQuery = `
 		INSERT INTO public.usuario (nome, email, password, role, tenantid, active)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -330,6 +298,12 @@ func (r *RegistroRepository) Create(ctx context.Context, input RegistroCreateInp
 		record.ID,
 	).Scan(&schemaName); err != nil {
 		return domain.RegistroUserRecord{}, fmt.Errorf("provision tenant schema: %w", err)
+	}
+	if err := setTxTenantSearchPath(ctx, tx, schemaName); err != nil {
+		return domain.RegistroUserRecord{}, fmt.Errorf("set tenant search_path: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO tenant_dados (tenantid) VALUES ($1) ON CONFLICT DO NOTHING`, tenantID); err != nil {
+		return domain.RegistroUserRecord{}, fmt.Errorf("create tenant_dados local: %w", err)
 	}
 	record.TenantSchema = schemaName
 

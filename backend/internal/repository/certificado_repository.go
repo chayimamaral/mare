@@ -30,7 +30,7 @@ func (r *CertificadoRepository) GetAtivoPorTenant(ctx context.Context, tenantID 
 	const q = `
 		SELECT id::text, tenant_id, pfx_cifrado, senha_cifrada,
 			COALESCE(cnpj, ''), COALESCE(titular_nome, ''), COALESCE(emitido_por, ''), validade_de, validade_ate, ativo, criado_em, atualizado_em
-		FROM public.certificado_tenant
+		FROM certificado_tenant
 		WHERE tenant_id = $1 AND ativo = true`
 
 	row := dbQueryRow(ctx, r.pool, q, tid)
@@ -61,7 +61,7 @@ func (r *CertificadoRepository) UpsertAtivo(ctx context.Context, c *domain.Certi
 	}
 
 	const q = `
-		INSERT INTO public.certificado_tenant (
+		INSERT INTO certificado_tenant (
 			tenant_id, pfx_cifrado, senha_cifrada, cnpj, titular_nome, emitido_por, validade_de, validade_ate, ativo, atualizado_em
 		)
 		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), NULLIF(TRIM($5), ''), NULLIF(TRIM($6), ''), $7, $8, true, NOW())
@@ -101,7 +101,7 @@ func (r *CertificadoRepository) GetResumoAtivoPorTenant(ctx context.Context, ten
 
 	const q = `
 		SELECT id::text, tenant_id, COALESCE(cnpj, ''), COALESCE(titular_nome, ''), COALESCE(emitido_por, ''), validade_de, validade_ate, ativo, criado_em, atualizado_em
-		FROM public.certificado_tenant
+		FROM certificado_tenant
 		WHERE tenant_id = $1 AND ativo = true`
 
 	row := dbQueryRow(ctx, r.pool, q, tid)
@@ -120,4 +120,3 @@ func (r *CertificadoRepository) GetResumoAtivoPorTenant(ctx context.Context, ten
 	c.AtualizadoEm = atualizado
 	return &c, nil
 }
-

@@ -524,7 +524,7 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 			ep.passos_concluidos,
 			ep.compromissos_gerados,
 			ep.ativo
-		FROM public.empresa_processos ep
+		FROM empresa_processos ep
 		WHERE %s
 		ORDER BY ep.criado_em DESC, ep.id DESC`, strings.Join(whereParts, " AND "))
 
@@ -561,7 +561,7 @@ func (r *EmpresaRepository) ListProcessos(ctx context.Context, empresaID, tenant
 
 func (r *EmpresaRepository) CreateProcesso(ctx context.Context, input EmpresaProcessoInput) ([]domain.EmpresaProcessoItem, int64, error) {
 	const sqlQuery = `
-		INSERT INTO public.empresa_processos (tenant_id, empresa_id, rotina_id, descricao)
+		INSERT INTO empresa_processos (tenant_id, empresa_id, rotina_id, descricao)
 		VALUES ($1, $2, NULLIF($3::text, '')::uuid, $4)
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
 
@@ -598,7 +598,7 @@ func (r *EmpresaRepository) CreateProcesso(ctx context.Context, input EmpresaPro
 
 func (r *EmpresaRepository) IniciarProcessoFilho(ctx context.Context, processoID, tenantID string) ([]domain.EmpresaProcessoItem, int64, error) {
 	const sqlQuery = `
-		UPDATE public.empresa_processos ep
+		UPDATE empresa_processos ep
 		SET iniciado = true, atualizado_em = NOW()
 		WHERE ep.id = $1 AND ep.tenant_id = $2 AND ep.ativo = true
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
@@ -675,7 +675,7 @@ func (r *EmpresaRepository) ensureAgendaForProcesso(ctx context.Context, empresa
 
 func (r *EmpresaRepository) MarcarCompromissosProcesso(ctx context.Context, processoID, tenantID string) ([]domain.EmpresaProcessoItem, int64, error) {
 	const sqlQuery = `
-		UPDATE public.empresa_processos ep
+		UPDATE empresa_processos ep
 		SET compromissos_gerados = true, passos_concluidos = true, atualizado_em = NOW()
 		WHERE ep.id = $1 AND ep.tenant_id = $2 AND ep.ativo = true
 		RETURNING id::text, empresa_id::text, tenant_id::text, COALESCE(rotina_id::text, ''), descricao, criado_em::text, iniciado, passos_concluidos, compromissos_gerados, ativo`
@@ -774,7 +774,7 @@ func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresa
 		)
 		FROM public.empresa e
 		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.empresa_processos ep ON ep.empresa_id = e.id AND ep.ativo = true
+		LEFT JOIN empresa_processos ep ON ep.empresa_id = e.id AND ep.ativo = true
 		LEFT JOIN public.rotinas r ON r.id = ep.rotina_id
 		WHERE e.id = $1 AND e.ativo = true
 		ORDER BY ep.criado_em DESC NULLS LAST

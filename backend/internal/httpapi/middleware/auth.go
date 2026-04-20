@@ -71,8 +71,16 @@ func RequireAuth(tokens *auth.TokenService) func(http.Handler) http.Handler {
 					tenantSchema = strings.TrimSpace(resolved)
 				}
 			}
+			if strings.TrimSpace(claims.Tenant.ID) != "" && tenantSchema == "" {
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
 			ctx = context.WithValue(ctx, tenantSchemaKey, tenantSchema)
-			if tenantConnPool != nil && tenantSchema != "" {
+			if tenantSchema != "" {
+				if tenantConnPool == nil {
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+					return
+				}
 				conn, err := db.AcquireTenantConn(ctx, tenantConnPool, tenantSchema)
 				if err != nil {
 					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
