@@ -248,11 +248,20 @@ export default function CaixaPostal() {
                                 <small className="text-color-secondary">{naoLidasCount} mensagem(ns) não lida(s)</small>
                             )}
                         </div>
-                        <Button
-                            label={isSuper ? 'Nova Mensagem' : 'Enviar para VEC Sistemas'}
-                            icon="pi pi-send"
-                            onClick={abrirEnviar}
-                        />
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                icon="pi pi-refresh"
+                                tooltip="Atualizar"
+                                className="p-button-text"
+                                onClick={() => refetch()}
+                            />
+                            <Button
+                                label={isSuper ? 'Nova Mensagem' : 'Enviar para VEC Sistemas'}
+                                icon="pi pi-send"
+                                onClick={abrirEnviar}
+                            />
+                        </div>
                     </div>
 
                     <TabView className="w-full caixa-postal-tabview"
