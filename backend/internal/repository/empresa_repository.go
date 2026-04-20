@@ -215,19 +215,19 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 					WHEN COUNT(ai.id) = 0 THEN false
 					ELSE BOOL_AND(COALESCE(ai.concluido, false))
 				END
-				FROM public.agenda a
-				LEFT JOIN public.agendaitens ai ON ai.agenda_id = a.id
+				FROM agenda a
+				LEFT JOIN agendaitens ai ON ai.agenda_id = a.id
 				WHERE a.empresa_id = e.id
 				  AND a.tenant_id = e.tenant_id
 			), false) AS passos_concluidos,
 			EXISTS(
 				SELECT 1
-				FROM public.empresa_compromissos ec
+				FROM empresa_compromissos ec
 				WHERE ec.empresa_id = e.id
 			) AS compromissos_gerados
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
+		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		LEFT JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
 		LEFT JOIN public.tipoempresa te_cli ON te_cli.id = c.tipo_empresa_id
 		LEFT JOIN public.regime_tributario rt ON rt.id = c.regime_tributario_id
@@ -286,7 +286,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 	}
 
 	countQuery := fmt.Sprintf(
-		"SELECT count(*) FROM public.empresa e INNER JOIN public.cliente c ON c.id = e.cliente_id WHERE %s",
+		"SELECT count(*) FROM empresa e INNER JOIN cliente c ON c.id = e.cliente_id WHERE %s",
 		strings.Join(whereParts, " AND "))
 	var total int64
 	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
@@ -298,7 +298,7 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 
 func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput) ([]domain.EmpresaMutationItem, int64, error) {
 	const existsQuery = `
-		SELECT count(*) FROM public.cliente c
+		SELECT count(*) FROM cliente c
 		WHERE c.tenant_id = $1 AND lower(trim(c.nome)) = lower(trim($2)) AND c.ativo = true`
 	var count int64
 	if err := dbQueryRow(ctx, r.pool, existsQuery, input.TenantID, input.Nome).Scan(&count); err != nil {
@@ -325,7 +325,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	defer tx.Rollback(ctx)
 
 	const insCliente = `
-		INSERT INTO public.cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, cnaes, bairro, ie, im, regime_tributario_id, tipo_empresa_id)
+		INSERT INTO cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, cnaes, bairro, ie, im, regime_tributario_id, tipo_empresa_id)
 		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), $5, $6, NULLIF(TRIM($7), ''), TRIM(COALESCE($8::text, '')), TRIM(COALESCE($9::text, '')), $10, $11)
 		RETURNING id::text`
 
@@ -347,7 +347,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	}
 
 	const insEmpresa = `
-		INSERT INTO public.empresa (tenant_id, cliente_id)
+		INSERT INTO empresa (tenant_id, cliente_id)
 		VALUES ($1, $2)
 		RETURNING id::text`
 
@@ -358,8 +358,8 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 
 	const sel = `
 		SELECT e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
 		WHERE e.id = $1`
 
 	rows, err := tx.Query(ctx, sel, empresaID)
@@ -401,7 +401,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 	doc := strings.TrimSpace(input.Documento)
 
 	const sqlQuery = `
-		UPDATE public.cliente c
+		UPDATE cliente c
 		SET nome = $1,
 		    tenant_id = $2,
 		    cnaes = $3,
@@ -414,7 +414,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 		    regime_tributario_id = $12,
 		    tipo_empresa_id = $13,
 		    atualizado_em = NOW()
-		FROM public.empresa e
+		FROM empresa e
 		WHERE c.id = e.cliente_id AND e.id = $4 AND e.tenant_id = $5
 		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
@@ -464,9 +464,9 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 
 func (r *EmpresaRepository) IniciarProcesso(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
 	const sqlQuery = `
-		UPDATE public.empresa e
+		UPDATE empresa e
 		SET iniciado = true
-		FROM public.cliente c
+		FROM cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
 		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
@@ -644,12 +644,12 @@ func (r *EmpresaRepository) ensureAgendaForProcesso(ctx context.Context, empresa
 
 	const q = `
 		WITH nova_agenda AS (
-			INSERT INTO public.agenda (empresa_id, tenant_id, rotina_id, inicio)
+			INSERT INTO agenda (empresa_id, tenant_id, rotina_id, inicio)
 			VALUES ($1::uuid, $2::uuid, $3::uuid, CURRENT_DATE)
 			RETURNING id
 		),
 		itens AS (
-			INSERT INTO public.agendaitens (agenda_id, passo_id, inicio, termino, descricao)
+			INSERT INTO agendaitens (agenda_id, passo_id, inicio, termino, descricao)
 			SELECT
 				na.id,
 				ri.passo_id,
@@ -657,12 +657,12 @@ func (r *EmpresaRepository) ensureAgendaForProcesso(ctx context.Context, empresa
 				public.calcular_data_termino(CURRENT_DATE, COALESCE(p.tempoestimado, 0)),
 				COALESCE(p.descricao, '')
 			FROM nova_agenda na
-			JOIN public.rotinaitens ri ON ri.rotina_id = $3::uuid
-			LEFT JOIN public.passos p ON p.id = ri.passo_id
+			JOIN rotinaitens ri ON ri.rotina_id = $3::uuid
+			LEFT JOIN passos p ON p.id = ri.passo_id
 			ORDER BY ri.ordem
 			RETURNING agenda_id, termino
 		)
-		UPDATE public.agenda a
+		UPDATE agenda a
 		SET termino = COALESCE((SELECT MAX(i.termino) FROM itens i), CURRENT_DATE)
 		FROM nova_agenda na
 		WHERE a.id = na.id`
@@ -710,9 +710,9 @@ func (r *EmpresaRepository) MarcarCompromissosProcesso(ctx context.Context, proc
 
 func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]domain.EmpresaMutationItem, int64, error) {
 	const sqlQuery = `
-		UPDATE public.empresa e
+		UPDATE empresa e
 		SET ativo = false
-		FROM public.cliente c
+		FROM cliente c
 		WHERE e.cliente_id = c.id AND e.id = $1 AND e.tenant_id = $2
 		RETURNING e.id, c.nome, c.municipio_id, e.tenant_id, c.cnaes, e.iniciado, e.ativo`
 
@@ -751,9 +751,9 @@ func (r *EmpresaRepository) Delete(ctx context.Context, id, tenantID string) ([]
 func (r *EmpresaRepository) MunicipioEUfIDs(ctx context.Context, empresaID, tenantID string) (municipioID string, ufID string, err error) {
 	err = dbQueryRow(ctx, r.pool, `
 		SELECT COALESCE(c.municipio_id, ed.municipio_id)::text, m.ufid
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
+		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		INNER JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true`,
 		empresaID, tenantID,
@@ -772,10 +772,10 @@ func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresa
 			NULLIF(TRIM(c.tipo_empresa_id::text), ''),
 			NULLIF(TRIM(r.tipo_empresa_id::text), '')
 		)
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
 		LEFT JOIN empresa_processos ep ON ep.empresa_id = e.id AND ep.ativo = true
-		LEFT JOIN public.rotinas r ON r.id = ep.rotina_id
+		LEFT JOIN rotinas r ON r.id = ep.rotina_id
 		WHERE e.id = $1 AND e.ativo = true
 		ORDER BY ep.criado_em DESC NULLS LAST
 		LIMIT 1`, empresaID).Scan(&tid)
@@ -786,4 +786,15 @@ func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresa
 		return "", fmt.Errorf("cadastre o tipo de empresa na rotina desta empresa antes de gerar compromissos")
 	}
 	return strings.TrimSpace(*tid), nil
+}
+
+// TipoEmpresaIDFromRotinaScoped executa TipoEmpresaIDFromRotina com search_path do tenant.
+func (r *EmpresaRepository) TipoEmpresaIDFromRotinaScoped(ctx context.Context, tenantID, empresaID string) (string, error) {
+	var out string
+	err := withTenantSchemaContext(ctx, r.pool, tenantID, func(inner context.Context) error {
+		var e error
+		out, e = r.TipoEmpresaIDFromRotina(inner, empresaID)
+		return e
+	})
+	return out, err
 }

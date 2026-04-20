@@ -278,7 +278,7 @@ func (r *RotinaPFRepository) ListItens(ctx context.Context, rotinaPFID, tenantID
 			COALESCE(i.descricao, ''),
 			i.tempo_estimado
 		FROM rotina_pf_itens i
-		LEFT JOIN public.passos p ON p.id = i.passo_id
+		LEFT JOIN passos p ON p.id = i.passo_id
 		WHERE i.rotina_pf_id = $1::uuid
 		ORDER BY i.ordem ASC, i.id ASC`
 

@@ -30,7 +30,7 @@ func NewEmpresaAgendaRepository(pool *pgxpool.Pool) *EmpresaAgendaRepository {
 func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID string) ([]domain.EmpresaAgendaItem, error) {
 	const sqlQuery = `
 		SELECT id, empresa_id, template_id, descricao, data_vencimento::text, status, valor_estimado
-		FROM public.empresa_agenda
+		FROM empresa_agenda
 		WHERE empresa_id = $1
 		ORDER BY data_vencimento ASC`
 
@@ -56,9 +56,9 @@ func (r *EmpresaAgendaRepository) ListByEmpresa(ctx context.Context, empresaID s
 
 func (r *EmpresaAgendaRepository) UpdateStatusForTenant(ctx context.Context, tenantID, id, status string) error {
 	ct, err := dbExec(ctx, r.pool, `
-		UPDATE public.empresa_agenda ea
+		UPDATE empresa_agenda ea
 		SET status = $1, atualizado_em = NOW()
-		FROM public.empresa e
+		FROM empresa e
 		WHERE ea.id = $2::uuid AND ea.empresa_id = e.id AND e.tenant_id = $3`,
 		status, id, tenantID)
 	if err != nil {
@@ -86,9 +86,9 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 	switch {
 	case hasDate && valorEstimado != nil:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_agenda ea
+			UPDATE empresa_agenda ea
 			SET data_vencimento = $1::date, valor_estimado = $2, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ea.id = $3::uuid AND ea.empresa_id = e.id AND e.tenant_id = $4`,
 			strings.TrimSpace(*dataVencimento), *valorEstimado, agendaItemID, tenantID)
 		err = e
@@ -97,9 +97,9 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 		}
 	case hasDate:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_agenda ea
+			UPDATE empresa_agenda ea
 			SET data_vencimento = $1::date, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ea.id = $2::uuid AND ea.empresa_id = e.id AND e.tenant_id = $3`,
 			strings.TrimSpace(*dataVencimento), agendaItemID, tenantID)
 		err = e
@@ -108,9 +108,9 @@ func (r *EmpresaAgendaRepository) UpdateItem(ctx context.Context, tenantID, agen
 		}
 	default:
 		ct, e := dbExec(ctx, r.pool, `
-			UPDATE public.empresa_agenda ea
+			UPDATE empresa_agenda ea
 			SET valor_estimado = $1, atualizado_em = NOW()
-			FROM public.empresa e
+			FROM empresa e
 			WHERE ea.id = $2::uuid AND ea.empresa_id = e.id AND e.tenant_id = $3`,
 			*valorEstimado, agendaItemID, tenantID)
 		err = e
@@ -144,9 +144,9 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 			END,
 			CASE WHEN ea.id IS NOT NULL THEN ea.id::text ELSE '' END,
 			ea.valor_estimado
-		FROM public.empresa e
-		INNER JOIN public.cliente cli ON cli.id = e.cliente_id
-		LEFT JOIN public.empresa_agenda ea ON ea.empresa_id = e.id
+		FROM empresa e
+		INNER JOIN cliente cli ON cli.id = e.cliente_id
+		LEFT JOIN empresa_agenda ea ON ea.empresa_id = e.id
 		LEFT JOIN public.tipoempresa_obrigacao teo ON teo.id = ea.template_id
 		WHERE e.ativo = true
 		  AND e.tenant_id = $1
@@ -173,8 +173,8 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 			END,
 			'',
 			NULL::numeric
-		FROM public.empresa e
-		INNER JOIN public.cliente cli ON cli.id = e.cliente_id
+		FROM empresa e
+		INNER JOIN cliente cli ON cli.id = e.cliente_id
 		INNER JOIN public.tipoempresa_obrigacao c
 			ON c.tipo_empresa_id = cli.tipo_empresa_id AND c.ativo = true
 		WHERE e.ativo = true
@@ -182,7 +182,7 @@ func (r *EmpresaAgendaRepository) ListAcompanhamentoByTenant(ctx context.Context
 		  AND cli.tipo_empresa_id IS NOT NULL
 		  AND trim(cli.tipo_empresa_id) <> ''
 		  AND NOT EXISTS (
-		  	SELECT 1 FROM public.empresa_agenda ea
+		  	SELECT 1 FROM empresa_agenda ea
 		  	WHERE ea.empresa_id = e.id AND ea.descricao = c.descricao
 		  )
 		ORDER BY cli.nome ASC, c.descricao ASC`
@@ -286,7 +286,7 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 	defer tx.Rollback(ctx)
 
 	if _, err = tx.Exec(ctx,
-		`UPDATE public.empresa SET tipo_empresa_id = $1 WHERE id = $2`,
+		`UPDATE empresa SET tipo_empresa_id = $1 WHERE id = $2`,
 		tipoEmpresaID, empresaID,
 	); err != nil {
 		return nil, fmt.Errorf("atualizar tipo_empresa da empresa: %w", err)
@@ -300,13 +300,13 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 	}
 
 	// Limpar agenda anterior desta empresa (para permitir re-geração)
-	_, err = tx.Exec(ctx, `DELETE FROM public.empresa_agenda WHERE empresa_id = $1`, empresaID)
+	_, err = tx.Exec(ctx, `DELETE FROM empresa_agenda WHERE empresa_id = $1`, empresaID)
 	if err != nil {
 		return nil, fmt.Errorf("limpar agenda anterior: %w", err)
 	}
 
 	const insertQuery = `
-		INSERT INTO public.empresa_agenda (empresa_id, template_id, descricao, data_vencimento, status)
+		INSERT INTO empresa_agenda (empresa_id, template_id, descricao, data_vencimento, status)
 		VALUES ($1, $2, $3, $4, 'PENDENTE')
 		RETURNING id, empresa_id, template_id, descricao, data_vencimento::text, status, valor_estimado`
 
@@ -353,6 +353,18 @@ func (r *EmpresaAgendaRepository) GerarAgenda(ctx context.Context, empresaID, ti
 	}
 
 	return items, nil
+}
+
+// GerarAgendaScoped executa GerarAgenda com conexao e search_path do tenant.
+func (r *EmpresaAgendaRepository) GerarAgendaScoped(ctx context.Context, tenantID, empresaID, tipoEmpresaID string, dataInicio time.Time, feriados map[string]bool) ([]domain.EmpresaAgendaItem, error) {
+	tid := strings.TrimSpace(tenantID)
+	var items []domain.EmpresaAgendaItem
+	err := withTenantSchemaContext(ctx, r.pool, tid, func(inner context.Context) error {
+		var err error
+		items, err = r.GerarAgenda(inner, empresaID, tipoEmpresaID, dataInicio, feriados)
+		return err
+	})
+	return items, err
 }
 
 // ── AjustarVencimento ────────────────────────────────────────────────────────

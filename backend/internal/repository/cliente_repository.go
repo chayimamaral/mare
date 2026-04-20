@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ClienteRepository acesso unificado a clientes PF/PJ: cadastro em public.cliente,
-// operação em public.empresa; o ID exposto na API permanece empresa.id (agenda/compromissos).
+// ClienteRepository acesso unificado a clientes PF/PJ: tabelas cliente/empresa no schema do tenant (search_path).
+// O ID exposto na API permanece empresa.id (agenda/compromissos).
 // Validação PJ (rotina/CNAEs) e PF (documento) fica na camada de serviço.
 type ClienteRepository struct {
 	pool *pgxpool.Pool
@@ -35,9 +35,9 @@ func (r *ClienteRepository) GetByID(ctx context.Context, tenantID, id string) (d
 			COALESCE(c.bairro, ''),
 			e.iniciado,
 			e.ativo
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
+		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true AND c.ativo = true`
 
 	var c domain.Cliente
@@ -89,9 +89,9 @@ func (r *ClienteRepository) ListByTenant(ctx context.Context, tenantID string, l
 			COALESCE(c.bairro, ''),
 			e.iniciado,
 			e.ativo
-		FROM public.empresa e
-		INNER JOIN public.cliente c ON c.id = e.cliente_id
-		LEFT JOIN public.clientes_dados ed ON ed.cliente_id = c.id
+		FROM empresa e
+		INNER JOIN cliente c ON c.id = e.cliente_id
+		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		WHERE e.tenant_id = $1 AND e.ativo = true AND c.ativo = true
 		ORDER BY c.nome ASC
 		LIMIT $2 OFFSET $3`

@@ -85,37 +85,33 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 	}
 	defer atomic.StoreInt32(&w.running, 0)
 
-	tx, err := w.pool.Begin(ctx)
+	conn, err := w.pool.Acquire(ctx)
 	if err != nil {
-		return fmt.Errorf("begin tx worker: %w", err)
+		return fmt.Errorf("acquire conn worker: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer conn.Release()
 
 	var gotLock bool
-	if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, compromissosAdvisoryLockKey).Scan(&gotLock); err != nil {
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, compromissosAdvisoryLockKey).Scan(&gotLock); err != nil {
 		return fmt.Errorf("obter advisory lock: %w", err)
 	}
 	if !gotLock {
 		log.Printf("worker compromissos: execução já em andamento em outra réplica")
 		return nil
 	}
+	defer func() {
+		_, _ = conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, compromissosAdvisoryLockKey)
+	}()
 
 	refDate := time.Now().AddDate(0, 1, 0)
 	refMonth := time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, refDate.Location())
 
-	rows, err := tx.Query(ctx, `
-		SELECT e.id::text, e.tenant_id::text
-		FROM public.empresa e
-		WHERE e.ativo = true
-		  AND e.iniciado = true
-		  AND NOT EXISTS (
-			SELECT 1 FROM public.empresa_compromissos ec WHERE ec.empresa_id = e.id
-		  )
-		ORDER BY e.id ASC
-	`)
+	repo := repository.NewEmpresaCompromissoRepository(w.pool)
+	alvos, err := repo.ListEmpresaAlvosWorker(ctx)
 	if err != nil {
 		return fmt.Errorf("listar empresas elegiveis para worker: %w", err)
 	}
+
 	type empresaAlvo struct {
 		ID       string
 		TenantID string
@@ -125,27 +121,15 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 		Inseridos    int
 		Erros        int
 	}
-	alvos := make([]empresaAlvo, 0)
-	for rows.Next() {
-		var a empresaAlvo
-		if err := rows.Scan(&a.ID, &a.TenantID); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan empresas elegiveis para worker: %w", err)
-		}
-		alvos = append(alvos, a)
+	alvosNorm := make([]empresaAlvo, 0, len(alvos))
+	for _, a := range alvos {
+		alvosNorm = append(alvosNorm, empresaAlvo{ID: a.EmpresaID, TenantID: a.TenantID})
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("rows empresas elegiveis para worker: %w", err)
-	}
-	rows.Close()
-
-	repo := repository.NewEmpresaCompromissoRepository(w.pool)
 	compromissoIDs := make([]string, 0, 256)
 	var totalInseridos int
 	var totalComErro int
 	porTenant := make(map[string]*tenantResumo)
-	for _, alvo := range alvos {
+	for _, alvo := range alvosNorm {
 		resumo, ok := porTenant[alvo.TenantID]
 		if !ok {
 			resumo = &tenantResumo{}
@@ -153,7 +137,7 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 		}
 		resumo.EmpresasAlvo++
 
-		items, err := repo.GerarCompromissosEmpresa(ctx, alvo.TenantID, refMonth, alvo.ID)
+		items, err := repo.GerarCompromissosEmpresaScoped(ctx, alvo.TenantID, refMonth, alvo.ID)
 		if err != nil {
 			totalComErro++
 			resumo.Erros++
@@ -184,16 +168,13 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 	log.Printf(
 		"worker compromissos: competencia=%s empresas_alvo=%d inseridos=%d erros=%d",
 		refMonth.Format("2006-01-02"),
-		len(alvos),
+		len(alvosNorm),
 		totalInseridos,
 		totalComErro,
 	)
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit tx worker: %w", err)
-	}
 
 	status := domain.MonitorOperacaoStatusSucesso
-	msg := fmt.Sprintf("inseridos=%d empresas_alvo=%d", totalInseridos, len(alvos))
+	msg := fmt.Sprintf("inseridos=%d empresas_alvo=%d", totalInseridos, len(alvosNorm))
 	if totalComErro > 0 {
 		status = domain.MonitorOperacaoStatusErro
 		msg = fmt.Sprintf("%s erros=%d", msg, totalComErro)
@@ -201,7 +182,7 @@ func (w *CompromissosWorker) runOnce(ctx context.Context) error {
 	w.recordMonitorOperacao(context.Background(), status, msg, map[string]any{
 		"competencia":   refMonth.Format("2006-01-02"),
 		"inseridos":     totalInseridos,
-		"empresas_alvo": len(alvos),
+		"empresas_alvo": len(alvosNorm),
 		"erros":         totalComErro,
 	}, compromissoIDs)
 	return nil

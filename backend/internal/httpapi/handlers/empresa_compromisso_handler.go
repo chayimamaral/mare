@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -140,6 +142,41 @@ func (h *EmpresaCompromissoHandler) Gerar(w http.ResponseWriter, r *http.Request
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, resp)
+}
+
+type gerarCompromissosGeralEnvelope struct {
+	Params struct {
+		DataInicio string `json:"data_inicio"`
+	} `json:"params"`
+}
+
+// GerarGeralTodosTenants executa geracao para todos os schemas no catalogo (apenas rota SUPER).
+func (h *EmpresaCompromissoHandler) GerarGeralTodosTenants(w http.ResponseWriter, r *http.Request) {
+	dataRef := time.Now()
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	var payload gerarCompromissosGeralEnvelope
+	if err := dec.Decode(&payload); err != nil && err != io.EOF {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	if strings.TrimSpace(payload.Params.DataInicio) != "" {
+		parsed, err := time.Parse("2006-01-02", strings.TrimSpace(payload.Params.DataInicio))
+		if err != nil {
+			render.WriteError(w, http.StatusBadRequest, "data_inicio invalida (use YYYY-MM-DD)")
+			return
+		}
+		dataRef = parsed
+	}
+	n, err := h.service.GerarGeralTodosTenants(r.Context(), dataRef)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, map[string]any{
+		"quantidade": n,
+		"message":    fmt.Sprintf("%d compromissos gerados no total", n),
+	})
 }
 
 type empresaCompromissoStatusEnvelope struct {

@@ -69,11 +69,11 @@ func (s *EmpresaAgendaService) AcompanhamentoByTenant(ctx context.Context, tenan
 // GerarAgenda gera a agenda de obrigações para uma empresa.
 // Busca todos os feriados (fixos, variáveis, municipais e estaduais) e monta
 // um mapa de datas para que ajustarVencimento possa postergar vencimentos.
-func (s *EmpresaAgendaService) GerarAgenda(ctx context.Context, empresaID, tipoEmpresaID string, dataInicio time.Time) (EmpresaAgendaGerarResponse, error) {
-	tid := strings.TrimSpace(tipoEmpresaID)
-	if tid == "" {
+func (s *EmpresaAgendaService) GerarAgenda(ctx context.Context, tenantID, empresaID, tipoEmpresaID string, dataInicio time.Time) (EmpresaAgendaGerarResponse, error) {
+	tte := strings.TrimSpace(tipoEmpresaID)
+	if tte == "" {
 		var err error
-		tid, err = s.empresaRepo.TipoEmpresaIDFromRotina(ctx, empresaID)
+		tte, err = s.empresaRepo.TipoEmpresaIDFromRotinaScoped(ctx, tenantID, empresaID)
 		if err != nil {
 			return EmpresaAgendaGerarResponse{}, err
 		}
@@ -85,7 +85,7 @@ func (s *EmpresaAgendaService) GerarAgenda(ctx context.Context, empresaID, tipoE
 		return EmpresaAgendaGerarResponse{}, fmt.Errorf("build feriados map: %w", err)
 	}
 
-	items, err := s.agendaRepo.GerarAgenda(ctx, empresaID, tid, dataInicio, feriados)
+	items, err := s.agendaRepo.GerarAgendaScoped(ctx, tenantID, empresaID, tte, dataInicio, feriados)
 	if err != nil {
 		return EmpresaAgendaGerarResponse{}, err
 	}

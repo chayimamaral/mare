@@ -90,7 +90,7 @@ func (r *RotinaRepository) List(ctx context.Context, params RotinaListParams) ([
 	query := fmt.Sprintf(`
 SELECT r.id, r.descricao, r.municipio_id, COALESCE(m.id::text, ''), COALESCE(m.nome, ''), COALESCE(e.sigla, ''),
 	COALESCE(r.tipo_empresa_id::text, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, '')
-FROM public.rotinas r
+FROM rotinas r
 LEFT JOIN public.municipio m ON m.id = r.municipio_id
 LEFT JOIN public.estado e ON e.id = m.ufid
 LEFT JOIN public.tipoempresa te ON te.id = r.tipo_empresa_id
@@ -128,7 +128,7 @@ LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, arg
 		})
 	}
 
-	countQuery := fmt.Sprintf("SELECT count(*) FROM public.rotinas r WHERE %s", strings.Join(whereParts, " AND "))
+	countQuery := fmt.Sprintf("SELECT count(*) FROM rotinas r WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
 	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
@@ -175,7 +175,7 @@ func (r *RotinaRepository) ListWithItens(ctx context.Context, params RotinaListP
 WITH rotinas_page AS (
 	SELECT r.id, r.descricao, r.municipio_id, COALESCE(m.id::text, '') AS m_id, COALESCE(m.nome, '') AS m_nome, COALESCE(e.sigla, '') AS e_sigla,
 		COALESCE(r.tipo_empresa_id::text, '') AS tipo_empresa_id, COALESCE(te.id::text, '') AS te_id, COALESCE(te.descricao, '') AS te_desc
-	FROM public.rotinas r
+	FROM rotinas r
 	LEFT JOIN public.municipio m ON m.id = r.municipio_id
 	LEFT JOIN public.estado e ON e.id = m.ufid
 	LEFT JOIN public.tipoempresa te ON te.id = r.tipo_empresa_id
@@ -198,9 +198,9 @@ SELECT
 	p.tempoestimado,
 	COALESCE(l.link, '')
 FROM rotinas_page rp
-LEFT JOIN public.rotinaitens ri ON ri.rotina_id = rp.id
-LEFT JOIN public.passos p ON p.id = ri.passo_id
-LEFT JOIN public.linkpassos l ON l.passo_id = p.id
+LEFT JOIN rotinaitens ri ON ri.rotina_id = rp.id
+LEFT JOIN passos p ON p.id = ri.passo_id
+LEFT JOIN linkpassos l ON l.passo_id = p.id
 ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, outerOrderBy)
 	args = append(args, params.Rows, params.First)
 
@@ -257,7 +257,7 @@ ORDER BY %s`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1, 
 		rotinas = append(rotinas, *byID[id])
 	}
 
-	countQuery := fmt.Sprintf("SELECT count(*) FROM public.rotinas r WHERE %s", strings.Join(whereParts, " AND "))
+	countQuery := fmt.Sprintf("SELECT count(*) FROM rotinas r WHERE %s", strings.Join(whereParts, " AND "))
 	var total int64
 	if err := dbQueryRow(ctx, r.pool, countQuery, args[:len(args)-2]...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
@@ -273,7 +273,7 @@ func (r *RotinaRepository) ListLite(ctx context.Context, municipioID string) ([]
 	rows, err := dbQuery(ctx, r.pool, `
 SELECT r.id, r.descricao, COALESCE(r.tipo_empresa_id::text, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, ''),
 	COALESCE(m.id::text, ''), COALESCE(m.nome, '')
-FROM public.rotinas r
+FROM rotinas r
 LEFT JOIN public.tipoempresa te ON te.id = r.tipo_empresa_id
 INNER JOIN public.municipio m ON m.id = r.municipio_id
 WHERE r.ativo = true AND r.municipio_id = $1
@@ -305,7 +305,7 @@ ORDER BY r.descricao ASC`, municipioID)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -316,7 +316,7 @@ func (r *RotinaRepository) listRotinasLiteAll(ctx context.Context) ([]domain.Rot
 	rows, err := dbQuery(ctx, r.pool, `
 SELECT r.id, r.descricao, COALESCE(r.tipo_empresa_id::text, ''), COALESCE(te.id::text, ''), COALESCE(te.descricao, ''),
 	COALESCE(m.id::text, ''), COALESCE(m.nome, '')
-FROM public.rotinas r
+FROM rotinas r
 LEFT JOIN public.tipoempresa te ON te.id = r.tipo_empresa_id
 INNER JOIN public.municipio m ON m.id = r.municipio_id
 WHERE r.ativo = true
@@ -348,7 +348,7 @@ ORDER BY m.nome ASC, r.descricao ASC`)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -357,7 +357,7 @@ ORDER BY m.nome ASC, r.descricao ASC`)
 
 func (r *RotinaRepository) Create(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-INSERT INTO public.rotinas (descricao, municipio_id, tipo_empresa_id)
+INSERT INTO rotinas (descricao, municipio_id, tipo_empresa_id)
 VALUES ($1, $2, $3)
 RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativo`, input.Descricao, input.MunicipioID, rotinaNullableTipoEmpresaID(input.TipoEmpresaID))
 	if err != nil {
@@ -379,14 +379,14 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 
 	if strings.TrimSpace(input.Link) != "" && createdID != "" {
 		_, _ = dbExec(ctx, r.pool, `
-INSERT INTO public.linkrotinas (link, rotinas_id)
+INSERT INTO linkrotinas (link, rotinas_id)
 VALUES ($1, $2)
 ON CONFLICT (rotinas_id)
 DO UPDATE SET link = $1`, input.Link, createdID)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -395,7 +395,7 @@ DO UPDATE SET link = $1`, input.Link, createdID)
 
 func (r *RotinaRepository) Update(ctx context.Context, input RotinaInput) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-UPDATE public.rotinas
+UPDATE rotinas
 SET descricao = $1, municipio_id = $2, tipo_empresa_id = $3
 WHERE id = $4
 RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativo`, input.Descricao, input.MunicipioID, rotinaNullableTipoEmpresaID(input.TipoEmpresaID), input.ID)
@@ -416,14 +416,14 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 
 	if strings.TrimSpace(input.Link) != "" {
 		_, _ = dbExec(ctx, r.pool, `
-INSERT INTO public.linkrotinas (rotinas_id, link)
+INSERT INTO linkrotinas (rotinas_id, link)
 VALUES ($1, $2)
 ON CONFLICT (rotinas_id)
 DO UPDATE SET link = $2`, input.ID, input.Link)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -432,7 +432,7 @@ DO UPDATE SET link = $2`, input.ID, input.Link)
 
 func (r *RotinaRepository) Delete(ctx context.Context, id string) ([]domain.RotinaMutationItem, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-UPDATE public.rotinas
+UPDATE rotinas
 SET ativo = false
 WHERE id = $1
 RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativo`, id)
@@ -452,7 +452,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -460,7 +460,7 @@ RETURNING id, descricao, municipio_id, COALESCE(tipo_empresa_id::text, ''), ativ
 }
 
 func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]map[string]any, int64, error) {
-	rows, err := dbQuery(ctx, r.pool, `SELECT * FROM public.rotinaitenlink WHERE rotinas_id = $1`, rotinaID)
+	rows, err := dbQuery(ctx, r.pool, `SELECT * FROM rotinaitenlink WHERE rotinas_id = $1`, rotinaID)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list rotinaitens: %w", err)
 	}
@@ -481,7 +481,7 @@ func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -490,7 +490,7 @@ func (r *RotinaRepository) RotinaItens(ctx context.Context, rotinaID string) ([]
 
 func (r *RotinaRepository) RotinaItemCreate(ctx context.Context, rotinaID, descricao string, tempoestimado int, link string) ([]map[string]any, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-INSERT INTO public.rotinaitenlink (rotinas_id, descricao, tempoestimado)
+INSERT INTO rotinaitenlink (rotinas_id, descricao, tempoestimado)
 VALUES ($1, $2, $3)
 RETURNING *`, rotinaID, descricao, tempoestimado)
 	if err != nil {
@@ -519,14 +519,14 @@ RETURNING *`, rotinaID, descricao, tempoestimado)
 
 	if strings.TrimSpace(link) != "" && createdID != nil {
 		_, _ = dbExec(ctx, r.pool, `
-INSERT INTO public.rotinaitenlink (link, rotinasitens_id)
+INSERT INTO rotinaitenlink (link, rotinasitens_id)
 VALUES ($1, $2)
 ON CONFLICT (rotinasitens_id)
 DO UPDATE SET link = $1`, link, createdID)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -535,7 +535,7 @@ DO UPDATE SET link = $1`, link, createdID)
 
 func (r *RotinaRepository) RotinaItemUpdate(ctx context.Context, id, descricao string, tempoestimado int, link string) ([]map[string]any, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-UPDATE public.rotinaitenlink
+UPDATE rotinaitenlink
 SET descricao = $1, tempoestimado = $2
 WHERE id = $3
 RETURNING *`, descricao, tempoestimado, id)
@@ -560,14 +560,14 @@ RETURNING *`, descricao, tempoestimado, id)
 
 	if strings.TrimSpace(link) != "" {
 		_, _ = dbExec(ctx, r.pool, `
-INSERT INTO public.rotinaitenlink (rotinasitens_id, link)
+INSERT INTO rotinaitenlink (rotinasitens_id, link)
 VALUES ($1, $2)
 ON CONFLICT (rotinasitens_id)
 DO UPDATE SET link = $2`, id, link)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -576,7 +576,7 @@ DO UPDATE SET link = $2`, id, link)
 
 func (r *RotinaRepository) RotinaItemDelete(ctx context.Context, id string) ([]map[string]any, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
-UPDATE public.rotinaitenlink
+UPDATE rotinaitenlink
 SET ativo = false
 WHERE id = $1
 RETURNING *`, id)
@@ -600,7 +600,7 @@ RETURNING *`, id)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -610,10 +610,10 @@ RETURNING *`, id)
 func (r *RotinaRepository) ListSelectedItens(ctx context.Context, rotinaID string) ([]domain.RotinaSelectedPassoItem, int64, error) {
 	rows, err := dbQuery(ctx, r.pool, `
 SELECT p.id, p.descricao, p.tempoestimado, p.tipopasso, ri.rotina_id, ri.ordem, COALESCE(l.link, '')
-FROM public.rotinas r
-LEFT JOIN public.rotinaitens ri ON ri.rotina_id = r.id
-LEFT JOIN public.passos p ON p.id = ri.passo_id
-LEFT JOIN public.linkpassos l ON l.passo_id = p.id
+FROM rotinas r
+LEFT JOIN rotinaitens ri ON ri.rotina_id = r.id
+LEFT JOIN passos p ON p.id = ri.passo_id
+LEFT JOIN linkpassos l ON l.passo_id = p.id
 WHERE ri.rotina_id = $1
 ORDER BY ri.ordem ASC`, rotinaID)
 	if err != nil {
@@ -641,7 +641,7 @@ ORDER BY ri.ordem ASC`, rotinaID)
 	}
 
 	var total int64
-	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM public.rotinas WHERE ativo = true`).Scan(&total); err != nil {
+	if err := dbQueryRow(ctx, r.pool, `SELECT count(*) FROM rotinas WHERE ativo = true`).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count rotinas: %w", err)
 	}
 
@@ -662,7 +662,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 	for _, item := range selections {
 		var exists bool
 		if err := tx.QueryRow(ctx,
-			`SELECT EXISTS(SELECT 1 FROM public.rotinaitens WHERE rotina_id = $1 AND passo_id = $2)`,
+			`SELECT EXISTS(SELECT 1 FROM rotinaitens WHERE rotina_id = $1 AND passo_id = $2)`,
 			item.RotinaID,
 			item.ID,
 		).Scan(&exists); err != nil {
@@ -671,7 +671,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 
 		if !exists {
 			if _, err := tx.Exec(ctx,
-				`INSERT INTO public.rotinaitens (rotina_id, passo_id, ordem) VALUES ($1, $2, $3)`,
+				`INSERT INTO rotinaitens (rotina_id, passo_id, ordem) VALUES ($1, $2, $3)`,
 				item.RotinaID,
 				item.ID,
 				item.Ordem,
@@ -680,7 +680,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 			}
 		} else {
 			if _, err := tx.Exec(ctx,
-				`UPDATE public.rotinaitens SET ordem = $1 WHERE rotina_id = $2 AND passo_id = $3`,
+				`UPDATE rotinaitens SET ordem = $1 WHERE rotina_id = $2 AND passo_id = $3`,
 				item.Ordem,
 				item.RotinaID,
 				item.ID,
@@ -700,7 +700,7 @@ func (r *RotinaRepository) SaveSelectedItens(ctx context.Context, selections []R
 func (r *RotinaRepository) RemoveSelectedItens(ctx context.Context, selections []RotinaPassoSelection) error {
 	for _, item := range selections {
 		if _, err := dbExec(ctx, r.pool,
-			`DELETE FROM public.rotinaitens WHERE rotina_id = $1 AND passo_id = $2`,
+			`DELETE FROM rotinaitens WHERE rotina_id = $1 AND passo_id = $2`,
 			item.RotinaID,
 			item.ID,
 		); err != nil {

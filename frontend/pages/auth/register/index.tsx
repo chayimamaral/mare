@@ -11,7 +11,7 @@ import { InputText } from 'primereact/inputtext';
 import { classNames } from 'primereact/utils';
 import { Page } from '../../../types/types';
 
-import AuthContext  from "../../../components/context/AuthContext";
+import AuthContext from "../../../components/context/AuthContext";
 import { Toast } from 'primereact/toast';
 import Link from 'next/link';
 
@@ -38,19 +38,19 @@ export const RegisterPage: Page = () => {
         }
 
         try {
-        const created = await signUp({
-            nome,
-            email,
-            password,
-            empresa_nome: empresaNome.trim(),
-        })
+            const created = await signUp({
+                nome,
+                email,
+                password,
+                empresa_nome: empresaNome.trim(),
+            })
 
-        toast?.current?.show({
-            severity: 'success',
-            summary: 'Sucesso',
-            detail: `Conta criada. Tenant: ${created.tenantid || 'n/d'} | Schema: ${created.tenant_schema || 'n/d'}`,
-            life: 5000
-        });
+            toast?.current?.show({
+                severity: 'success',
+                summary: 'Sucesso',
+                detail: `Conta criada. Tenant: ${created.tenantid || 'n/d'} | Schema: ${created.tenant_schema || 'n/d'}`,
+                life: 5000
+            });
         } catch (err) {
             setIsInvalid(true);
             const message = err instanceof Error ? err.message : 'Erro ao criar conta';
@@ -74,12 +74,12 @@ export const RegisterPage: Page = () => {
                         </div>
                         <div>
                             <label htmlFor="nome1" className="block text-900 text-xl font-medium mb-2">
-                                Nome
+                                Nome do Usuário
                             </label>
                             <InputText id="nome1" value={nome} onChange={(e) => setNome(e.target.value)} type="text" placeholder="Nome" className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} style={{ padding: '1rem' }} />
 
                             <label htmlFor="email1" className="block text-900 text-xl font-medium mb-2">
-                                Email
+                                Email (login)
                             </label>
                             <InputText id="email1" value={email} onChange={(e) => setEmail(e.target.value)} type="text" placeholder="Email" className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} style={{ padding: '1rem' }} />
 
@@ -102,16 +102,16 @@ export const RegisterPage: Page = () => {
                             <Password inputId="password1" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" toggleMask className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} inputClassName="w-full p-3 md:w-30rem"></Password>
 
                             <div className="flex align-items-center justify-content-between mb-5 gap-5">
-  
+
                                 <a className="font-medium no-underline ml-2 text-center cursor-pointer" style={{ color: 'var(--primary-color)' }}>
                                     Já possui conta ? Faça login  <Link href='/auth/login'><strong> aqui</strong></Link>
                                 </a>
                             </div>
-                            
-                                <div className="card flex justify-content-center">
-                                    <Toast ref={toast} />
-                                    <Button label="Acessar" className="w-full p-3 text-xl" onClick={handleRegister}></Button>
-                                </div>
+
+                            <div className="card flex justify-content-center">
+                                <Toast ref={toast} />
+                                <Button label="Acessar" className="w-full p-3 text-xl" onClick={handleRegister}></Button>
+                            </div>
                         </div>
                     </div>
                 </div>
