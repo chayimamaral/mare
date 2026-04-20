@@ -35,6 +35,7 @@ export default function CaixaPostal() {
 
     const [dialogEnviar, setDialogEnviar] = useState(false);
     const [modoResposta, setModoResposta] = useState(false);
+    const [msgRespondidaId, setMsgRespondidaId] = useState<string | null>(null);
     const [titulo, setTitulo] = useState('');
     const [conteudo, setConteudo] = useState('');
     const [tenantSelecionado, setTenantSelecionado] = useState<TenantOpcao | null>(null);
@@ -78,6 +79,7 @@ export default function CaixaPostal() {
 
     const abrirEnviar = () => {
         setModoResposta(false);
+        setMsgRespondidaId(null);
         setTitulo('');
         setConteudo('');
         setTenantSelecionado(null);
@@ -86,6 +88,7 @@ export default function CaixaPostal() {
 
     const abrirResponder = (msg: CaixaPostalMensagem) => {
         setModoResposta(true);
+        setMsgRespondidaId(msg.id);
         setTitulo(`Re: ${msg.titulo}`);
         setConteudo('');
         if (isSuper && msg.remetente_tenantid) {
@@ -109,6 +112,9 @@ export default function CaixaPostal() {
                 titulo: titulo.trim(),
                 conteudo: conteudo.trim(),
             });
+            if (modoResposta && msgRespondidaId) {
+                await svc.marcarComoLida(msgRespondidaId).catch(() => { /* ignora se já estava lida */ });
+            }
             toast.current?.show({ severity: 'success', summary: 'Enviado', detail: 'Mensagem enviada com sucesso.' });
             setDialogEnviar(false);
             queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
