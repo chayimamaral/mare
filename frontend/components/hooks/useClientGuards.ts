@@ -45,6 +45,7 @@ const AUTH_REQUIRED_ROUTES = new Set<string>([
 ]);
 
 const ROLE_RESTRICTED_ROUTES: Partial<Record<string, UserRole[]>> = {
+    '/admin/broadcast': ['SUPER'],
     '/catalogo-servicos': ['SUPER'],
     '/configuracoes/api-integra-contador': ['SUPER'],
     '/configuracoes/integra-contador-servicos': ['SUPER'],
@@ -138,11 +139,18 @@ export function useTenantIdQuery() {
 }
 
 export function useUserIdQuery() {
+    const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
+    const token =
+        cookieToken ||
+        (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
+
     return useQuery<string>({
-        queryKey: ['user-id-cookie'],
+        queryKey: ['user-id', token],
+        enabled: !!token,
         queryFn: async () => {
-            const cookies = parseCookies();
-            return String(cookies.user_id ?? '');
+            const { data } = await api.get('/api/usuariorole');
+            return String(data?.logado?.id ?? '').trim();
         },
+        retry: 2,
     });
 }

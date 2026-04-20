@@ -2,6 +2,7 @@ import { createContext, ReactNode, useEffect, useState } from 'react';
 import { setCookie, parseCookies } from 'nookies';
 import Router from 'next/router';
 import { AxiosError } from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 
 import api from '../api/apiClient';
 import {
@@ -84,6 +85,7 @@ export function signOut() {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserProps>()
   const isAuthenticated = !!user;
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
@@ -193,6 +195,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function logoutUser() {
     try {
+      queryClient.clear();
       clearAuthTokenCookies(null);
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('vecontab_token');
