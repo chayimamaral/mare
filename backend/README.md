@@ -73,7 +73,7 @@ backend/
 ## 🔧 Requisitos
 
 - **Go:** 1.26+ (verificar com `go version`)
-- **PostgreSQL:** 12+
+- **PostgreSQL:** 18+
 - **Nginx:** (opcional, para reverse proxy em produção)
 
 ## ⚙️ Instalação
