@@ -7,6 +7,7 @@ import { Dropdown } from 'primereact/dropdown';
 
 import { InputTextarea } from 'primereact/inputtextarea';
 import RegistroService from '../../services/cruds/RegistroService';
+import { isValidCNPJ, onlyDigits } from '../../constants/documento';
 
 interface Registro {
     tenantid: string,
@@ -51,6 +52,15 @@ function Registro() {
     const registroService = RegistroService();
 
     async function handleUpdateEmpresa() {
+        const cnpjDigits = onlyDigits(registro.cnpj);
+        if (cnpjDigits.length === 0) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe o CNPJ.', life: 3500 });
+            return;
+        }
+        if (!isValidCNPJ(cnpjDigits)) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'CNPJ inválido.', life: 3500 });
+            return;
+        }
         registroService.gravaRegistro(registro)
         toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Dados atualizados com Sucesso', life: 3000 });
     }
@@ -158,7 +168,15 @@ function Registro() {
 
                         <div className="field col-12 md:col-4">
                             <label htmlFor="cnpj_">CNPJ</label>
-                            <InputText value={registro.cnpj ?? ''} onChange={(e) => onInputChange(e, 'cnpj')} id="cnpj_" type="text" />
+                            <InputText
+                                value={registro.cnpj ?? ''}
+                                onChange={(e) => onInputChange(e, 'cnpj')}
+                                id="cnpj_"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={18}
+                                className={isInvalid || (onlyDigits(registro.cnpj ?? '').length > 0 && !isValidCNPJ(registro.cnpj ?? '')) ? 'p-invalid' : ''}
+                            />
                         </div>
                         <div className="field col-12 md:col-4">
                             <label htmlFor="ie_">Inscrição Estadual</label>

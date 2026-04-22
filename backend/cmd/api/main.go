@@ -4,7 +4,9 @@ import (
 	"context"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"strings"
 	"os/signal"
 	"syscall"
 	"time"
@@ -55,6 +57,28 @@ func main() {
 
 	errCh := make(chan error, 1)
 
+	listener, err := net.Listen("tcp", ":"+cfg.Port)
+	if err != nil && (cfg.Runtime == "binary" || cfg.Runtime == "desktop") && strings.Contains(strings.ToLower(err.Error()), "address already in use") {
+		fallbackPorts := []string{"3334", "3335", "3336", "3337", "3338"}
+		for _, p := range fallbackPorts {
+			if p == cfg.Port {
+				continue
+			}
+			l, e := net.Listen("tcp", ":"+p)
+			if e == nil {
+				log.Printf("porta %s ocupada no modo %s; usando porta alternativa %s", cfg.Port, cfg.Runtime, p)
+				cfg.Port = p
+				server.Addr = ":" + p
+				listener = l
+				err = nil
+				break
+			}
+		}
+	}
+	if err != nil {
+		log.Fatalf("listen http: %v", err)
+	}
+
 	if cfg.CompromissosWorkerEnabled {
 		monRepo := repository.NewMonitorOperacaoRepository(pool)
 		w, err := worker.NewCompromissosWorker(pool, cfg, monRepo)
@@ -65,8 +89,8 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("backendgo listening on :%s", cfg.Port)
-		errCh <- server.ListenAndServe()
+		log.Printf("backendgo listening on :%s (runtime=%s)", cfg.Port, cfg.Runtime)
+		errCh <- server.Serve(listener)
 	}()
 
 	select {

@@ -8,6 +8,7 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecontab/backend/internal/validation"
 )
 
 type RegistroHandler struct {
@@ -121,6 +122,10 @@ func (h *RegistroHandler) TenantDadosUpdate(w http.ResponseWriter, r *http.Reque
 		render.WriteError(w, http.StatusBadRequest, "tenantId obrigatorio")
 		return
 	}
+	if strings.TrimSpace(payload.CNPJ) != "" && !validation.IsValidCNPJ(payload.CNPJ) {
+		render.WriteError(w, http.StatusBadRequest, "CNPJ invalido")
+		return
+	}
 
 	response, err := h.service.UpdateByTenantID(r.Context(), payload.TenantID, service.RegistroUpdateInput{
 		CNPJ:        payload.CNPJ,
@@ -149,6 +154,10 @@ func (h *RegistroHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var payload registroUpdatePayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	if strings.TrimSpace(payload.CNPJ) != "" && !validation.IsValidCNPJ(payload.CNPJ) {
+		render.WriteError(w, http.StatusBadRequest, "CNPJ invalido")
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecontab/backend/internal/validation"
 )
 
 type EmpresaHandler struct {
@@ -96,6 +97,14 @@ func (h *EmpresaHandler) Create(w http.ResponseWriter, r *http.Request) {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
 		return
 	}
+	if tp == "PF" && !validation.IsValidCPF(payload.Params.Documento) {
+		render.WriteError(w, http.StatusBadRequest, "CPF invalido")
+		return
+	}
+	if tp == "PJ" && strings.TrimSpace(payload.Params.Documento) != "" && !validation.IsValidCNPJ(payload.Params.Documento) {
+		render.WriteError(w, http.StatusBadRequest, "CNPJ invalido")
+		return
+	}
 	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {
 		render.WriteError(w, http.StatusBadRequest, "Municipio e obrigatorio")
 		return
@@ -139,6 +148,14 @@ func (h *EmpresaHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if tp == "PF" && strings.TrimSpace(payload.Params.Documento) == "" {
 		render.WriteError(w, http.StatusBadRequest, "Documento (CPF) obrigatorio para pessoa fisica")
+		return
+	}
+	if tp == "PF" && !validation.IsValidCPF(payload.Params.Documento) {
+		render.WriteError(w, http.StatusBadRequest, "CPF invalido")
+		return
+	}
+	if tp == "PJ" && strings.TrimSpace(payload.Params.Documento) != "" && !validation.IsValidCNPJ(payload.Params.Documento) {
+		render.WriteError(w, http.StatusBadRequest, "CNPJ invalido")
 		return
 	}
 	if strings.TrimSpace(payload.Params.Municipio.ID) == "" {

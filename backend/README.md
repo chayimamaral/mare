@@ -134,88 +134,88 @@ nginx -c ./nginx.conf
 
 ### 🔐 Autenticação
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/session` | Login com email/senha |
-| GET | `/me` | Dados do usuário logado |
-| GET | `/api/usuariorole` | Role do usuário (ADMIN/USER) |
-| GET | `/api/usuariotenant` | Tenant do usuário |
+| Método | Rota                 | Descrição                    |
+| ------ | -------------------- | ---------------------------- |
+| POST   | `/api/session`       | Login com email/senha        |
+| GET    | `/me`                | Dados do usuário logado      |
+| GET    | `/api/usuariorole`   | Role do usuário (ADMIN/USER) |
+| GET    | `/api/usuariotenant` | Tenant do usuário            |
 
 ### 👥 Usuários
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/usuarios` | Listar usuários (com lazy loading) |
-| POST | `/api/usuario` | Criar usuário (ADMIN/SUPER) |
-| PUT | `/api/usuario` | Atualizar usuário |
-| DELETE | `/api/usuario` | Deletar usuário |
+| Método | Rota            | Descrição                          |
+| ------ | --------------- | ---------------------------------- |
+| GET    | `/api/usuarios` | Listar usuários (com lazy loading) |
+| POST   | `/api/usuario`  | Criar usuário (ADMIN/SUPER)        |
+| PUT    | `/api/usuario`  | Atualizar usuário                  |
+| DELETE | `/api/usuario`  | Deletar usuário                    |
 
 ### 🏢 Empresas
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/empresas` | Listar empresas (lazy loading) |
-| POST | `/api/empresa` | Criar empresa |
-| PUT | `/api/updateempresa` | Atualizar empresa |
-| PUT | `/api/deleteempresa` | Deletar empresa (soft delete) |
-| PUT | `/api/iniciarprocesso` | Iniciar processo da empresa |
-| POST | `/api/validacnae` | Validar CNAE |
+| Método | Rota                   | Descrição                      |
+| ------ | ---------------------- | ------------------------------ |
+| GET    | `/api/empresas`        | Listar empresas (lazy loading) |
+| POST   | `/api/empresa`         | Criar empresa                  |
+| PUT    | `/api/updateempresa`   | Atualizar empresa              |
+| PUT    | `/api/deleteempresa`   | Deletar empresa (soft delete)  |
+| PUT    | `/api/iniciarprocesso` | Iniciar processo da empresa    |
+| POST   | `/api/validacnae`      | Validar CNAE                   |
 
 ### 📅 Agenda
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/agendalist` | Listar eventos |
-| GET | `/api/agendadetalhes` | Detalhes do evento |
-| POST | `/api/agenda/concluir-passo` | Concluir passo da agenda |
+| Método | Rota                         | Descrição                |
+| ------ | ---------------------------- | ------------------------ |
+| GET    | `/api/agendalist`            | Listar eventos           |
+| GET    | `/api/agendadetalhes`        | Detalhes do evento       |
+| POST   | `/api/agenda/concluir-passo` | Concluir passo da agenda |
 
 ### 📋 Rotinas & Passos
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/rotinas` | Listar rotinas |
-| GET | `/api/passos` | Listar passos |
-| GET | `/api/grupopassos` | Listar grupos de passos |
+| Método | Rota               | Descrição               |
+| ------ | ------------------ | ----------------------- |
+| GET    | `/api/rotinas`     | Listar rotinas          |
+| GET    | `/api/passos`      | Listar passos           |
+| GET    | `/api/grupopassos` | Listar grupos de passos |
 
 ### 📊 Registros Contábeis
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/registro` | Criar registro (público) |
-| GET | `/api/registro` | Detalhar registro |
-| PUT | `/api/registro` | Atualizar registro |
+| Método | Rota            | Descrição                |
+| ------ | --------------- | ------------------------ |
+| POST   | `/api/registro` | Criar registro (público) |
+| GET    | `/api/registro` | Detalhar registro        |
+| PUT    | `/api/registro` | Atualizar registro       |
 
 ### 📍 Localidades
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/estados` | Listar estados |
-| GET | `/api/cidades` | Listar cidades |
-| GET | `/api/cidades/:estado` | Cidades por estado |
+| Método | Rota                   | Descrição          |
+| ------ | ---------------------- | ------------------ |
+| GET    | `/api/estados`         | Listar estados     |
+| GET    | `/api/cidades`         | Listar cidades     |
+| GET    | `/api/cidades/:estado` | Cidades por estado |
 
 ### 🔧 Configuração
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/tiposempresa` | Tipos de empresa |
-| GET | `/api/cnaes` | Listar CNAEs |
+| Método | Rota                | Descrição        |
+| ------ | ------------------- | ---------------- |
+| GET    | `/api/tiposempresa` | Tipos de empresa |
+| GET    | `/api/cnaes`        | Listar CNAEs     |
 
 ### 📌 Compromissos, Obrigações e Empresa Agenda
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/compromissos` | Listar compromissos (filtros + sort server-side) |
-| POST | `/api/compromisso` | Criar compromisso |
-| PUT | `/api/compromisso` | Atualizar compromisso |
-| PUT | `/api/deletecompromisso` | Deletar compromisso |
-| GET | `/api/obrigacoes` | Listar obrigações |
-| POST | `/api/obrigacao` | Criar obrigação |
-| PUT | `/api/obrigacao` | Atualizar obrigação |
-| PUT | `/api/deleteobrigacao` | Deletar obrigação |
-| GET | `/api/empresaagenda` | Listar agenda por empresa |
-| GET | `/api/empresaagenda/acompanhamento` | Dashboard de acompanhamento |
-| POST | `/api/empresaagenda/gerar` | Gerar agenda da empresa |
-| PUT | `/api/empresaagenda/status` | Atualizar status do item da agenda |
+| Método | Rota                                | Descrição                                        |
+| ------ | ----------------------------------- | ------------------------------------------------ |
+| GET    | `/api/compromissos`                 | Listar compromissos (filtros + sort server-side) |
+| POST   | `/api/compromisso`                  | Criar compromisso                                |
+| PUT    | `/api/compromisso`                  | Atualizar compromisso                            |
+| PUT    | `/api/deletecompromisso`            | Deletar compromisso                              |
+| GET    | `/api/obrigacoes`                   | Listar obrigações                                |
+| POST   | `/api/obrigacao`                    | Criar obrigação                                  |
+| PUT    | `/api/obrigacao`                    | Atualizar obrigação                              |
+| PUT    | `/api/deleteobrigacao`              | Deletar obrigação                                |
+| GET    | `/api/empresaagenda`                | Listar agenda por empresa                        |
+| GET    | `/api/empresaagenda/acompanhamento` | Dashboard de acompanhamento                      |
+| POST   | `/api/empresaagenda/gerar`          | Gerar agenda da empresa                          |
+| PUT    | `/api/empresaagenda/status`         | Atualizar status do item da agenda               |
 
 ## 🔐 Autenticação
 

@@ -3,11 +3,13 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
+	Runtime                        string
 	Port                           string
 	DatabaseURL                    string
 	JWTSecret                      string
@@ -39,8 +41,27 @@ func Load() (Config, error) {
 	// 	fmt.Printf("Erro ao carregar ../../.env: %v\n", err)
 	// }
 
+	runtime := strings.ToLower(strings.TrimSpace(getEnv("VECONTAB_RUNTIME", "")))
+	if runtime == "" {
+		if exe, err := os.Executable(); err == nil {
+			exeNorm := strings.ReplaceAll(strings.ToLower(exe), "\\", "/")
+			if strings.Contains(exeNorm, "/backend/bin/") || strings.Contains(exeNorm, "/bin/vecontab-backend") {
+				runtime = "binary"
+			}
+		}
+	}
+	if runtime == "" {
+		runtime = "web"
+	}
+
+	defaultPort := "8080"
+	if runtime == "binary" || runtime == "desktop" {
+		defaultPort = "3333"
+	}
+
 	cfg := Config{
-		Port:                           getEnv("PORT", "8080"),
+		Runtime:                        runtime,
+		Port:                           getEnv("PORT", defaultPort),
 		DatabaseURL:                    os.Getenv("PG_URL"),
 		JWTSecret:                      os.Getenv("JWT_SECRET"),
 		SSLRootCertPath:                getEnv("PG_SSL_ROOT_CERT", "/home/camaral/.postgres/ca.crt"),

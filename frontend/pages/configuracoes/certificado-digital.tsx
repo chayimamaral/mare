@@ -1,10 +1,13 @@
 import { Button } from 'primereact/button';
 import { Card } from 'primereact/card';
+import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import api from '../../components/api/apiClient';
+import { isWebRuntime } from '../../constants/runtime';
 
 type CertConfig = {
     tipo_certificado: string;
@@ -25,6 +28,7 @@ export default function CertificadoDigitalPage() {
     const toast = useRef<Toast>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [certFile, setCertFile] = useState<File | null>(null);
+    const [a3WebDialogVisible, setA3WebDialogVisible] = useState(false);
     const [form, setForm] = useState<CertConfig>({
         tipo_certificado: '',
         senha_certificado: '',
@@ -115,6 +119,15 @@ export default function CertificadoDigitalPage() {
         }));
     };
 
+    const onTipoCertificadoChange = (value: string) => {
+        if (value === 'A3' && isWebRuntime()) {
+            setForm((prev) => ({ ...prev, tipo_certificado: 'A1' }));
+            setA3WebDialogVisible(true);
+            return;
+        }
+        setForm((prev) => ({ ...prev, tipo_certificado: value }));
+    };
+
     return (
         <div className="grid">
             <div className="col-12 md:col-10 lg:col-8">
@@ -124,7 +137,14 @@ export default function CertificadoDigitalPage() {
                     <div className="grid align-items-center mb-3">
                         <div className="col-12 md:col-4 text-right"><label htmlFor="tipo">Tipo de Certificado</label></div>
                         <div className="col-12 md:col-6">
-                            <Dropdown id="tipo" options={tipos} value={form.tipo_certificado} onChange={(e) => setForm((prev) => ({ ...prev, tipo_certificado: e.value ?? '' }))} placeholder="Selecione" className="w-full p-inputtext-sm" />
+                            <Dropdown
+                                id="tipo"
+                                options={tipos}
+                                value={form.tipo_certificado}
+                                onChange={(e) => onTipoCertificadoChange(e.value ?? '')}
+                                placeholder="Selecione"
+                                className="w-full p-inputtext-sm"
+                            />
                         </div>
                     </div>
                     <div className="grid align-items-center mb-3">
@@ -183,6 +203,25 @@ export default function CertificadoDigitalPage() {
                     </div>
                 </Card>
             </div>
+            <Dialog
+                visible={a3WebDialogVisible}
+                header="Uso do certificado A3"
+                modal
+                style={{ width: '32rem' }}
+                onHide={() => setA3WebDialogVisible(false)}
+                footer={
+                    <Button
+                        type="button"
+                        label="Entendi"
+                        icon="pi pi-check"
+                        onClick={() => setA3WebDialogVisible(false)}
+                    />
+                }
+            >
+                <p className="m-0">
+                    Para uso de certificado tipo A3, utilize a versão desktop do Vecontab.
+                </p>
+            </Dialog>
         </div>
     );
 }

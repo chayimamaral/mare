@@ -3,6 +3,7 @@ import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import api from '../../components/api/apiClient';
 
 type Config = {
     gerar_das_por_procuracao: boolean;

@@ -76,16 +76,19 @@ export default function MatrizConformidadeFiscalPage() {
   });
 
   useEffect(() => {
-    // Sincroniza somente quando o backend mudar de fato a seleção
+    // Sincroniza com o backend apenas quando os dados remotos mudam
+    // (na troca de enquadramento/regime ou após salvar/refetch).
     if (!Array.isArray(selecionadosApi)) return;
-    // evita sobrescrever alterações locais enquanto o usuário marca/desmarca
-    const atual = selecionados.slice().sort();
-    const remoto = selecionadosApi.slice().sort();
-    if (atual.length === remoto.length && atual.every((v, i) => v === remoto[i])) {
-      return;
-    }
     setSelecionados(selecionadosApi);
-  }, [selecionadosApi, selecionados]);
+  }, [selecionadosApi]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!enquadramentoID || !regimeID) return false;
+    const local = [...selecionados].sort();
+    const remote = [...selecionadosApi].sort();
+    if (local.length !== remote.length) return true;
+    return local.some((v, i) => v !== remote[i]);
+  }, [enquadramentoID, regimeID, selecionados, selecionadosApi]);
 
   const secoes = useMemo(() => {
     const unique = Array.from(new Set(catalogo.map((s) => (s.secao || '').trim()).filter((s) => s !== '')));
@@ -181,7 +184,14 @@ export default function MatrizConformidadeFiscalPage() {
               />
             </div>
             <div className="col-12 md:col-4 flex align-items-end">
-              <Button label="Salvar Matriz" icon="pi pi-save" onClick={() => void salvar()} loading={saving} />
+              <div className="w-full">
+                <Button label="Salvar Matriz" icon="pi pi-save" onClick={() => void salvar()} loading={saving} />
+                {hasUnsavedChanges && (
+                  <small className="block mt-2 text-orange-600">
+                    Existem alterações não salvas.
+                  </small>
+                )}
+              </div>
             </div>
           </div>
 

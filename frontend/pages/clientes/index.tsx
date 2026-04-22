@@ -23,6 +23,8 @@ import EmpresaService from '../../services/cruds/EmpresaService';
 import EmpresaDadosService from '../../services/cruds/EmpresaDadosService';
 import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
+import { isWebRuntime } from '../../constants/runtime';
+import { isValidCNPJ, isValidCPF, onlyDigits } from '../../constants/documento';
 
 interface LazyTableState {
   totalRecords: number;
@@ -181,6 +183,7 @@ const Clientes = () => {
   /** Navegação explícita das abas do cadastro (evita barra nativa do TabView comprimida no Dialog). */
   const [clienteDialogTabIndex, setClienteDialogTabIndex] = useState(0);
   const [deleteEmpresaDialog, setDeleteEmpresaDialog] = useState(false);
+  const [a3WebDialogVisible, setA3WebDialogVisible] = useState(false);
   const [empresa, setEmpresa] = useState<Vec.Empresa>(emptyEmpresa);
   const [submitted, setSubmitted] = useState(false);
   const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -510,6 +513,15 @@ const Clientes = () => {
     setDeleteEmpresaDialog(false);
   };
 
+  const onTipoCertificadoClienteChange = (value: string) => {
+    if (value === 'A3' && isWebRuntime()) {
+      setCertClienteForm((p) => ({ ...p, tipo_certificado: 'A1' }));
+      setA3WebDialogVisible(true);
+      return;
+    }
+    setCertClienteForm((p) => ({ ...p, tipo_certificado: value || 'A1' }));
+  };
+
   function handleBuscaEmpresa(event: React.KeyboardEvent<HTMLInputElement>, value: string): void {
     if (event.key === 'Enter') {
       const prev = lazyStateRef.current;
@@ -591,8 +603,6 @@ const Clientes = () => {
     } as Vec.TipoEmpresaLite;
   })();
 
-  const onlyDigits = (s: string) => String(s ?? '').replace(/\D/g, '');
-
   const buildPayloadDados = (empresaId: string) => {
     const pf = (empresa.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF';
     return {
@@ -618,8 +628,8 @@ const Clientes = () => {
 
     const docDigits = onlyDigits(empresa.documento ?? '');
     const munOk = (empresa.municipio?.id ?? '').trim() !== '';
-    const docOkPf = isClientePF && docDigits.length === 11;
-    const docOkPj = !isClientePF && (docDigits.length === 0 || docDigits.length === 14);
+    const docOkPf = isClientePF && isValidCPF(docDigits);
+    const docOkPj = !isClientePF && (docDigits.length === 0 || isValidCNPJ(docDigits));
     /** Somente USER grava só clientes_dados; ADMIN/SUPER sempre passam por update do cliente (inclui regime/tipo) + dados. */
     const salvarSomenteClientesDados = !!empresa.id && podeEditarComplementosCliente && userRole === 'USER';
 
@@ -734,7 +744,7 @@ const Clientes = () => {
         toast.current?.show({
           severity: 'warn',
           summary: 'Alerta',
-          detail: 'CPF deve ter 11 dígitos (apenas números ou formatado)',
+          detail: 'CPF invalido. Verifique os digitos informados.',
           life: 3500,
         });
       }
@@ -742,7 +752,7 @@ const Clientes = () => {
         toast.current?.show({
           severity: 'warn',
           summary: 'Alerta',
-          detail: 'CNPJ, se informado, deve ter 14 dígitos',
+          detail: 'CNPJ invalido. Verifique os digitos informados.',
           life: 3500,
         });
       }
@@ -1445,7 +1455,7 @@ const Clientes = () => {
                         maxLength={14}
                         onChange={(e) => onInputChange(e, 'documento')}
                         disabled={empresa?.iniciado === true || coreCamposBloqueados}
-                        className={classNames({ 'p-invalid': submitted && onlyDigits(empresa.documento ?? '').length !== 11 })}
+                        className={classNames({ 'p-invalid': submitted && !isValidCPF(empresa.documento ?? '') })}
                         placeholder="Somente números ou formatado"
                       />
                     </div>
@@ -1463,7 +1473,7 @@ const Clientes = () => {
                             onChange={(e) => onInputChange(e, 'documento')}
                             disabled={empresa?.iniciado === true || coreCamposBloqueados}
                             className={classNames({
-                              'p-invalid': submitted && onlyDigits(empresa.documento ?? '').length > 0 && onlyDigits(empresa.documento ?? '').length !== 14,
+                              'p-invalid': submitted && onlyDigits(empresa.documento ?? '').length > 0 && !isValidCNPJ(empresa.documento ?? ''),
                             })}
                             placeholder="Opcional para PJ"
                           />
@@ -1669,7 +1679,7 @@ const Clientes = () => {
                           id="cert_cli_tipo"
                           options={tipoCertificadoOptions}
                           value={certClienteForm.tipo_certificado}
-                          onChange={(e) => setCertClienteForm((p) => ({ ...p, tipo_certificado: e.value ?? 'A1' }))}
+                          onChange={(e) => onTipoCertificadoClienteChange(e.value ?? 'A1')}
                           placeholder="Selecione"
                           className="w-full"
                           disabled={!podeAnexarCertificadoCliente}
@@ -1799,6 +1809,26 @@ const Clientes = () => {
                 </span>
               )}
             </div>
+          </Dialog>
+
+          <Dialog
+            visible={a3WebDialogVisible}
+            header="Uso do certificado A3"
+            modal
+            style={{ width: '32rem' }}
+            onHide={() => setA3WebDialogVisible(false)}
+            footer={
+              <Button
+                type="button"
+                label="Entendi"
+                icon="pi pi-check"
+                onClick={() => setA3WebDialogVisible(false)}
+              />
+            }
+          >
+            <p className="m-0">
+              Para uso de certificado tipo A3, utilize a versão desktop do Vecontab.
+            </p>
           </Dialog>
 
         </div>
