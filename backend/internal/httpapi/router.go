@@ -73,6 +73,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraServicoProcRepo := repository.NewIntegraContadorServicoProcuracaoRepository(pool)
 	integraContadorService := service.NewIntegraContadorService(certificadoService, configuracaoIntegracaoRepo, integraServicoProcRepo, integraTabelaConsumoService)
 	integraServicoProcService := service.NewIntegraContadorServicoProcuracaoService(integraServicoProcRepo)
+	nfeSerproRepo := repository.NewNFESerproRepository(pool)
+	nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService))
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -105,6 +107,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraContadorHandler := handlers.NewIntegraContadorHandler(integraContadorService)
 	integraServicoProcHandler := handlers.NewIntegraContadorServicoProcuracaoHandler(integraServicoProcService)
 	integraTabelaConsumoHandler := handlers.NewIntegraTabelaConsumoHandler(integraTabelaConsumoService)
+	nfeSerproHandler := handlers.NewNFESerproHandler(nfeSerproService)
 
 	caixaPostalRepo := repository.NewCaixaPostalRepository(pool)
 	caixaPostalService := service.NewCaixaPostalService(caixaPostalRepo)
@@ -122,7 +125,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -173,6 +176,7 @@ func registerRoutes(
 	integraServicoProcHandler *handlers.IntegraContadorServicoProcuracaoHandler,
 	integraTabelaConsumoHandler *handlers.IntegraTabelaConsumoHandler,
 	caixaPostalHandler *handlers.CaixaPostalHandler,
+	nfeSerproHandler *handlers.NFESerproHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOnly func(http.Handler) http.Handler,
@@ -359,4 +363,9 @@ func registerRoutes(
 	r.With(requireAuth).Get("/caixa-postal", caixaPostalHandler.List)
 	r.With(requireAuth).Post("/caixa-postal/enviar", caixaPostalHandler.Send)
 	r.With(requireAuth).Put("/caixa-postal/{id}/ler", caixaPostalHandler.Read)
+
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
+	r.With(requireAuth).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
+	r.With(requireAuth).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
+	r.Post("/serpro/nfe/push/notificacao", nfeSerproHandler.PushNotificacao)
 }

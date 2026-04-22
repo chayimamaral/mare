@@ -21,6 +21,8 @@ const AppMenu = () => {
 
   const podeGerenciarUsuarios = userRole === 'ADMIN' || userRole === 'SUPER';
   const podeVerMonitor = userRole === 'ADMIN' || userRole === 'SUPER';
+  const isSuper = userRole === 'SUPER';
+  const podeConsultarNFe = userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER';
 
   const model: AppMenuItem[] = useMemo(
     () => [
@@ -154,7 +156,6 @@ const AppMenu = () => {
                     icon: 'pi pi-fw pi-user',
                     to: '/rotinas-pf',
                   },
-
                 ],
               },
               {
@@ -217,9 +218,9 @@ const AppMenu = () => {
             ],
           },
           {
-            label: 'Configurações',
+            label: 'Configurações APIs',
             icon: 'pi pi-fw pi-cog',
-            visible: userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER',
+            visible: isSuper,
             items: [
               {
                 label: 'Integra Contador - Serpro',
@@ -229,43 +230,69 @@ const AppMenu = () => {
                     label: 'Chave de Autenticação',
                     icon: 'pi pi-fw pi-key',
                     to: '/configuracoes/api-integra-contador',
-                    visible: userRole === 'SUPER',
-                  },
-                  {
-                    label: 'Geração de Guias',
-                    icon: 'pi pi-fw pi-file',
-                    to: '/configuracoes/geracao-guias',
-                    visible: userRole === 'ADMIN',
+                    visible: isSuper,
                   },
                   {
                     label: 'Execução de Serviços',
                     icon: 'pi pi-fw pi-play',
                     to: '/configuracoes/integra-contador-servicos',
-                    visible: userRole === 'SUPER',
-                  },
-                  {
-                    label: 'Certificado Digital',
-                    icon: 'pi pi-fw pi-shield',
-                    to: '/configuracoes/certificado-digital',
-                    visible: userRole === 'ADMIN',
+                    visible: isSuper,
                   },
                   {
                     label: 'Catálogo de Serviços',
                     icon: 'pi pi-fw pi-sitemap',
                     to: '/catalogo-servicos',
-                    visible: userRole === 'SUPER',
+                    visible: isSuper,
                   },
                   {
                     label: 'Matriz de Conformidade Fiscal',
                     icon: 'pi pi-fw pi-check-square',
                     to: '/matriz-conformidade-fiscal',
-                    visible: userRole === 'SUPER',
+                    visible: isSuper,
                   },
                   {
-                    label: 'Tabela de Preços de Consumo',
+                    label: 'Tabela de Preços de Consumo - Integra Contador',
                     icon: 'pi pi-fw pi-wallet',
                     to: '/configuracoes/integra-contador-tabela-consumo',
-                    visible: userRole === 'SUPER',
+                    visible: isSuper,
+                  },
+                  {
+                    label: 'NFe - Serpro',
+                    icon: 'pi pi-fw pi-cog',
+                    to: '/configuracoes/api-integra-contador',
+                    visible: isSuper,
+                  },
+
+                ],
+              },
+            ],
+          },
+          {
+            label: 'Configurações do Tenant',
+            icon: 'pi pi-fw pi-building',
+            visible: userRole === 'SUPER' || userRole === 'ADMIN',
+            items: [
+              {
+                label: 'Integra Contador - Tenant',
+                iconSrc: '/microservice-icon.svg',
+                items: [
+                  {
+                    label: 'Geração de Guias',
+                    icon: 'pi pi-fw pi-file',
+                    to: '/configuracoes/geracao-guias',
+                    visible: userRole === 'SUPER' || userRole === 'ADMIN',
+                  },
+                  {
+                    label: 'Certificado Digital',
+                    icon: 'pi pi-fw pi-shield',
+                    to: '/configuracoes/certificado-digital',
+                    visible: userRole === 'SUPER' || userRole === 'ADMIN',
+                  },
+                  {
+                    label: 'Consulta NFe',
+                    icon: 'pi pi-fw pi-file-check',
+                    to: '/nfe/consulta',
+                    visible: podeConsultarNFe,
                   },
                 ],
               },

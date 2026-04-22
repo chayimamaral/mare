@@ -27,6 +27,10 @@ type Config struct {
 	SerproClientID      string
 	SerproClientSecret  string
 	SerproAPIBaseURL    string
+	SerproNFEAPIBaseURL string
+	// SerproNFEBearerToken: opcional. Se preenchido, a consulta NF-e usa este Bearer direto (ex.: API de teste),
+	// sem chamar OAuth2 (SERPRO_OAUTH_TOKEN_URL / CLIENT_ID / SECRET).
+	SerproNFEBearerToken string
 }
 
 func Load() (Config, error) {
@@ -75,6 +79,8 @@ func Load() (Config, error) {
 		SerproClientID:                 os.Getenv("SERPRO_CLIENT_ID"),
 		SerproClientSecret:             os.Getenv("SERPRO_CLIENT_SECRET"),
 		SerproAPIBaseURL:               getEnv("SERPRO_API_BASE_URL", ""),
+		SerproNFEAPIBaseURL:            getEnv("SERPRO_NFE_API_BASE_URL", getEnv("SERPRO_API_BASE_URL", "")),
+		SerproNFEBearerToken:           strings.TrimSpace(os.Getenv("SERPRO_NFE_BEARER_TOKEN")),
 	}
 
 	if cfg.DatabaseURL == "" {
