@@ -1,9 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { useRouter } from 'next/router';
-import React, { useContext, useState, useRef } from 'react';
+import React, { useContext, useState, useRef, useEffect } from 'react';
 import AppConfig from '../../../layout/AppConfig';
-import { Checkbox } from 'primereact/checkbox';
 import { Button } from 'primereact/button';
 import { Password } from 'primereact/password';
 import { LayoutContext } from '../../../layout/context/layoutcontext';
@@ -19,15 +17,28 @@ export const RegisterPage: Page = () => {
     const [password, setPassword] = useState('');
     const [email, setEmail] = useState('');
     const [nome, setNome] = useState('');
-    const [checked, setChecked] = useState(false);
     const [empresaNome, setEmpresaNome] = useState('');
     const { layoutConfig } = useContext(LayoutContext);
     const { signUp } = useContext(AuthContext);
     const toast = useRef<Toast>(null);
     const [isInvalid, setIsInvalid] = useState(false);
 
-    const router = useRouter();
     const containerClassName = classNames('surface-ground flex align-items-center justify-content-center min-h-screen min-w-screen overflow-hidden', { 'p-input-filled': layoutConfig.inputStyle === 'filled' });
+
+    useEffect(() => {
+        const clearForm = () => {
+            setNome('');
+            setEmail('');
+            setEmpresaNome('');
+            setPassword('');
+            setIsInvalid(false);
+        };
+
+        clearForm();
+
+        const timeoutId = window.setTimeout(clearForm, 50);
+        return () => window.clearTimeout(timeoutId);
+    }, []);
 
     async function handleRegister() {
 
@@ -72,47 +83,85 @@ export const RegisterPage: Page = () => {
                                 VECONTAB</div>
                             <span className="text-600 font-medium">Crie sua conta no VECONTAB!</span>
                         </div>
-                        <div>
-                            <label htmlFor="nome1" className="block text-900 text-xl font-medium mb-2">
+                        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+                            {/* Campos isca para o navegador não injetar credenciais do ultimo login no form de cadastro */}
+                            <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} tabIndex={-1} />
+                            <input type="password" name="current-password" autoComplete="current-password" style={{ display: 'none' }} tabIndex={-1} />
+                            <label htmlFor="register-user-name" className="block text-900 text-xl font-medium mb-2">
                                 Nome do Usuário
                             </label>
-                            <InputText id="nome1" value={nome} onChange={(e) => setNome(e.target.value)} type="text" placeholder="Nome" className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} style={{ padding: '1rem' }} />
+                            <InputText
+                                id="register-user-name"
+                                name="nome"
+                                value={nome}
+                                onChange={(e) => setNome(e.target.value)}
+                                type="text"
+                                autoComplete="new-password"
+                                placeholder="Nome"
+                                className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`}
+                                style={{ padding: '1rem' }}
+                            />
 
-                            <label htmlFor="email1" className="block text-900 text-xl font-medium mb-2">
+                            <label htmlFor="register-email" className="block text-900 text-xl font-medium mb-2">
                                 Email (login)
                             </label>
-                            <InputText id="email1" value={email} onChange={(e) => setEmail(e.target.value)} type="text" placeholder="Email" className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} style={{ padding: '1rem' }} />
+                            <InputText
+                                id="register-email"
+                                name="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                type="email"
+                                autoComplete="new-password"
+                                placeholder="Email"
+                                className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`}
+                                style={{ padding: '1rem' }}
+                            />
 
-                            <label htmlFor="empresaNome1" className="block text-900 text-xl font-medium mb-2">
+                            <label htmlFor="register-company-name" className="block text-900 text-xl font-medium mb-2">
                                 Empresa/Escritório
                             </label>
                             <InputText
-                                id="empresaNome1"
+                                id="register-company-name"
+                                name="empresa_nome"
                                 value={empresaNome}
                                 onChange={(e) => setEmpresaNome(e.target.value)}
                                 type="text"
+                                autoComplete="new-password"
                                 placeholder="ex: Vec Contabilidade"
                                 className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`}
                                 style={{ padding: '1rem' }}
                             />
 
-                            <label htmlFor="password1" className="block text-900 font-medium text-xl mb-2">
+                            <label htmlFor="register-password" className="block text-900 font-medium text-xl mb-2">
                                 Senha
                             </label>
-                            <Password inputId="password1" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" toggleMask className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`} inputClassName="w-full p-3 md:w-30rem"></Password>
+                            <Password
+                                inputId="register-password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Senha"
+                                toggleMask
+                                pt={{
+                                    input: {
+                                        name: 'register_new_password',
+                                        autoComplete: 'new-password',
+                                    },
+                                }}
+                                className={`w-full md:w-30rem mb-5 ${isInvalid ? 'p-invalid' : ''}`}
+                                inputClassName="w-full p-3 md:w-30rem"
+                            ></Password>
 
                             <div className="flex align-items-center justify-content-between mb-5 gap-5">
-
-                                <a className="font-medium no-underline ml-2 text-center cursor-pointer" style={{ color: 'var(--primary-color)' }}>
-                                    Já possui conta ? Faça login  <Link href='/auth/login'><strong> aqui</strong></Link>
-                                </a>
+                                <span className="font-medium no-underline ml-2 text-center" style={{ color: 'var(--primary-color)' }}>
+                                    Já possui conta ? Faça login <Link href='/auth/login'><strong>aqui</strong></Link>
+                                </span>
                             </div>
 
                             <div className="card flex justify-content-center">
                                 <Toast ref={toast} />
-                                <Button label="Acessar" className="w-full p-3 text-xl" onClick={handleRegister}></Button>
+                                <Button type="submit" label="Acessar" className="w-full p-3 text-xl" onClick={handleRegister}></Button>
                             </div>
-                        </div>
+                        </form>
                     </div>
                 </div>
             </div>
