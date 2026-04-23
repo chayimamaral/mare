@@ -17,18 +17,24 @@ func NewCaixaPostalService(repo *repository.CaixaPostalRepository) *CaixaPostalS
 	return &CaixaPostalService{repo: repo}
 }
 
-func (s *CaixaPostalService) ListMensagens(ctx context.Context, schemaName string) ([]domain.CaixaPostalMensagem, error) {
-	if schemaName == "" {
-		return nil, fmt.Errorf("schema não definido")
+func (s *CaixaPostalService) ListMensagens(ctx context.Context, schemaName, tenantID string) ([]domain.CaixaPostalMensagem, error) {
+	if strings.TrimSpace(schemaName) == "" {
+		return nil, fmt.Errorf("schema nao definido")
 	}
-	return s.repo.List(ctx, schemaName)
+	if strings.TrimSpace(tenantID) == "" {
+		return nil, fmt.Errorf("tenant_id nao definido")
+	}
+	return s.repo.List(ctx, schemaName, tenantID)
 }
 
-func (s *CaixaPostalService) Count(ctx context.Context, schemaName string) (int, error) {
-	if schemaName == "" {
-		return 0, fmt.Errorf("schema não definido")
+func (s *CaixaPostalService) Count(ctx context.Context, schemaName, tenantID string) (int, error) {
+	if strings.TrimSpace(schemaName) == "" {
+		return 0, fmt.Errorf("schema nao definido")
 	}
-	return s.repo.CountUnread(ctx, schemaName)
+	if strings.TrimSpace(tenantID) == "" {
+		return 0, fmt.Errorf("tenant_id nao definido")
+	}
+	return s.repo.CountUnread(ctx, schemaName, tenantID)
 }
 
 func (s *CaixaPostalService) MarkAsRead(ctx context.Context, schemaName, msgID, userID string) error {
@@ -38,7 +44,7 @@ func (s *CaixaPostalService) MarkAsRead(ctx context.Context, schemaName, msgID, 
 	return s.repo.MarkAsRead(ctx, schemaName, msgID, userID)
 }
 
-func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo, conteudo, remetenteID, remetenteNome, requesterRole, currentSchema string) error {
+func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID string, isGlobal bool, titulo, conteudo, remetenteID, remetenteNome, requesterRole, currentSchema string) error {
 	if len(strings.TrimSpace(titulo)) == 0 || len(strings.TrimSpace(conteudo)) == 0 {
 		return fmt.Errorf("título e conteúdo são obrigatórios")
 	}
@@ -77,7 +83,16 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 	}
 
 	// Cenário B: SUPER emitindo avisos do sistema (Global ou pra um Tenant Específico)
-	isGlobal := targetTenantID == ""
+	if isGlobal && targetTenantID != "" {
+		return fmt.Errorf("envio global não deve informar tenant destino")
+	}
+	if !isGlobal && targetTenantID == "" {
+		return fmt.Errorf("tenant destino é obrigatório para envio específico")
+	}
+	superSchema, err := s.repo.GetSuperSchema(ctx)
+	if err != nil {
+		return err
+	}
 
 	msgBase := domain.CaixaPostalMensagem{
 		RemetenteID:   &remetenteID,
@@ -96,6 +111,7 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 		}
 
 		currentSchemaLower := strings.ToLower(currentSchema)
+		superSchemaLower := strings.ToLower(strings.TrimSpace(superSchema))
 		seen := make(map[string]struct{}, len(schemas))
 		for _, schema := range schemas {
 			schema = strings.TrimSpace(schema)
@@ -105,6 +121,10 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 			schemaLower := strings.ToLower(schema)
 			if schemaLower == currentSchemaLower {
 				// Evita cair na própria INBOX do SUPER quando já será registrado em OUTBOX.
+				continue
+			}
+			if superSchemaLower != "" && schemaLower == superSchemaLower {
+				// Garante regra de negócio: tenant da plataforma (SUPER) não recebe INBOX global.
 				continue
 			}
 			if _, exists := seen[schemaLower]; exists {
@@ -126,6 +146,9 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 	targetSchema, err := s.repo.GetSchemaByTenantID(ctx, targetTenantID)
 	if err != nil {
 		return fmt.Errorf("tenant destino (%s) inválido ou sem schema: %w", targetTenantID, err)
+	}
+	if strings.EqualFold(strings.TrimSpace(targetSchema), strings.TrimSpace(superSchema)) {
+		return fmt.Errorf("tenant do provedor (SUPER) não pode ser destinatário")
 	}
 
 	err = s.repo.Insert(ctx, targetSchema, msgBase)

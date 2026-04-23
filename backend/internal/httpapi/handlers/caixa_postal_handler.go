@@ -20,7 +20,8 @@ func NewCaixaPostalHandler(svc *service.CaixaPostalService) *CaixaPostalHandler 
 
 func (h *CaixaPostalHandler) UnreadCount(w http.ResponseWriter, r *http.Request) {
 	schema := middleware.TenantSchema(r.Context())
-	count, err := h.svc.Count(r.Context(), schema)
+	tenantID := middleware.TenantID(r.Context())
+	count, err := h.svc.Count(r.Context(), schema, tenantID)
 	if err != nil {
 		render.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -31,7 +32,8 @@ func (h *CaixaPostalHandler) UnreadCount(w http.ResponseWriter, r *http.Request)
 
 func (h *CaixaPostalHandler) List(w http.ResponseWriter, r *http.Request) {
 	schema := middleware.TenantSchema(r.Context())
-	msg, err := h.svc.ListMensagens(r.Context(), schema)
+	tenantID := middleware.TenantID(r.Context())
+	msg, err := h.svc.ListMensagens(r.Context(), schema, tenantID)
 	if err != nil {
 		render.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -43,6 +45,7 @@ func (h *CaixaPostalHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *CaixaPostalHandler) Send(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		TenantID string `json:"tenant_id"` // vazio se global ou user normal
+		IsGlobal bool   `json:"is_global"`
 		Titulo   string `json:"titulo"`
 		Conteudo string `json:"conteudo"`
 	}
@@ -57,7 +60,7 @@ func (h *CaixaPostalHandler) Send(w http.ResponseWriter, r *http.Request) {
 	requesterRole := middleware.Role(r.Context())
 	currentSchema := middleware.TenantSchema(r.Context())
 
-	err := h.svc.Enviar(r.Context(), body.TenantID, body.Titulo, body.Conteudo, userID, userName, requesterRole, currentSchema)
+	err := h.svc.Enviar(r.Context(), body.TenantID, body.IsGlobal, body.Titulo, body.Conteudo, userID, userName, requesterRole, currentSchema)
 	if err != nil {
 		render.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

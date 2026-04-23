@@ -38,7 +38,7 @@ export default function CaixaPostal() {
     const [msgRespondidaId, setMsgRespondidaId] = useState<string | null>(null);
     const [titulo, setTitulo] = useState('');
     const [conteudo, setConteudo] = useState('');
-    const [tenantSelecionado, setTenantSelecionado] = useState<TenantOpcao | null>(null);
+    const [tenantSelecionadoId, setTenantSelecionadoId] = useState<string>('');
     const [enviando, setEnviando] = useState(false);
 
     const svc = CaixaPostalService();
@@ -82,7 +82,7 @@ export default function CaixaPostal() {
         setMsgRespondidaId(null);
         setTitulo('');
         setConteudo('');
-        setTenantSelecionado(null);
+        setTenantSelecionadoId('');
         setDialogEnviar(true);
     };
 
@@ -92,10 +92,9 @@ export default function CaixaPostal() {
         setTitulo(`Re: ${msg.titulo}`);
         setConteudo('');
         if (isSuper && msg.remetente_tenantid) {
-            const tenantEncontrado = tenants.find((t) => t.id === msg.remetente_tenantid) ?? null;
-            setTenantSelecionado(tenantEncontrado);
+            setTenantSelecionadoId(msg.remetente_tenantid);
         } else {
-            setTenantSelecionado(null);
+            setTenantSelecionadoId('');
         }
         setDialogEnviar(true);
     };
@@ -108,7 +107,8 @@ export default function CaixaPostal() {
         setEnviando(true);
         try {
             await svc.enviar({
-                tenant_id: isSuper ? (tenantSelecionado?.id ?? '') : '',
+                tenant_id: isSuper ? tenantSelecionadoId : '',
+                is_global: isSuper ? tenantSelecionadoId === '' : false,
                 titulo: titulo.trim(),
                 conteudo: conteudo.trim(),
             });
@@ -352,13 +352,14 @@ export default function CaixaPostal() {
                             </label>
                             <Dropdown
                                 id="tenant-destino"
-                                value={tenantSelecionado}
+                                value={tenantSelecionadoId}
                                 options={tenantOpcoes}
-                                onChange={(e) => setTenantSelecionado(e.value)}
+                                onChange={(e) => setTenantSelecionadoId(e.value ?? '')}
                                 optionLabel="nome"
+                                optionValue="id"
                                 placeholder="Todos os tenants (global)"
                                 className="w-full"
-                                disabled={modoResposta && !!tenantSelecionado}
+                                disabled={modoResposta && !!tenantSelecionadoId}
                             />
                         </div>
                     )}

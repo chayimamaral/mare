@@ -286,7 +286,7 @@ const LandingPage: Page = () => {
               <div className="flex align-items-center justify-content-center bg-yellow-200 align-self-center lg:align-self-start" style={{ width: '4.2rem', height: '4.2rem', borderRadius: '10px' }}>
                 <i className="pi pi-fw pi-desktop text-5xl text-yellow-700"></i>
               </div>
-              <h2 className="line-height-1 text-900 text-4xl font-normal">Bando de dados adaptável</h2>
+              <h2 className="line-height-1 text-900 text-4xl font-normal">Banco de dados adaptável</h2>
               <span className="text-700 text-2xl line-height-3 mr-0 md:mr-2" style={{ maxWidth: '650px' }}>
                 Algumas empresas preferem ter seus Bancos de Dados alocados particularmente. O VECONTAB conta com essa possibilidade (consulte)
               </span>
@@ -307,30 +307,34 @@ const LandingPage: Page = () => {
           <div className="grid justify-content-between mt-8 md:mt-0">
             <div className="col-12 lg:col-4 p-0 md:p-3">
               <div className="p-3 flex flex-column border-200 pricing-card cursor-pointer border-2 hover:border-primary transition-duration-300 transition-all">
-                <h3 className="text-900 text-center my-5">Padrão</h3>
+                <h3 className="text-900 text-center my-5">Demo</h3>
                 <img src="/demo/images/landing/free.svg" className="w-10 h-10 mx-auto" alt="free" />
                 <div className="my-5 text-center">
-                  <span className="text-5xl font-bold mr-2 text-900">R$ 100,00</span>
-                  <span className="text-600">1 mês para você testar à vontade, podendo desistir caso o aplicativo não atenda suas necessidades</span>
+                  <span className="text-5xl font-bold mr-2 text-900">R$ 0,00</span>
+                  <span className="text-600">1 semana para você analisar à vontade</span>
                   <Button label="Get Started" rounded className="block mx-auto mt-4 border-none ml-3 font-light line-height-2 bg-blue-500 text-white"></Button>
                 </div>
                 <Divider className="w-full bg-surface-200"></Divider>
                 <ul className="my-5 list-none p-0 flex text-900 flex-column">
                   <li className="py-2">
-                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Layout Responsivo</span>
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
                   </li>
                   <li className="py-2">
-                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Gerencia até 10 empresas</span>
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
                   </li>
                   <li className="py-2">
-                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Atendimento por fila</span>
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
                   </li>
                   <li className="py-2">
-                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Opções padrão</span>
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
+                  </li>
+                  <li className="py-2">
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
                   </li>
                 </ul>
               </div>
@@ -341,7 +345,7 @@ const LandingPage: Page = () => {
                 <h3 className="text-900 text-center my-5">Padrão</h3>
                 <img src="/demo/images/landing/startup.svg" className="w-10 h-10 mx-auto" alt="startup" />
                 <div className="my-5 text-center">
-                  <span className="text-5xl font-bold mr-2 text-900">R$ 250,00</span>
+                  <span className="text-5xl font-bold mr-2 text-900">R$ 500,00</span>
                   <span className="text-600">mensal</span>
                   <Button label="Try Free" rounded className="block mx-auto mt-4 border-none ml-3 font-light line-height-2 bg-blue-500 text-white"></Button>
                 </div>
@@ -349,11 +353,16 @@ const LandingPage: Page = () => {
                 <ul className="my-5 list-none p-0 flex text-900 flex-column">
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3">Geração de boletos, recibos e NF´s on-line</span>
+                  </li>
+
+                  <li className="py-2">
+                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
                     <span className="text-xl line-height-3">Layout Responsivo</span>
                   </li>
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Número ilimitado de empreas</span>
+                    <span className="text-xl line-height-3">Número ilimitado de empresas</span>
                   </li>
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
@@ -361,7 +370,7 @@ const LandingPage: Page = () => {
                   </li>
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Análise de Pedidos de Customizações Básicas</span>
+                    <span className="text-xl line-height-3">Análise de Pedidos de Customizações</span>
                   </li>
                 </ul>
               </div>
@@ -376,24 +385,28 @@ const LandingPage: Page = () => {
                   <span className="text-600">mensal</span>
                   <Button label="Get a Quote" rounded className="block mx-auto mt-4 border-none ml-3 font-light line-height-2 bg-blue-500 text-white"></Button>
                 </div>
-                <Divider className="w-full bg-surface-200"></Divider>udemy
+                <Divider className="w-full bg-surface-200"></Divider>
                 <ul className="my-5 list-none p-0 flex text-900 flex-column">
 
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Bando de Dados Privado</span>
+                    <span className="text-xl line-height-3">Todas as funcionalidades da versão Padrão</span>
                   </li>
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Atendimento Personalizado</span>
+                    <span className="text-xl line-height-3">Banco de Dados Privado</span>
                   </li>
                   <li className="py-2">
                     <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
                     <span className="text-xl line-height-3">Solicitações de customizações avançadas</span>
                   </li>
                   <li className="py-2">
-                    <i className="pi pi-fw pi-check text-xl text-cyan-500 mr-2"></i>
-                    <span className="text-xl line-height-3">Geração de boletos, recibos e NF´s on-line</span>
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
+                  </li>
+                  <li className="py-2">
+                    <i className="pi pi-fw  text-xl text-cyan-500 mr-2"></i>
+                    <span className="text-xl line-height-3"></span>
                   </li>
                 </ul>
               </div>

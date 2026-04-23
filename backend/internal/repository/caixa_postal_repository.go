@@ -55,21 +55,27 @@ func (r *CaixaPostalRepository) Insert(ctx context.Context, schemaName string, m
 	return err
 }
 
-func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]domain.CaixaPostalMensagem, error) {
+func (r *CaixaPostalRepository) List(ctx context.Context, schemaName, tenantID string) ([]domain.CaixaPostalMensagem, error) {
 	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
 	if err != nil {
 		return nil, err
 	}
 	q := fmt.Sprintf(`
 		SELECT cpm.id, cpm.remetente_id, u.tenantid AS remetente_tenantid,
-		       cpm.remetente_nome, cpm.tipo, cpm.is_global, cpm.titulo, cpm.conteudo,
+		       cpm.remetente_nome,
+		       CASE
+		           WHEN cpm.tipo = 'OUTBOX' AND COALESCE(u.tenantid::text, '') <> $1 THEN 'INBOX'
+		           WHEN cpm.tipo = 'INBOX' AND COALESCE(u.tenantid::text, '') = $1 THEN 'OUTBOX'
+		           ELSE cpm.tipo
+		       END AS tipo,
+		       cpm.is_global, cpm.titulo, cpm.conteudo,
 		       cpm.lida, cpm.lida_por, cpm.lida_em, cpm.criado_em
 		FROM %s cpm
 		LEFT JOIN public.usuario u ON u.id = cpm.remetente_id
 		ORDER BY cpm.criado_em DESC
 	`, tableName)
 
-	rows, err := dbQuery(ctx, r.pool, q)
+	rows, err := dbQuery(ctx, r.pool, q, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,19 +96,27 @@ func (r *CaixaPostalRepository) List(ctx context.Context, schemaName string) ([]
 	return result, nil
 }
 
-func (r *CaixaPostalRepository) CountUnread(ctx context.Context, schemaName string) (int, error) {
+func (r *CaixaPostalRepository) CountUnread(ctx context.Context, schemaName, tenantID string) (int, error) {
 	tableName, err := tenantTable(schemaName, "caixa_postal_mensagens")
 	if err != nil {
 		return 0, err
 	}
 	q := fmt.Sprintf(`
 		SELECT count(*)
-		FROM %s
-		WHERE lida = false AND tipo = 'INBOX'
+		FROM %s cpm
+		LEFT JOIN public.usuario u ON u.id = cpm.remetente_id
+		WHERE cpm.lida = false
+		  AND (
+		       CASE
+		           WHEN cpm.tipo = 'OUTBOX' AND COALESCE(u.tenantid::text, '') <> $1 THEN 'INBOX'
+		           WHEN cpm.tipo = 'INBOX' AND COALESCE(u.tenantid::text, '') = $1 THEN 'OUTBOX'
+		           ELSE cpm.tipo
+		       END
+		  ) = 'INBOX'
 	`, tableName)
 
 	var count int
-	err = dbQueryRow(ctx, r.pool, q).Scan(&count)
+	err = dbQueryRow(ctx, r.pool, q, tenantID).Scan(&count)
 	return count, err
 }
 

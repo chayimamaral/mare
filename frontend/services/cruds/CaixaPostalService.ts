@@ -17,6 +17,7 @@ export interface CaixaPostalMensagem {
 
 export interface EnviarPayload {
     tenant_id?: string;
+    is_global?: boolean;
     titulo: string;
     conteudo: string;
 }

@@ -73,6 +73,7 @@ export function signOut() {
   try {
     clearAuthTokenCookies(null);
     if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('vecontab_token');
       window.localStorage.removeItem('vecontab_token');
     }
     Router.push('/auth/login');
@@ -89,7 +90,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
+    const sessionToken =
+      typeof window !== 'undefined' ? String(window.sessionStorage.getItem('vecontab_token') ?? '').trim() : '';
     const token =
+      sessionToken ||
       cookieToken ||
       (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
 
@@ -130,6 +134,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       })
       clearLegacyAuthTokenCookieBrowser();
       try {
+        window.sessionStorage.setItem('vecontab_token', token);
         window.localStorage.setItem('vecontab_token', token);
       } catch {
         // ignore
@@ -200,6 +205,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       api.defaults.headers.common['Authorization'] = '';
       clearAuthTokenCookies(null);
       if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('vecontab_token');
         window.localStorage.removeItem('vecontab_token');
       }
       Router.push('/auth/login');
