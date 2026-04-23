@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -22,6 +25,13 @@ import (
 const (
 	consultaNFEBaseTrial    = "https://gateway.apiserpro.serpro.gov.br/consulta-nfe-df-trial/api"
 	consultaNFEBaseProducao = "https://gateway.apiserpro.serpro.gov.br/consulta-nfe-df/api"
+)
+
+var (
+	// Saxon reports errors with a line starting like "Error at" / "Type error at" (not "Warning at").
+	saxonStderrErrorKind = regexp.MustCompile(`(?i)(\A|\n)\s*(Error at |Type error at |Static error at )`)
+	// XPath/XSLT static error codes (avoid loose substring checks like "xtse" inside unrelated text).
+	saxonStderrErrCode = regexp.MustCompile(`(?i)\b(SXXP|XTSE|XTDE|XPST|XPTY)[0-9]{3,}\b`)
 )
 
 type NFESerproService struct {
@@ -183,6 +193,236 @@ func (s *NFESerproService) ExportarXML(ctx context.Context, schemaName, chaveNFe
 		return "<nfe/>", nil
 	}
 	return jsonToXML(doc.PayloadJSON)
+}
+
+func defaultNFeXSLTDir() string {
+	candidates := []string{
+		"frontend/public/svrs-nfe-xslt",
+		"../frontend/public/svrs-nfe-xslt",
+		filepath.Join("..", "..", "frontend", "public", "svrs-nfe-xslt"),
+	}
+	for _, rel := range candidates {
+		st, err := os.Stat(rel)
+		if err != nil || !st.IsDir() {
+			continue
+		}
+		abs, err := filepath.Abs(rel)
+		if err == nil {
+			return abs
+		}
+	}
+	return ""
+}
+
+type saxonXSLTPaths struct {
+	jar     string
+	java    string
+	xslMain string
+}
+
+func (s *NFESerproService) resolveSaxonXSLT() (saxonXSLTPaths, error) {
+	var out saxonXSLTPaths
+	if s.serproAuth == nil {
+		return out, fmt.Errorf("servico SERPRO nao configurado")
+	}
+	cfg := s.serproAuth.cfg
+	jar := strings.TrimSpace(cfg.NFeSaxonJAR)
+	if jar == "" {
+		return out, fmt.Errorf("configure NFE_SAXON_JAR com o caminho do saxon-he-*.jar (https://www.saxonica.com/download/java)")
+	}
+	if abs, e := filepath.Abs(jar); e == nil {
+		jar = abs
+	}
+	if _, e := os.Stat(jar); e != nil {
+		return out, fmt.Errorf("NFE_SAXON_JAR inacessivel: %w", e)
+	}
+	xsltDir := strings.TrimSpace(cfg.NFeXSLTDir)
+	if xsltDir == "" {
+		xsltDir = defaultNFeXSLTDir()
+	}
+	if xsltDir == "" {
+		return out, fmt.Errorf("configure NFE_XSLT_DIR apontando para a pasta svrs-nfe-xslt (ex.: .../frontend/public/svrs-nfe-xslt)")
+	}
+	if abs, e := filepath.Abs(xsltDir); e == nil {
+		xsltDir = abs
+	}
+	xslMain := filepath.Join(xsltDir, "_Visualizacao_Internet.xsl")
+	if _, e := os.Stat(xslMain); e != nil {
+		return out, fmt.Errorf("folha XSLT _Visualizacao_Internet.xsl nao encontrada em %s", xsltDir)
+	}
+	java := strings.TrimSpace(cfg.NFeJavaPath)
+	if java == "" {
+		java = "java"
+	}
+	out.jar = jar
+	out.java = java
+	out.xslMain = xslMain
+	return out, nil
+}
+
+// saxonStderrIsOnlySXWN9019Noise is true when stderr looks like só avisos SXWN9019 do pacote SVRS
+// (sem "Error at" / códigos XPath), para não tratar como falha.
+func saxonStderrIsOnlySXWN9019Noise(stderr string) bool {
+	s := strings.TrimSpace(stderr)
+	if s == "" {
+		return false
+	}
+	low := strings.ToLower(s)
+	if !strings.Contains(low, "sxwn9019") {
+		return false
+	}
+	if strings.Contains(low, "error at ") {
+		return false
+	}
+	if strings.Contains(low, "fatal error") || strings.Contains(low, "exception in thread") {
+		return false
+	}
+	return !saxonStderrErrCode.MatchString(stderr)
+}
+
+// saxonStderrLooksFatal returns true when Saxon stderr indicates a real failure (not only SXWN… warnings).
+// SVRS XSLT triggers SXWN9019 (duplicate xsl:include) and Saxon may exit 2 while still writing HTML.
+func saxonStderrLooksFatal(stderr string) bool {
+	if saxonStderrIsOnlySXWN9019Noise(stderr) {
+		return false
+	}
+	if strings.TrimSpace(stderr) == "" {
+		return false
+	}
+	s := strings.ToLower(stderr)
+	if saxonStderrErrorKind.MatchString(stderr) {
+		return true
+	}
+	if strings.Contains(s, "fatal error") {
+		return true
+	}
+	if strings.Contains(s, "exception in thread") {
+		return true
+	}
+	return saxonStderrErrCode.MatchString(stderr)
+}
+
+func readDanfeHTMLFileRetries(htmlPath string) ([]byte, error) {
+	const attempts = 15
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			time.Sleep(40 * time.Millisecond)
+		}
+		b, err := os.ReadFile(htmlPath)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if strings.TrimSpace(string(b)) != "" {
+			return b, nil
+		}
+		lastErr = fmt.Errorf("arquivo HTML vazio")
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("arquivo HTML inexistente ou vazio")
+	}
+	return nil, lastErr
+}
+
+func (s *NFESerproService) danfeHTMLWithSaxon(ctx context.Context, xmlStr string) (string, error) {
+	sx, err := s.resolveSaxonXSLT()
+	if err != nil {
+		return "", err
+	}
+	xmlStr = strings.TrimSpace(xmlStr)
+	if xmlStr == "" || xmlStr == "<nfe/>" {
+		return "", fmt.Errorf("XML vazio ou sem conteudo de NF-e")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "vecontab-danfe-*")
+	if err != nil {
+		return "", fmt.Errorf("mkdir temp: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	xmlPath := filepath.Join(tmpDir, "nfe.xml")
+	if err := os.WriteFile(xmlPath, []byte(xmlStr), 0600); err != nil {
+		return "", err
+	}
+
+	htmlPath := filepath.Join(tmpDir, "danfe.html")
+
+	javaArgs := []string{"-jar", sx.jar, "-s:" + xmlPath, "-xsl:" + sx.xslMain}
+
+	// Milhares de linhas de SXWN9019 no stderr podem encher o pipe e travar o Java
+	// (stdout bloqueado). Descartamos stderr nas tentativas que buscam HTML.
+	var stdout1 bytes.Buffer
+	cmd1 := exec.CommandContext(ctx, sx.java, javaArgs...)
+	cmd1.Stderr = io.Discard
+	cmd1.Stdout = &stdout1
+	_ = cmd1.Run()
+	out := strings.TrimSpace(stdout1.String())
+	if out != "" {
+		return out, nil
+	}
+
+	cmd2 := exec.CommandContext(ctx, sx.java, append(javaArgs, "-o:"+htmlPath)...)
+	cmd2.Stderr = io.Discard
+	cmd2.Stdout = io.Discard
+	_ = cmd2.Run()
+	fileBytes, fileErr := readDanfeHTMLFileRetries(htmlPath)
+	outFile := strings.TrimSpace(string(fileBytes))
+	if outFile != "" {
+		return outFile, nil
+	}
+
+	// Diagnóstico: uma execução com stderr capturado
+	var stderr3, stdout3 bytes.Buffer
+	cmd3 := exec.CommandContext(ctx, sx.java, javaArgs...)
+	cmd3.Stderr = &stderr3
+	cmd3.Stdout = &stdout3
+	runErr3 := cmd3.Run()
+	msg3 := strings.TrimSpace(stderr3.String())
+	out3 := strings.TrimSpace(stdout3.String())
+	if out3 != "" && !saxonStderrLooksFatal(msg3) {
+		return out3, nil
+	}
+	if out3 != "" && saxonStderrIsOnlySXWN9019Noise(msg3) {
+		return out3, nil
+	}
+	if runErr3 != nil {
+		if msg3 != "" {
+			return "", fmt.Errorf("saxon: %w (%s)", runErr3, saxonTruncateRunLog(msg3))
+		}
+		return "", fmt.Errorf("saxon: %w", runErr3)
+	}
+	if fileErr != nil {
+		return "", fmt.Errorf("saxon nao gerou HTML (%v); verifique XML nfeProc e XSLT SVRS", fileErr)
+	}
+	return "", fmt.Errorf("saxon nao gerou HTML; o XML precisa ser NF-e autorizada (nfeProc) no namespace da SEFAZ")
+}
+
+// saxonTruncateRunLog limita texto devolvido ao cliente (stderr Saxon pode ser enorme).
+func saxonTruncateRunLog(s string) string {
+	const max = 8000
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
+}
+
+// GerarDanfeHTMLFromXML transforma um XML de NF-e ja obtido (ex.: trial no quadro Retorno) sem consultar o banco.
+func (s *NFESerproService) GerarDanfeHTMLFromXML(ctx context.Context, xmlStr string) (string, error) {
+	return s.danfeHTMLWithSaxon(ctx, xmlStr)
+}
+
+// ExportarDanfeHTML gera o HTML da DANFE a partir do XML persistido no tenant (chave).
+func (s *NFESerproService) ExportarDanfeHTML(ctx context.Context, schemaName, chaveNFe string) (string, error) {
+	xmlStr, err := s.ExportarXML(ctx, schemaName, chaveNFe)
+	if err != nil {
+		return "", err
+	}
+	xmlStr = strings.TrimSpace(xmlStr)
+	if xmlStr == "" || xmlStr == "<nfe/>" {
+		return "", fmt.Errorf("nao ha XML de NF-e para transformar; consulte ou busque a nota no tenant antes")
+	}
+	return s.danfeHTMLWithSaxon(ctx, xmlStr)
 }
 
 func (s *NFESerproService) RegistrarPushNotificacao(ctx context.Context, rawBody []byte, headers map[string]string) error {

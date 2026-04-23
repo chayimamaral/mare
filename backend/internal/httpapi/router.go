@@ -367,5 +367,7 @@ func registerRoutes(
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
 	r.With(requireAuth).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
 	r.With(requireAuth).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
+	r.With(requireAuth).Get("/serpro/nfe/documento/danfe-html", nfeSerproHandler.ExportarDanfeHTML)
+	r.With(requireAuth).Post("/serpro/nfe/documento/danfe-html", nfeSerproHandler.GerarDanfeHTMLFromXMLBody)
 	r.Post("/serpro/nfe/push/notificacao", nfeSerproHandler.PushNotificacao)
 }

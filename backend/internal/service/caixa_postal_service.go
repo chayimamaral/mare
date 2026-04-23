@@ -43,10 +43,14 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 		return fmt.Errorf("título e conteúdo são obrigatórios")
 	}
 
+	role := strings.ToUpper(strings.TrimSpace(requesterRole))
+	targetTenantID = strings.TrimSpace(targetTenantID)
+	currentSchema = strings.TrimSpace(currentSchema)
+
 	tipo := "INBOX"
 
 	// Cenário A: Usuário enviando suporte/dúvida para VEC Sistemas (SUPER)
-	if requesterRole != "SUPER" {
+	if role != "SUPER" {
 		superSchema, err := s.repo.GetSuperSchema(ctx)
 		if err != nil {
 			return err
@@ -91,7 +95,22 @@ func (s *CaixaPostalService) Enviar(ctx context.Context, targetTenantID, titulo,
 			return err
 		}
 
+		currentSchemaLower := strings.ToLower(currentSchema)
+		seen := make(map[string]struct{}, len(schemas))
 		for _, schema := range schemas {
+			schema = strings.TrimSpace(schema)
+			if schema == "" {
+				continue
+			}
+			schemaLower := strings.ToLower(schema)
+			if schemaLower == currentSchemaLower {
+				// Evita cair na própria INBOX do SUPER quando já será registrado em OUTBOX.
+				continue
+			}
+			if _, exists := seen[schemaLower]; exists {
+				continue
+			}
+			seen[schemaLower] = struct{}{}
 			_ = s.repo.Insert(ctx, schema, msgBase)
 		}
 

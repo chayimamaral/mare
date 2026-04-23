@@ -175,6 +175,23 @@
   position: relative;
 }
 
+@keyframes caixa-postal-blink {
+  0%,
+  45%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  60% {
+    opacity: 0.15;
+    transform: scale(0.92);
+  }
+}
+
+.caixa-postal-alert-icon {
+  animation: caixa-postal-blink 1s infinite;
+}
+
 .caixa-postal-mensagem-lida {
   opacity: 0.6;
 }

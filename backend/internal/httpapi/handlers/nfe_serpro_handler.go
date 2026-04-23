@@ -65,6 +65,55 @@ func (h *NFESerproHandler) ExportarXML(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(xmlPayload))
 }
 
+func (h *NFESerproHandler) ExportarDanfeHTML(w http.ResponseWriter, r *http.Request) {
+	chave := strings.TrimSpace(r.URL.Query().Get("chave"))
+	schema := middleware.TenantSchema(r.Context())
+	html, err := h.svc.ExportarDanfeHTML(r.Context(), schema, chave)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(html))
+}
+
+type danfeHTMLFromBodyRequest struct {
+	XML     string `json:"xml"`
+	Retorno string `json:"retorno"`
+}
+
+// GerarDanfeHTMLFromXMLBody gera DANFE a partir do quadro Retorno (JSON trial com payload_json, XML SEFAZ, ou campo xml legado).
+func (h *NFESerproHandler) GerarDanfeHTMLFromXMLBody(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 12<<20)
+	var req danfeHTMLFromBodyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	src := strings.TrimSpace(req.Retorno)
+	if src == "" {
+		src = strings.TrimSpace(req.XML)
+	}
+	if src == "" {
+		render.WriteError(w, http.StatusBadRequest, "informe retorno ou xml")
+		return
+	}
+	xmlPayload, err := service.DanfeXMLFromConsultaRetorno(src)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	html, err := h.svc.GerarDanfeHTMLFromXML(r.Context(), xmlPayload)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(html))
+}
+
 func (h *NFESerproHandler) PushNotificacao(w http.ResponseWriter, r *http.Request) {
 	rawBody, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {

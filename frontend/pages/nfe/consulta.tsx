@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
@@ -6,9 +7,16 @@ import { Toast } from 'primereact/toast';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Checkbox } from 'primereact/checkbox';
 import { Dropdown } from 'primereact/dropdown';
+import { Dialog } from 'primereact/dialog';
+import { ProgressSpinner } from 'primereact/progressspinner';
 
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
+
+const DanfeHtmlIframe = dynamic(
+    () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
+    { ssr: false },
+);
 
 type AmbienteNFe = 'trial' | 'producao';
 
@@ -34,6 +42,11 @@ export default function NFEConsultaPage() {
     const [assinar, setAssinar] = useState(false);
     const [loading, setLoading] = useState(false);
     const [retorno, setRetorno] = useState('');
+    const [danfeVisible, setDanfeVisible] = useState(false);
+    const [danfeLoading, setDanfeLoading] = useState(false);
+    const [danfeHtml, setDanfeHtml] = useState<string | null>(null);
+    /** Força novo iframe a cada HTML recebido (evita cache/estado estranho do documento embutido). */
+    const [danfeFrameKey, setDanfeFrameKey] = useState(0);
 
     const onlyDigits = (v: string) => String(v ?? '').replace(/\D/g, '');
 
@@ -119,10 +132,84 @@ export default function NFEConsultaPage() {
         }
     };
 
+    const visualizarDanfe = async () => {
+        const texto = retorno.trim();
+        if (!texto) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Retorno vazio',
+                detail: 'Consulte a SERPRO, busque no tenant ou cole JSON/XML no quadro Retorno.',
+                life: 5000,
+            });
+            return;
+        }
+        setDanfeVisible(true);
+        setDanfeHtml(null);
+        setDanfeLoading(true);
+        try {
+            const { data } = await api.post<string>(
+                '/api/serpro/nfe/documento/danfe-html',
+                { retorno: texto },
+                { responseType: 'text' as any },
+            );
+            const html = String(data ?? '').trim();
+            if (!html) {
+                toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
+                setDanfeVisible(false);
+                return;
+            }
+            setDanfeHtml(html);
+            setDanfeFrameKey((k) => k + 1);
+        } catch (e: any) {
+            const raw = e?.response?.data;
+            let msg = raw?.error || raw?.message || e?.message || 'Falha ao gerar DANFE';
+            if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+                try {
+                    const o = JSON.parse(raw);
+                    if (o?.error) msg = o.error;
+                } catch {
+                    /* ignore */
+                }
+            }
+            toast.current?.show({ severity: 'error', summary: 'Erro', detail: String(msg), life: 9000 });
+            setDanfeVisible(false);
+        } finally {
+            setDanfeLoading(false);
+        }
+    };
+
     return (
         <div className="grid">
             <div className="col-12">
                 <Toast ref={toast} />
+                <Dialog
+                    header="DANFE (Saxon + XSLT SVRS)"
+                    visible={danfeVisible}
+                    style={{ width: 'min(96vw, 960px)' }}
+                    contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
+                    maximizable
+                    onHide={() => {
+                        setDanfeVisible(false);
+                        setDanfeHtml(null);
+                        setDanfeFrameKey(0);
+                    }}
+                >
+                    <p className="text-600 text-sm mt-0 mb-3">
+                        O servidor interpreta o quadro <strong>Retorno</strong>: JSON da consulta (com <code className="text-xs">payload_json</code>{' '}
+                        trial SERPRO), JSON bruto com <code className="text-xs">nfeProc</code>, ou XML com namespace SEFAZ. Geração com Saxon-HE +{' '}
+                        <a href="https://dfe-portal.svrs.rs.gov.br/Schemas/PRNFE/XSLT/" target="_blank" rel="noreferrer">
+                            XSLT SVRS
+                        </a>
+                        . Uso demonstrativo com notas de teste; documento fiscal oficial segue outro fluxo.
+                    </p>
+                    {danfeLoading ? (
+                        <div className="flex flex-column align-items-center gap-3 py-6">
+                            <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
+                            <span className="text-600">Gerando DANFE no servidor…</span>
+                        </div>
+                    ) : null}
+                    {!danfeLoading && danfeHtml ? <DanfeHtmlIframe key={danfeFrameKey} html={danfeHtml} /> : null}
+                </Dialog>
                 <Card title="Consulta NF-e (Tenant)">
                     <p className="text-600 mt-0 mb-4">
                         Consulta a NF-e na SERPRO e persiste o JSON/XML no schema do tenant atual.
@@ -180,6 +267,15 @@ export default function NFEConsultaPage() {
                             <Button type="button" label="Consultar SERPRO" icon="pi pi-search" onClick={consultar} loading={loading} />
                             <Button type="button" label="Buscar no Tenant" icon="pi pi-database" severity="secondary" onClick={buscarPersistida} loading={loading} />
                             <Button type="button" label="Exportar XML" icon="pi pi-download" severity="help" onClick={exportarXML} loading={loading} />
+                            <Button
+                                type="button"
+                                label="Visualizar DANFE"
+                                icon="pi pi-eye"
+                                severity="secondary"
+                                disabled={!retorno.trim() || loading || danfeLoading}
+                                loading={danfeLoading}
+                                onClick={() => void visualizarDanfe()}
+                            />
                         </div>
                         <div className="col-12">
                             <label htmlFor="retorno" className="block mb-2 font-medium">Retorno</label>

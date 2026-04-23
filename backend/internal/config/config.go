@@ -31,6 +31,12 @@ type Config struct {
 	// SerproNFEBearerToken: opcional. Se preenchido, a consulta NF-e usa este Bearer direto (ex.: API de teste),
 	// sem chamar OAuth2 (SERPRO_OAUTH_TOKEN_URL / CLIENT_ID / SECRET).
 	SerproNFEBearerToken string
+
+	// DANFE HTML (XSLT 2.0 SVRS): Saxon-HE + pasta com os .xsl (ex.: frontend/public/svrs-nfe-xslt).
+	// https://www.saxonica.com/download/java
+	NFeSaxonJAR  string
+	NFeJavaPath  string
+	NFeXSLTDir   string
 }
 
 func Load() (Config, error) {
@@ -81,6 +87,9 @@ func Load() (Config, error) {
 		SerproAPIBaseURL:               getEnv("SERPRO_API_BASE_URL", ""),
 		SerproNFEAPIBaseURL:            getEnv("SERPRO_NFE_API_BASE_URL", getEnv("SERPRO_API_BASE_URL", "")),
 		SerproNFEBearerToken:           strings.TrimSpace(os.Getenv("SERPRO_NFE_BEARER_TOKEN")),
+		NFeSaxonJAR:                    strings.TrimSpace(os.Getenv("NFE_SAXON_JAR")),
+		NFeJavaPath:                    getEnv("NFE_JAVA_PATH", "java"),
+		NFeXSLTDir:                     strings.TrimSpace(os.Getenv("NFE_XSLT_DIR")),
 	}
 
 	if cfg.DatabaseURL == "" {
