@@ -10,6 +10,7 @@ const (
 	MonitorOperacaoTipoGeracaoCompromissos      = "GERACAO_COMPROMISSOS"
 	MonitorOperacaoTipoGeracaoAgenda            = "GERACAO_AGENDA"
 	MonitorOperacaoTipoWorkerCompromissosMensal = "WORKER_COMPROMISSOS_MENSAL"
+	MonitorOperacaoTipoWorkerNFESyncProvider    = "WORKER_NFE_SYNC_PROVIDER"
 
 	// MonitorOperacaoTenantPlataformaID agrupa operações automáticas de escopo global (ex.: worker mensal).
 	// ADMIN filtra por tenant do JWT e não enxerga estes registros; SUPER lista todos os tenants, inclusive este.
@@ -17,17 +18,17 @@ const (
 )
 
 type MonitorOperacaoItem struct {
-	ID         string         `json:"id"`
-	TenantID   string         `json:"tenant_id"`
-	TenantNome *string        `json:"tenant_nome,omitempty"`
-	ClienteNome *string       `json:"cliente_nome,omitempty"`
-	UserID     *string        `json:"user_id,omitempty"`
-	Origem     string         `json:"origem"`
-	Tipo       string         `json:"tipo"`
-	Status     string         `json:"status"`
-	Mensagem   *string        `json:"mensagem,omitempty"`
-	Detalhe    map[string]any `json:"detalhe,omitempty"`
-	CriadoEm   time.Time      `json:"criado_em"`
+	ID           string                           `json:"id"`
+	TenantID     string                           `json:"tenant_id"`
+	TenantNome   *string                          `json:"tenant_nome,omitempty"`
+	ClienteNome  *string                          `json:"cliente_nome,omitempty"`
+	UserID       *string                          `json:"user_id,omitempty"`
+	Origem       string                           `json:"origem"`
+	Tipo         string                           `json:"tipo"`
+	Status       string                           `json:"status"`
+	Mensagem     *string                          `json:"mensagem,omitempty"`
+	Detalhe      map[string]any                   `json:"detalhe,omitempty"`
+	CriadoEm     time.Time                        `json:"criado_em"`
 	Compromissos []MonitorOperacaoCompromissoItem `json:"compromissos,omitempty"`
 }
 

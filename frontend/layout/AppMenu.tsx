@@ -70,7 +70,23 @@ const AppMenu = () => {
           {
             label: 'Manutenção de Empresas',
             icon: 'pi pi-fw pi-table',
-            to: '/empresas',
+            items: [
+              {
+                label: 'Manutenção de Empresas',
+                icon: 'pi pi-fw pi-building',
+                to: '/empresas',
+              },
+              {
+                label: 'Manutenção de NFe',
+                icon: 'pi pi-fw pi-file',
+                to: '/nfe/manutencao',
+              },
+              {
+                label: 'Sincronização de NFe',
+                icon: 'pi pi-fw pi-sync',
+                to: '/nfe/sincronizacao',
+              },
+            ],
           },
           {
             label: 'Manutenção de Cliente PF (IRPF)',

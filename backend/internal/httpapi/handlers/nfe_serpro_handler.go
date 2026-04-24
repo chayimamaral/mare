@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
 )
 
@@ -26,6 +29,14 @@ type nfeConsultaRequest struct {
 	Assinar    bool   `json:"assinar"`
 }
 
+type nfeSyncProviderRequest struct {
+	Provider string `json:"provider"`
+	UF       string `json:"uf"`
+	CNPJ     string `json:"cnpj"`
+	Ambiente string `json:"ambiente"`
+	Simular  bool   `json:"simular"`
+}
+
 func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	var req nfeConsultaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -34,6 +45,98 @@ func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	}
 	schema := middleware.TenantSchema(r.Context())
 	out, err := h.svc.ConsultarNFe(r.Context(), schema, req.Ambiente, req.ChaveNFe, req.RequestTag, req.Assinar)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, out)
+}
+
+// SincronizarProvider aciona o provider pattern (EF-920) com estado de NSU por tenant/schema.
+func (h *NFESerproHandler) SincronizarProvider(w http.ResponseWriter, r *http.Request) {
+	var req nfeSyncProviderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	schema := middleware.TenantSchema(r.Context())
+	tenantID := middleware.TenantID(r.Context())
+	out, err := h.svc.SincronizarPorProvider(
+		r.Context(),
+		schema,
+		tenantID,
+		req.Provider,
+		req.UF,
+		req.CNPJ,
+		req.Ambiente,
+		req.Simular,
+	)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, out)
+}
+
+// ListSyncEstado GET /serpro/nfe/sync-estado - checkpoint de sincronizacao por provider/UF/CNPJ.
+func (h *NFESerproHandler) ListSyncEstado(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	schema := middleware.TenantSchema(r.Context())
+	p := repository.NFESyncEstadoListParams{
+		First:    parseIntNFEGestao(q.Get("first"), 0),
+		Rows:     parseIntNFEGestao(q.Get("rows"), 50),
+		Provider: strings.TrimSpace(q.Get("provider")),
+		UF:       strings.TrimSpace(q.Get("uf")),
+		CNPJ:     strings.TrimSpace(q.Get("cnpj")),
+	}
+	out, err := h.svc.ListSyncEstado(r.Context(), schema, p)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, out)
+}
+
+func parseIntNFEGestao(s string, def int) int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+// ListGestao GET /serpro/nfe/gestao — listagem paginada com filtros (EF-919).
+func (h *NFESerproHandler) ListGestao(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	schema := middleware.TenantSchema(r.Context())
+	p := repository.NFEGestaoListParams{
+		First:            parseIntNFEGestao(q.Get("first"), 0),
+		Rows:             parseIntNFEGestao(q.Get("rows"), 25),
+		SortField:        strings.TrimSpace(q.Get("sortField")),
+		SortOrder:        parseIntNFEGestao(q.Get("sortOrder"), -1),
+		TipoArquivo:      strings.TrimSpace(q.Get("tipo_arquivo")),
+		CNPJEmitente:     q.Get("cnpj_emitente"),
+		CNPJDestinatario: q.Get("cnpj_destinatario"),
+	}
+	if v := strings.TrimSpace(q.Get("emissao_ini")); v != "" {
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			p.EmissaoIni = &t
+		}
+	}
+	if v := strings.TrimSpace(q.Get("emissao_fim")); v != "" {
+		if t, err := time.Parse("2006-01-02", v); err == nil {
+			p.EmissaoFim = &t
+		}
+	}
+	if p.SortField == "" {
+		p.SortField = "data_download"
+		p.SortOrder = -1
+	}
+	out, err := h.svc.ListGestao(r.Context(), schema, p)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

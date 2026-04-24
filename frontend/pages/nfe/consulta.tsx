@@ -1,5 +1,6 @@
 import dynamic from 'next/dynamic';
-import { useRef, useState } from 'react';
+import { useRouter } from 'next/router';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
@@ -20,6 +21,8 @@ const DanfeHtmlIframe = dynamic(
 
 type AmbienteNFe = 'trial' | 'producao';
 
+const onlyDigitsChave = (v: string) => String(v ?? '').replace(/\D/g, '');
+
 type NFEDocResponse = {
     id: string;
     chave_nfe: string;
@@ -34,6 +37,7 @@ type NFEDocResponse = {
 
 export default function NFEConsultaPage() {
     useRouteClientGuard();
+    const router = useRouter();
 
     const toast = useRef<Toast>(null);
     const [ambiente, setAmbiente] = useState<AmbienteNFe>('trial');
@@ -48,10 +52,20 @@ export default function NFEConsultaPage() {
     /** Força novo iframe a cada HTML recebido (evita cache/estado estranho do documento embutido). */
     const [danfeFrameKey, setDanfeFrameKey] = useState(0);
 
-    const onlyDigits = (v: string) => String(v ?? '').replace(/\D/g, '');
+    useEffect(() => {
+        const raw = router.query.chave;
+        const ch = Array.isArray(raw) ? raw[0] : raw;
+        if (typeof ch !== 'string') {
+            return;
+        }
+        const digits = onlyDigitsChave(ch);
+        if (digits.length === 44) {
+            setChaveNFe(digits);
+        }
+    }, [router.query.chave]);
 
     const consultar = async () => {
-        const chave = onlyDigits(chaveNFe);
+        const chave = onlyDigitsChave(chaveNFe);
         if (chave.length !== 44) {
             toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
             return;
@@ -84,7 +98,7 @@ export default function NFEConsultaPage() {
     };
 
     const buscarPersistida = async () => {
-        const chave = onlyDigits(chaveNFe);
+        const chave = onlyDigitsChave(chaveNFe);
         if (chave.length !== 44) {
             toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
             return;
@@ -103,7 +117,7 @@ export default function NFEConsultaPage() {
     };
 
     const exportarXML = async () => {
-        const chave = onlyDigits(chaveNFe);
+        const chave = onlyDigitsChave(chaveNFe);
         if (chave.length !== 44) {
             toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
             return;
@@ -239,7 +253,7 @@ export default function NFEConsultaPage() {
                                 className="w-full"
                                 value={chaveNFe}
                                 maxLength={44}
-                                onChange={(e) => setChaveNFe(onlyDigits(e.target.value))}
+                                onChange={(e) => setChaveNFe(onlyDigitsChave(e.target.value))}
                                 placeholder="Somente números"
                             />
                         </div>

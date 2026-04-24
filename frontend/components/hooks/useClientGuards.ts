@@ -32,6 +32,8 @@ const AUTH_REQUIRED_ROUTES = new Set<string>([
     '/matriz-conformidade-fiscal',
     '/monitor',
     '/nfe/consulta',
+    '/nfe/manutencao',
+    '/nfe/sincronizacao',
     '/municipios',
     '/obrigacoes',
     '/passos',

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/chayimamaral/vecontab/backend/internal/nfeprovider"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 )
@@ -37,10 +38,11 @@ var (
 type NFESerproService struct {
 	repo       *repository.NFESerproRepository
 	serproAuth *SerproService
+	certSvc    *CertificadoService
 }
 
-func NewNFESerproService(repo *repository.NFESerproRepository, serproAuth *SerproService) *NFESerproService {
-	return &NFESerproService{repo: repo, serproAuth: serproAuth}
+func NewNFESerproService(repo *repository.NFESerproRepository, serproAuth *SerproService, certSvc *CertificadoService) *NFESerproService {
+	return &NFESerproService{repo: repo, serproAuth: serproAuth, certSvc: certSvc}
 }
 
 var nfeChaveRegex = regexp.MustCompile(`^\d{44}$`)
@@ -89,6 +91,177 @@ func (s *NFESerproService) resolveConsultaNFEAPIBase(ambiente string) string {
 	}
 }
 
+func (s *NFESerproService) syncGestaoResumo(ctx context.Context, schemaName string, doc domain.NFEDocumento) error {
+	g := BuildNFEGestao(doc.ChaveNFe, doc.PayloadJSON, doc.RecebidoEm)
+	_, err := s.repo.UpsertGestao(ctx, schemaName, g)
+	return err
+}
+
+// ListGestao lista resumos persistidos (EF-919) com filtros e paginação.
+func (s *NFESerproService) ListGestao(ctx context.Context, schemaName string, p repository.NFEGestaoListParams) (domain.NFEGestaoListResponse, error) {
+	items, total, err := s.repo.ListGestao(ctx, schemaName, p)
+	if err != nil {
+		return domain.NFEGestaoListResponse{}, err
+	}
+	return domain.NFEGestaoListResponse{Items: items, TotalRecords: total}, nil
+}
+
+func (s *NFESerproService) ListSyncEstado(ctx context.Context, schemaName string, p repository.NFESyncEstadoListParams) (domain.NFESyncEstadoListResponse, error) {
+	items, total, err := s.repo.ListSyncEstados(ctx, schemaName, p)
+	if err != nil {
+		return domain.NFESyncEstadoListResponse{}, err
+	}
+	return domain.NFESyncEstadoListResponse{Items: items, TotalRecords: total}, nil
+}
+
+func (s *NFESerproService) resolveProvider(providerName, uf, ambiente string, simular bool) (nfeprovider.NFeProvider, string, string, error) {
+	name := strings.ToUpper(strings.TrimSpace(providerName))
+	if name == "" {
+		name = "SC"
+	}
+	if simular {
+		return nfeprovider.NewMockProvider(), "MOCK", "SC", nil
+	}
+	ufNorm := strings.ToUpper(strings.TrimSpace(uf))
+	if ufNorm == "" {
+		ufNorm = "SC"
+	}
+	switch name {
+	case "SC", "SEF_SC":
+		hom := strings.EqualFold(strings.TrimSpace(ambiente), "homologacao") || strings.EqualFold(strings.TrimSpace(ambiente), "hom")
+		return nfeprovider.NewSCProvider(hom, "vecontab-ef920"), "SC", "SC", nil
+	case "NACIONAL":
+		return nfeprovider.NewNacionalProvider(), "NACIONAL", ufNorm, nil
+	default:
+		return nil, "", "", fmt.Errorf("provider nfe nao suportado: %s", name)
+	}
+}
+
+func proximaConsultaPorCStat(cstat int) *time.Time {
+	now := time.Now().UTC()
+	switch cstat {
+	case 110:
+		t := now.Add(1 * time.Hour)
+		return &t
+	case 117:
+		t := now.Add(12 * time.Hour)
+		return &t
+	default:
+		return nil
+	}
+}
+
+func onlyDigitsSync(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func (s *NFESerproService) SincronizarPorProvider(
+	ctx context.Context,
+	schemaName, tenantID, providerName, uf, cnpj, ambiente string,
+	simular bool,
+) (domain.NFESincronizacaoResultado, error) {
+	cnpj = onlyDigitsSync(cnpj)
+	if len(cnpj) != 14 && len(cnpj) != 11 {
+		return domain.NFESincronizacaoResultado{}, fmt.Errorf("cnpj/cpf invalido para sincronizacao")
+	}
+	if strings.TrimSpace(tenantID) == "" {
+		return domain.NFESincronizacaoResultado{}, fmt.Errorf("tenant nao encontrado no contexto")
+	}
+
+	provider, providerNorm, ufNorm, err := s.resolveProvider(providerName, uf, ambiente, simular)
+	if err != nil {
+		return domain.NFESincronizacaoResultado{}, err
+	}
+	if !simular && (s.certSvc == nil || !s.certSvc.Configurado()) {
+		return domain.NFESincronizacaoResultado{}, fmt.Errorf("certificado A1 nao configurado para mTLS")
+	}
+	if !simular {
+		material, err := s.certSvc.MaterialEmMemoria(ctx, tenantID)
+		if err != nil {
+			return domain.NFESincronizacaoResultado{}, fmt.Errorf("material de certificado: %w", err)
+		}
+		defer material.Zero()
+		if err := provider.ConfigurarCertificado(material.PFX, material.Senha); err != nil {
+			return domain.NFESincronizacaoResultado{}, fmt.Errorf("configurar certificado no provider: %w", err)
+		}
+	}
+
+	estado, err := s.repo.GetSyncEstado(ctx, schemaName, providerNorm, ufNorm, cnpj)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return domain.NFESincronizacaoResultado{}, err
+	}
+	antNSU := "0"
+	if err == nil {
+		antNSU = strings.TrimSpace(estado.UltimoNSU)
+	}
+
+	res, err := provider.SincronizarDocumentos(ctx, cnpj, antNSU)
+	if err != nil {
+		return domain.NFESincronizacaoResultado{}, err
+	}
+
+	totalPersistidos := 0
+	for _, d := range res.Documentos {
+		chave := strings.TrimSpace(d.ChaveAcesso)
+		if chave == "" {
+			continue
+		}
+		doc := domain.NFEDocumento{
+			ChaveNFe:          chave,
+			Ambiente:          "producao",
+			Origem:            "DOWNLOAD_NFE_PROVIDER_" + providerNorm,
+			PayloadJSON:       json.RawMessage(`{}`),
+			PayloadXML:        strings.TrimSpace(d.XML),
+			ContentTypeOrigem: "application/xml",
+			RequestTag:        "provider_sync",
+			StatusHTTP:        200,
+		}
+		if strings.EqualFold(d.Tipo, "procEventoNFe") {
+			doc.EventoDescricao = "Evento NF-e (provider SC)"
+		}
+		saved, err := s.repo.UpsertDocumento(ctx, schemaName, doc)
+		if err != nil {
+			return domain.NFESincronizacaoResultado{}, err
+		}
+		_ = s.syncGestaoResumo(ctx, schemaName, saved)
+		totalPersistidos++
+	}
+
+	now := time.Now().UTC()
+	proxima := proximaConsultaPorCStat(res.CStat)
+	_, err = s.repo.UpsertSyncEstado(ctx, schemaName, repository.NFESyncStateUpsert{
+		Provider:            providerNorm,
+		UF:                  ufNorm,
+		CNPJ:                cnpj,
+		UltimoNSU:           res.NovoMaxNSU,
+		UltimoCStat:         res.CStat,
+		UltimoMotivo:        res.XMotivo,
+		UltimaVerificacao:   now,
+		ProximaConsultaApos: proxima,
+	})
+	if err != nil {
+		return domain.NFESincronizacaoResultado{}, err
+	}
+
+	return domain.NFESincronizacaoResultado{
+		Provider:         providerNorm,
+		UF:               ufNorm,
+		CNPJ:             cnpj,
+		AnteriorNSU:      antNSU,
+		NovoNSU:          res.NovoMaxNSU,
+		TotalRecebidos:   len(res.Documentos),
+		TotalPersistidos: totalPersistidos,
+		CStat:            res.CStat,
+		XMotivo:          strings.TrimSpace(res.XMotivo),
+	}, nil
+}
+
 func (s *NFESerproService) ConsultarNFe(ctx context.Context, schemaName, ambiente, chaveNFe, requestTag string, assinar bool) (domain.NFEDocumento, error) {
 	if s.serproAuth == nil {
 		return domain.NFEDocumento{}, fmt.Errorf("servico SERPRO nao configurado")
@@ -100,6 +273,7 @@ func (s *NFESerproService) ConsultarNFe(ctx context.Context, schemaName, ambient
 	chave := strings.TrimSpace(chaveNFe)
 	if cached, err := s.repo.GetDocumentoByChave(ctx, schemaName, chave); err == nil {
 		cached.JaBaixada = true
+		_ = s.syncGestaoResumo(ctx, schemaName, cached)
 		return cached, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return domain.NFEDocumento{}, err
@@ -171,6 +345,9 @@ func (s *NFESerproService) ConsultarNFe(ctx context.Context, schemaName, ambient
 	if err != nil {
 		return domain.NFEDocumento{}, err
 	}
+	if err := s.syncGestaoResumo(ctx, schemaName, out); err != nil {
+		return domain.NFEDocumento{}, err
+	}
 	return out, nil
 }
 
@@ -178,7 +355,12 @@ func (s *NFESerproService) BuscarDocumento(ctx context.Context, schemaName, chav
 	if err := validateNFEChave(chaveNFe); err != nil {
 		return domain.NFEDocumento{}, err
 	}
-	return s.repo.GetDocumentoByChave(ctx, schemaName, strings.TrimSpace(chaveNFe))
+	doc, err := s.repo.GetDocumentoByChave(ctx, schemaName, strings.TrimSpace(chaveNFe))
+	if err != nil {
+		return doc, err
+	}
+	_ = s.syncGestaoResumo(ctx, schemaName, doc)
+	return doc, nil
 }
 
 func (s *NFESerproService) ExportarXML(ctx context.Context, schemaName, chaveNFe string) (string, error) {

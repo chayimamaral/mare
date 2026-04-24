@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -20,6 +21,14 @@ type Config struct {
 	CompromissosWorkerRunOnStartup bool
 	CompromissosWorkerTimezone     string
 
+	// Worker de sincronização NFe por provider (EF-920): percorre nfe_sync_estado em todos os tenants.
+	NFESyncWorkerEnabled         bool
+	NFESyncWorkerCron            string
+	NFESyncWorkerRunOnStartup    bool
+	NFESyncWorkerTimezone        string
+	NFESyncWorkerAmbiente        string
+	NFESyncWorkerMinIntervalSecs int
+
 	// CertCryptoKeyHex: 64 caracteres hex (32 bytes) para AES-256-GCM de PFX/senha (issue #55).
 	CertCryptoKeyHex string
 	// SERPRO Integra Contador — OAuth2 cliente (credenciais de desenvolvedor); URLs conforme documentação oficial.
@@ -34,9 +43,9 @@ type Config struct {
 
 	// DANFE HTML (XSLT 2.0 SVRS): Saxon-HE + pasta com os .xsl (ex.: frontend/public/svrs-nfe-xslt).
 	// https://www.saxonica.com/download/java
-	NFeSaxonJAR  string
-	NFeJavaPath  string
-	NFeXSLTDir   string
+	NFeSaxonJAR string
+	NFeJavaPath string
+	NFeXSLTDir  string
 }
 
 func Load() (Config, error) {
@@ -80,6 +89,12 @@ func Load() (Config, error) {
 		CompromissosWorkerCron:         getEnv("COMPROMISSOS_WORKER_CRON", "0 5 1 * *"),
 		CompromissosWorkerRunOnStartup: getEnv("COMPROMISSOS_WORKER_RUN_ON_STARTUP", "false") == "true",
 		CompromissosWorkerTimezone:     getEnv("COMPROMISSOS_WORKER_TIMEZONE", "America/Sao_Paulo"),
+		NFESyncWorkerEnabled:           getEnv("NFE_SYNC_WORKER_ENABLED", "false") == "true",
+		NFESyncWorkerCron:              getEnv("NFE_SYNC_WORKER_CRON", "*/15 * * * *"),
+		NFESyncWorkerRunOnStartup:      getEnv("NFE_SYNC_WORKER_RUN_ON_STARTUP", "false") == "true",
+		NFESyncWorkerTimezone:          getEnv("NFE_SYNC_WORKER_TIMEZONE", "America/Sao_Paulo"),
+		NFESyncWorkerAmbiente:          getEnv("NFE_SYNC_WORKER_AMBIENTE", "producao"),
+		NFESyncWorkerMinIntervalSecs:   parseIntEnv("NFE_SYNC_WORKER_MIN_INTERVAL_SECS", 600),
 		CertCryptoKeyHex:               os.Getenv("VECONTAB_CERT_CRYPTO_KEY_HEX"),
 		SerproOAuthTokenURL:            getEnv("SERPRO_OAUTH_TOKEN_URL", ""),
 		SerproClientID:                 os.Getenv("SERPRO_CLIENT_ID"),
@@ -110,4 +125,16 @@ func getEnv(key, fallback string) string {
 	}
 
 	return value
+}
+
+func parseIntEnv(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return fallback
+	}
+	return n
 }

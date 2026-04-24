@@ -74,7 +74,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraContadorService := service.NewIntegraContadorService(certificadoService, configuracaoIntegracaoRepo, integraServicoProcRepo, integraTabelaConsumoService)
 	integraServicoProcService := service.NewIntegraContadorServicoProcuracaoService(integraServicoProcRepo)
 	nfeSerproRepo := repository.NewNFESerproRepository(pool)
-	nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService))
+	nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService), certificadoService)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -365,6 +365,9 @@ func registerRoutes(
 	r.With(requireAuth).Put("/caixa-postal/{id}/ler", caixaPostalHandler.Read)
 
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/sincronizar-provider", nfeSerproHandler.SincronizarProvider)
+	r.With(requireAuth).Get("/serpro/nfe/sync-estado", nfeSerproHandler.ListSyncEstado)
+	r.With(requireAuth).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
 	r.With(requireAuth).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
 	r.With(requireAuth).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
 	r.With(requireAuth).Get("/serpro/nfe/documento/danfe-html", nfeSerproHandler.ExportarDanfeHTML)

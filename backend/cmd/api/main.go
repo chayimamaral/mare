@@ -6,8 +6,8 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi"
 	apiMiddleware "github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecontab/backend/internal/service"
 	"github.com/chayimamaral/vecontab/backend/internal/worker"
 )
 
@@ -86,6 +87,22 @@ func main() {
 			log.Fatalf("init compromissos worker: %v", err)
 		}
 		go w.Start(ctx)
+	}
+
+	if cfg.NFESyncWorkerEnabled {
+		certificadoService, _ := service.NewCertificadoService(
+			repository.NewCertificadoRepository(pool),
+			repository.NewCertificadoClienteRepository(pool),
+			cfg.CertCryptoKeyHex,
+		)
+		nfeSerproRepo := repository.NewNFESerproRepository(pool)
+		nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService), certificadoService)
+		monRepo := repository.NewMonitorOperacaoRepository(pool)
+		nw, err := worker.NewNFESyncWorker(pool, cfg, nfeSerproService, monRepo)
+		if err != nil {
+			log.Fatalf("init nfe sync worker: %v", err)
+		}
+		go nw.Start(ctx)
 	}
 
 	go func() {
