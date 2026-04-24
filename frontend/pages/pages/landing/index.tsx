@@ -6,25 +6,74 @@ import { StyleClass } from 'primereact/styleclass';
 import { Button } from 'primereact/button';
 import { Ripple } from 'primereact/ripple';
 import { Divider } from 'primereact/divider';
+import { Dialog } from 'primereact/dialog';
 import AppConfig from '../../../layout/AppConfig';
 import { NodeRef, Page } from '../../../types/types';
 import { classNames } from 'primereact/utils';
 
 const LandingPage: Page = () => {
   const [isHidden, setIsHidden] = useState(false);
+  const [sobreNosVisible, setSobreNosVisible] = useState(false);
   const menuRef = useRef<HTMLElement | null>(null);
 
   const toggleMenuItemClick = () => {
     setIsHidden((prevState) => !prevState);
   };
 
+  const sobreNosDialog = (
+    <Dialog
+      header="Sobre nós"
+      visible={sobreNosVisible}
+      style={{ width: 'min(40rem, 95vw)' }}
+      contentStyle={{
+        paddingTop: '0.75rem',
+        paddingBottom: '1.25rem',
+        maxHeight: 'min(92vh, 48rem)',
+      }}
+      breakpoints={{ '768px': '95vw' }}
+      onHide={() => setSobreNosVisible(false)}
+      dismissableMask
+      blockScroll
+    >
+      <div className="text-700 line-height-3 py-2">
+        <p className="mt-0 mb-3">
+          A <strong className="text-900">VEC-X</strong> é uma empresa familiar fundada pelos irmãos Valéria, Eduardo e Carlos, unindo tradição e
+          tecnologia de ponta para transformar o setor contábil.
+        </p>
+        <p className="mb-3">
+          A solidez da empresa é sustentada pela expertise técnica de <strong className="text-900">Carlos Amaral</strong>, profissional com 38 anos
+          de atuação no mercado de software. Sua trajetória percorre desde ferramentas clássicas como Clipper e Delphi até o desenvolvimento robusto
+          em Java, C# e, atualmente, Go. Com profunda proficiência em arquitetura de dados com PostgreSQL, Carlos traz a experiência necessária para
+          construir soluções que atravessam gerações tecnológicas.
+        </p>
+        <p className="mb-3">
+          <strong className="text-900">Valéria</strong> foi funcionária pública, tendo trabalhado mais de 15 anos no Banco do Brasil, e traz muito
+          de seu conhecimento técnico também.
+        </p>
+        <p className="mb-3">
+          <strong className="text-900">Eduardo</strong> é analista de negócios e atua na frente de levantamento de necessidades, sempre escutando as
+          dores do cliente para transformar o VEC-X no melhor software contábil do mercado.
+        </p>
+        <p className="mb-3">
+          Especializada em softwares de alta performance, nossa história abrange a criação de sistemas complexos para indústrias, ERPs e gestão de
+          assistência técnica. Toda essa bagagem consolidada hoje é aplicada na automação inteligente para escritórios de contabilidade.
+        </p>
+        <p className="mb-0">
+          O foco do <strong className="text-900">VEC-X</strong> é entregar inovação e agilidade digital, garantindo segurança e integridade absoluta
+          aos dados através de uma arquitetura robusta, pensada especificamente para a realidade e os desafios do contador moderno.
+        </p>
+      </div>
+    </Dialog>
+  );
+
   return (
     <div className="surface-0 flex justify-content-center">
       <div id="home" className="landing-wrapper overflow-hidden">
+        {sobreNosDialog}
         <div className="py-4 px-4 mx-0 md:mx-6 lg:mx-8 lg:px-8 flex align-items-center justify-content-between relative lg:static">
           <Link href="/" className="flex align-items-center">
-            <img src="/vecontab.svg" alt="Vecontab Logo" height="50" className="mr-0 lg:mr-2" />
-            <span className="font-medium text-2xl line-height-3 mr-8" style={{ color: '#6d98e9' }}>VECONTAB</span>
+            <img src="/vecx.svg" alt="VECX Logo" height="50" className="mr-0 lg:mr-2" />
+            <span className="font-medium text-2xl line-height-3 mr-8" style={{ color: '#6d98e9' }}></span>
           </Link>
           <StyleClass nodeRef={menuRef as NodeRef} selector="@next" enterClassName="hidden" leaveToClassName="hidden" hideOnOutsideClick>
             <i ref={menuRef} className="pi pi-bars text-4xl cursor-pointer block lg:hidden text-700"></i>
@@ -68,7 +117,7 @@ const LandingPage: Page = () => {
         >
           <div className="mx-4 md:mx-8 mt-0 md:mt-4">
             <h1 className="text-6xl font-bold text-gray-900 line-height-2">
-              <span className="font-light block" style={{ color: '#6d98e9' }}>VECONTAB</span>
+              <span className="font-light block" style={{ color: '#6d98e9' }}></span>
               <span style={{ color: '#6d98e9' }}>Controle de Agendamentos Contábeis</span>
             </h1>
             <Link href="/">
@@ -82,7 +131,8 @@ const LandingPage: Page = () => {
             </Link>
           </div>
           <div className="flex justify-content-center md:justify-content-end">
-            <img src="/demo/images/landing/screen-1.png" alt="Hero Image" className="w-9 md:w-auto" />
+            {/* <img src="/demo/images/landing/screen-1.png" alt="Hero Image" className="w-9 md:w-auto" /> */}
+            <img src="/vecx.png" alt="VECX Logo" height="280" className="mr-0 lg:mr-2" />
           </div>
         </div>
 
@@ -288,7 +338,7 @@ const LandingPage: Page = () => {
               </div>
               <h2 className="line-height-1 text-900 text-4xl font-normal">Banco de dados adaptável</h2>
               <span className="text-700 text-2xl line-height-3 mr-0 md:mr-2" style={{ maxWidth: '650px' }}>
-                Algumas empresas preferem ter seus Bancos de Dados alocados particularmente. O VECONTAB conta com essa possibilidade (consulte)
+                Algumas empresas preferem ter seus Bancos de Dados alocados particularmente. O VECX conta com essa possibilidade (consulte)
               </span>
             </div>
 
@@ -423,8 +473,8 @@ const LandingPage: Page = () => {
           <div className="grid justify-content-between">
             <div className="col-12 md:col-2" style={{ marginTop: '-1.5rem' }}>
               <Link href="/" className="flex flex-wrap align-items-center justify-content-center md:justify-content-start md:mb-0 mb-3 cursor-pointer">
-                <img src="/vecontab.svg" alt="Vecontab" width="50" height="50" className="mr-2" />
-                <span className="font-medium text-3xl" style={{ color: '#0B4FCE' }}>VECONTAB</span>
+                <img src="/vecx.svg" alt="VECX" width="100" height="auto" className="mr-2" />
+                <span className="font-medium text-3xl" style={{ color: '#0B4FCE' }}></span>
               </Link>
             </div>
 
@@ -432,7 +482,13 @@ const LandingPage: Page = () => {
               <div className="grid text-center md:text-left">
                 <div className="col-12 md:col-3">
                   <h4 className="font-medium text-2xl line-height-3 mb-3 text-900">VEC</h4>
-                  <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">Sobre nós</a>
+                  <button
+                    type="button"
+                    className="line-height-3 text-xl block cursor-pointer mb-2 text-700 bg-transparent border-none p-0 text-left font-inherit"
+                    onClick={() => setSobreNosVisible(true)}
+                  >
+                    Sobre nós
+                  </button>
                   <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">News</a>
                   <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">Relação com Clientes</a>
                   <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">Carreira</a>
