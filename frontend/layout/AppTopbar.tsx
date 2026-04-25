@@ -37,13 +37,9 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
   return (
     <div className="layout-topbar">
       <Link href="/" className="layout-topbar-logo">
-        {/*}
-             <img src={`/layout/images/logo-${layoutConfig.colorScheme !== 'light' ? 'white' : 'dark'}.svg`} width="47.22px" height={'35px'} alt="logo" />
-    */}
-        {/* <img src="/vecx.svg" width="47.22px" height={'35px'} alt="Vecontab logo" /> */}
 
         <img
-          src={"/vecx.svg"}
+          src={"/vecx_logo.svg"}
           style={{ width: '90px', height: 'auto' }}
           alt="VECx Logo"
         />

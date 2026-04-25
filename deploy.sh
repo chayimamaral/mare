@@ -17,6 +17,8 @@ if ! systemctl is-active --quiet docker; then
     exit 1
 fi
 
+./bkp_drive.sh
+
 # Não usamos set -e aqui para podermos fazer o resumo final mesmo com falhas
 set +e
 

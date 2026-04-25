@@ -72,7 +72,7 @@ const LandingPage: Page = () => {
         {sobreNosDialog}
         <div className="py-4 px-4 mx-0 md:mx-6 lg:mx-8 lg:px-8 flex align-items-center justify-content-between relative lg:static">
           <Link href="/" className="flex align-items-center">
-            <img src="/vecx.svg" alt="VECX Logo" height="50" className="mr-0 lg:mr-2" />
+            <img src="/vecx_logo.svg" alt="VECX Logo" height="50" className="mr-0 lg:mr-2" />
             <span className="font-medium text-2xl line-height-3 mr-8" style={{ color: '#6d98e9' }}></span>
           </Link>
           <StyleClass nodeRef={menuRef as NodeRef} selector="@next" enterClassName="hidden" leaveToClassName="hidden" hideOnOutsideClick>
@@ -473,7 +473,7 @@ const LandingPage: Page = () => {
           <div className="grid justify-content-between">
             <div className="col-12 md:col-2" style={{ marginTop: '-1.5rem' }}>
               <Link href="/" className="flex flex-wrap align-items-center justify-content-center md:justify-content-start md:mb-0 mb-3 cursor-pointer">
-                <img src="/vecx.svg" alt="VECX" width="100" height="auto" className="mr-2" />
+                <img src="/vecx_logo.svg" alt="VECX" width="100" height="auto" className="mr-2" />
                 <span className="font-medium text-3xl" style={{ color: '#0B4FCE' }}></span>
               </Link>
             </div>
