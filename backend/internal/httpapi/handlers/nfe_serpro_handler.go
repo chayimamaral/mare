@@ -37,6 +37,16 @@ type nfeSyncProviderRequest struct {
 	Simular  bool   `json:"simular"`
 }
 
+type nfeManifestarDestRequest struct {
+	ChaveNFe   string `json:"chave_nfe"`
+	TpEvento   string `json:"tp_evento"`
+	CNPJDest   string `json:"cnpj_destinatario"`
+	Ambiente   string `json:"ambiente"`
+	XJust      string `json:"x_just"`
+	NSeqEvento int    `json:"n_seq_evento"`
+	Simular    bool   `json:"simular"`
+}
+
 func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	var req nfeConsultaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -71,6 +81,49 @@ func (h *NFESerproHandler) SincronizarProvider(w http.ResponseWriter, r *http.Re
 		req.Ambiente,
 		req.Simular,
 	)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, out)
+}
+
+// ManifestarDestinatario POST /serpro/nfe/manifestar-destinatario — Recepção de Evento SVRS (manifestação 2102xx).
+func (h *NFESerproHandler) ManifestarDestinatario(w http.ResponseWriter, r *http.Request) {
+	var req nfeManifestarDestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+	schema := middleware.TenantSchema(r.Context())
+	tenantID := middleware.TenantID(r.Context())
+	if strings.TrimSpace(req.Ambiente) == "" {
+		req.Ambiente = "producao"
+	}
+	out, err := h.svc.ManifestarDestinatario(
+		r.Context(),
+		schema,
+		tenantID,
+		req.ChaveNFe,
+		req.TpEvento,
+		req.CNPJDest,
+		req.Ambiente,
+		req.XJust,
+		req.NSeqEvento,
+		req.Simular,
+	)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, out)
+}
+
+// ListManifestacaoDest GET /serpro/nfe/manifestacao — histórico por chave.
+func (h *NFESerproHandler) ListManifestacaoDest(w http.ResponseWriter, r *http.Request) {
+	chave := strings.TrimSpace(r.URL.Query().Get("chave"))
+	schema := middleware.TenantSchema(r.Context())
+	out, err := h.svc.ListManifestacaoDest(r.Context(), schema, chave)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

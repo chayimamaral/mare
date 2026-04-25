@@ -19,6 +19,7 @@ type NFESyncStateUpsert struct {
 	UltimoMotivo        string
 	UltimaVerificacao   time.Time
 	ProximaConsultaApos *time.Time
+	UltimaQtDFeRet      int
 }
 
 type NFESyncEstadoListParams struct {
@@ -45,7 +46,8 @@ func (r *NFESerproRepository) GetSyncEstado(ctx context.Context, schemaName, pro
 	q := fmt.Sprintf(`
 		SELECT id, provider, uf, cnpj, COALESCE(ultimo_nsu, '0'),
 		       COALESCE(ultimo_cstat, 0), COALESCE(ultimo_motivo, ''),
-		       ultima_verificacao, proxima_consulta_apos
+		       ultima_verificacao, proxima_consulta_apos,
+		       COALESCE(ultima_qt_dfe_ret, 0)
 		FROM %s
 		WHERE provider = $1 AND uf = $2 AND cnpj = $3
 	`, tbl)
@@ -62,6 +64,7 @@ func (r *NFESerproRepository) GetSyncEstado(ctx context.Context, schemaName, pro
 		&out.UltimoMotivo,
 		&ultimaVerif,
 		&proxima,
+		&out.UltimaQtDFeRet,
 	)
 	if err != nil {
 		return domain.NFESyncEstado{}, err
@@ -84,19 +87,21 @@ func (r *NFESerproRepository) UpsertSyncEstado(ctx context.Context, schemaName s
 	}
 	q := fmt.Sprintf(`
 		INSERT INTO %s (
-		    provider, uf, cnpj, ultimo_nsu, ultimo_cstat, ultimo_motivo, ultima_verificacao, proxima_consulta_apos
+		    provider, uf, cnpj, ultimo_nsu, ultimo_cstat, ultimo_motivo, ultima_verificacao, proxima_consulta_apos, ultima_qt_dfe_ret
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (provider, uf, cnpj) DO UPDATE SET
 		    ultimo_nsu = EXCLUDED.ultimo_nsu,
 		    ultimo_cstat = EXCLUDED.ultimo_cstat,
 		    ultimo_motivo = EXCLUDED.ultimo_motivo,
 		    ultima_verificacao = EXCLUDED.ultima_verificacao,
 		    proxima_consulta_apos = EXCLUDED.proxima_consulta_apos,
+		    ultima_qt_dfe_ret = EXCLUDED.ultima_qt_dfe_ret,
 		    updatedat = CURRENT_TIMESTAMP
 		RETURNING id, provider, uf, cnpj, COALESCE(ultimo_nsu, '0'),
 		          COALESCE(ultimo_cstat, 0), COALESCE(ultimo_motivo, ''),
-		          ultima_verificacao, proxima_consulta_apos
+		          ultima_verificacao, proxima_consulta_apos,
+		          COALESCE(ultima_qt_dfe_ret, 0)
 	`, tbl)
 	var out domain.NFESyncEstado
 	var ultimaVerif sql.NullTime
@@ -113,6 +118,7 @@ func (r *NFESerproRepository) UpsertSyncEstado(ctx context.Context, schemaName s
 		strings.TrimSpace(in.UltimoMotivo),
 		in.UltimaVerificacao.UTC(),
 		in.ProximaConsultaApos,
+		in.UltimaQtDFeRet,
 	).Scan(
 		&out.ID,
 		&out.Provider,
@@ -123,6 +129,7 @@ func (r *NFESerproRepository) UpsertSyncEstado(ctx context.Context, schemaName s
 		&out.UltimoMotivo,
 		&ultimaVerif,
 		&proxima,
+		&out.UltimaQtDFeRet,
 	)
 	if err != nil {
 		return domain.NFESyncEstado{}, fmt.Errorf("upsert nfe_sync_estado: %w", err)
@@ -181,7 +188,8 @@ func (r *NFESerproRepository) ListSyncEstados(ctx context.Context, schemaName st
 	listQ := fmt.Sprintf(`
 		SELECT id, provider, uf, cnpj, COALESCE(ultimo_nsu, '0'),
 		       COALESCE(ultimo_cstat, 0), COALESCE(ultimo_motivo, ''),
-		       ultima_verificacao, proxima_consulta_apos
+		       ultima_verificacao, proxima_consulta_apos,
+		       COALESCE(ultima_qt_dfe_ret, 0)
 		FROM %s
 		WHERE %s
 		ORDER BY updatedat DESC
@@ -208,6 +216,7 @@ func (r *NFESerproRepository) ListSyncEstados(ctx context.Context, schemaName st
 			&row.UltimoMotivo,
 			&ultima,
 			&proxima,
+			&row.UltimaQtDFeRet,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan nfe_sync_estado: %w", err)
 		}
@@ -242,7 +251,8 @@ func (r *NFESerproRepository) ListSyncEstadosDue(ctx context.Context, schemaName
 	q := fmt.Sprintf(`
 		SELECT id, provider, uf, cnpj, COALESCE(ultimo_nsu, '0'),
 		       COALESCE(ultimo_cstat, 0), COALESCE(ultimo_motivo, ''),
-		       ultima_verificacao, proxima_consulta_apos
+		       ultima_verificacao, proxima_consulta_apos,
+		       COALESCE(ultima_qt_dfe_ret, 0)
 		FROM %s
 		WHERE UPPER(TRIM(provider)) NOT IN ('MOCK', 'NACIONAL')
 		  AND (
@@ -272,6 +282,7 @@ func (r *NFESerproRepository) ListSyncEstadosDue(ctx context.Context, schemaName
 			&row.UltimoMotivo,
 			&ultima,
 			&proxima,
+			&row.UltimaQtDFeRet,
 		); err != nil {
 			return nil, fmt.Errorf("scan nfe_sync_estado due: %w", err)
 		}

@@ -133,6 +133,7 @@ func (p *SCProvider) SincronizarDocumentos(ctx context.Context, cnpj string, ult
 	all := make([]DocumentoFiscal, 0, 64)
 	lastCStat := 0
 	lastMotivo := ""
+	lastQt := 0
 
 	for i := 0; i < 200; i++ {
 		ret, err := p.callDist(ctx, cnpj, cursor)
@@ -141,16 +142,27 @@ func (p *SCProvider) SincronizarDocumentos(ctx context.Context, cnpj string, ult
 		}
 		lastCStat = ret.CStat
 		lastMotivo = strings.TrimSpace(ret.XMotivo)
+		lastQt = ret.QtDFeRet
 		if higherNSU(cursor, ret.UltNuNSURet) {
 			cursor = normalizeNSU(ret.UltNuNSURet)
 		}
 
 		switch ret.CStat {
+		case 108, 109, 657:
+			// Serviço paralisado / bloqueio por excesso (BT SC-2021/001): não avança NSU; backoff no serviço.
+			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo, QtDFeRet: ret.QtDFeRet}, nil
+		case 143, 146:
+			// NSU inconsistente ou atrasado: ajustar cursor com ultNuNSURet quando informado e permitir nova tentativa curta no serviço.
+			if u := normalizeNSU(ret.UltNuNSURet); u != "" && u != "0" {
+				cursor = u
+			}
+			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo, QtDFeRet: ret.QtDFeRet}, nil
 		case 117:
-			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo}, nil
+			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo, QtDFeRet: ret.QtDFeRet}, nil
 		case 110:
-			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo}, nil
+			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo, QtDFeRet: ret.QtDFeRet}, nil
 		case 118, 138:
+			// 138 não consta na tabela 05.1 da BT SC; mantido por compatibilidade com retornos observados.
 			decoded, err := decodeLote(ret.LoteDistComp)
 			if err != nil {
 				return ResultadoSincronizacao{}, err
@@ -161,16 +173,16 @@ func (p *SCProvider) SincronizarDocumentos(ctx context.Context, cnpj string, ult
 			}
 			all = append(all, items...)
 
-			// Continua imediatamente quando vier lote cheio (50 docs) e houve avanço de NSU.
+			// BT: com 50 DF-e, nova requisição pode ser imediata; com menos de 50, sincronismo completo naquele momento.
 			if ret.QtDFeRet >= 50 {
 				continue
 			}
-			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo}, nil
+			return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: ret.CStat, XMotivo: ret.XMotivo, QtDFeRet: ret.QtDFeRet}, nil
 		default:
 			return ResultadoSincronizacao{}, fmt.Errorf("provider SC rejeitou requisicao: cStat=%d xMotivo=%s", ret.CStat, strings.TrimSpace(ret.XMotivo))
 		}
 	}
-	return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: lastCStat, XMotivo: lastMotivo}, nil
+	return ResultadoSincronizacao{Documentos: all, NovoMaxNSU: cursor, CStat: lastCStat, XMotivo: lastMotivo, QtDFeRet: lastQt}, nil
 }
 
 func (p *SCProvider) callDist(ctx context.Context, cnpj, ultNSU string) (retDistNFeSC, error) {

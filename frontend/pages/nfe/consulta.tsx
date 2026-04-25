@@ -1,6 +1,6 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
@@ -13,6 +13,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
+import { fetchDanfeHtmlFromRetorno, parseDanfeErrorMessage } from '../../lib/nfeDanfeClient';
 
 const DanfeHtmlIframe = dynamic(
     () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
@@ -22,6 +23,18 @@ const DanfeHtmlIframe = dynamic(
 type AmbienteNFe = 'trial' | 'producao';
 
 const onlyDigitsChave = (v: string) => String(v ?? '').replace(/\D/g, '');
+
+function queryTruthyFlag(raw: string | string[] | undefined): boolean {
+    if (raw === undefined) {
+        return false;
+    }
+    const s = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof s !== 'string') {
+        return false;
+    }
+    const t = s.trim().toLowerCase();
+    return t === '1' || t === 'true' || t === 'sim' || t === 'yes';
+}
 
 type NFEDocResponse = {
     id: string;
@@ -52,6 +65,9 @@ export default function NFEConsultaPage() {
     /** Força novo iframe a cada HTML recebido (evita cache/estado estranho do documento embutido). */
     const [danfeFrameKey, setDanfeFrameKey] = useState(0);
 
+    /** Evita reexecutar o fluxo automático ao trocar só a query (ex.: remover `visualizar`). */
+    const autoDanfeRanForKey = useRef<string | null>(null);
+
     useEffect(() => {
         const raw = router.query.chave;
         const ch = Array.isArray(raw) ? raw[0] : raw;
@@ -63,6 +79,113 @@ export default function NFEConsultaPage() {
             setChaveNFe(digits);
         }
     }, [router.query.chave]);
+
+    const abrirDanfeComRetorno = useCallback(
+        async (textoRetorno: string) => {
+            const texto = textoRetorno.trim();
+            if (!texto) {
+                toast.current?.show({
+                    severity: 'warn',
+                    summary: 'Retorno vazio',
+                    detail: 'Consulte a SERPRO, busque no tenant ou cole JSON/XML no quadro Retorno.',
+                    life: 5000,
+                });
+                return false;
+            }
+            setDanfeVisible(true);
+            setDanfeHtml(null);
+            setDanfeLoading(true);
+            try {
+                const html = await fetchDanfeHtmlFromRetorno(texto);
+                setDanfeHtml(html);
+                setDanfeFrameKey((k) => k + 1);
+                return true;
+            } catch (e: unknown) {
+                if ((e as Error)?.message === 'DANFE_VAZIO') {
+                    toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
+                } else {
+                    toast.current?.show({
+                        severity: 'error',
+                        summary: 'Erro',
+                        detail: parseDanfeErrorMessage(e),
+                        life: 9000,
+                    });
+                }
+                setDanfeVisible(false);
+                return false;
+            } finally {
+                setDanfeLoading(false);
+            }
+        },
+        [],
+    );
+
+    useEffect(() => {
+        if (!router.isReady) {
+            return;
+        }
+        if (!queryTruthyFlag(router.query.visualizar)) {
+            autoDanfeRanForKey.current = null;
+            return;
+        }
+        const rawCh = router.query.chave;
+        const chStr = Array.isArray(rawCh) ? rawCh[0] : rawCh;
+        if (typeof chStr !== 'string') {
+            return;
+        }
+        const chave = onlyDigitsChave(chStr);
+        if (chave.length !== 44) {
+            return;
+        }
+        const runKey = `auto-danfe|${chave}`;
+        if (autoDanfeRanForKey.current === runKey) {
+            return;
+        }
+        autoDanfeRanForKey.current = runKey;
+
+        let cancelled = false;
+        (async () => {
+            setChaveNFe(chave);
+            setLoading(true);
+            try {
+                const { data } = await api.get<NFEDocResponse>('/api/serpro/nfe/documento', { params: { chave } });
+                if (cancelled) {
+                    return;
+                }
+                const json = JSON.stringify(data, null, 2);
+                setRetorno(json);
+                toast.current?.show({
+                    severity: 'info',
+                    summary: 'NF-e no tenant',
+                    detail: 'Gerando visualização DANFE…',
+                    life: 3000,
+                });
+                const ok = await abrirDanfeComRetorno(json);
+                if (cancelled) {
+                    return;
+                }
+                if (!ok) {
+                    autoDanfeRanForKey.current = null;
+                    return;
+                }
+                void router.replace({ pathname: '/nfe/consulta', query: { chave } }, undefined, { shallow: true });
+            } catch (e: unknown) {
+                if (cancelled) {
+                    return;
+                }
+                autoDanfeRanForKey.current = null;
+                const err = e as { response?: { data?: { error?: string; message?: string } } };
+                const msg = err?.response?.data?.error || err?.response?.data?.message || 'NF-e não encontrada no tenant';
+                toast.current?.show({ severity: 'error', summary: 'Visualização', detail: String(msg), life: 7000 });
+            } finally {
+                setLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [router.isReady, router.query.chave, router.query.visualizar, router.replace, abrirDanfeComRetorno]);
 
     const consultar = async () => {
         const chave = onlyDigitsChave(chaveNFe);
@@ -147,49 +270,7 @@ export default function NFEConsultaPage() {
     };
 
     const visualizarDanfe = async () => {
-        const texto = retorno.trim();
-        if (!texto) {
-            toast.current?.show({
-                severity: 'warn',
-                summary: 'Retorno vazio',
-                detail: 'Consulte a SERPRO, busque no tenant ou cole JSON/XML no quadro Retorno.',
-                life: 5000,
-            });
-            return;
-        }
-        setDanfeVisible(true);
-        setDanfeHtml(null);
-        setDanfeLoading(true);
-        try {
-            const { data } = await api.post<string>(
-                '/api/serpro/nfe/documento/danfe-html',
-                { retorno: texto },
-                { responseType: 'text' as any },
-            );
-            const html = String(data ?? '').trim();
-            if (!html) {
-                toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
-                setDanfeVisible(false);
-                return;
-            }
-            setDanfeHtml(html);
-            setDanfeFrameKey((k) => k + 1);
-        } catch (e: any) {
-            const raw = e?.response?.data;
-            let msg = raw?.error || raw?.message || e?.message || 'Falha ao gerar DANFE';
-            if (typeof raw === 'string' && raw.trim().startsWith('{')) {
-                try {
-                    const o = JSON.parse(raw);
-                    if (o?.error) msg = o.error;
-                } catch {
-                    /* ignore */
-                }
-            }
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: String(msg), life: 9000 });
-            setDanfeVisible(false);
-        } finally {
-            setDanfeLoading(false);
-        }
+        await abrirDanfeComRetorno(retorno);
     };
 
     return (

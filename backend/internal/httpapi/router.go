@@ -366,6 +366,8 @@ func registerRoutes(
 
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
 	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/sincronizar-provider", nfeSerproHandler.SincronizarProvider)
+	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/manifestar-destinatario", nfeSerproHandler.ManifestarDestinatario)
+	r.With(requireAuth).Get("/serpro/nfe/manifestacao", nfeSerproHandler.ListManifestacaoDest)
 	r.With(requireAuth).Get("/serpro/nfe/sync-estado", nfeSerproHandler.ListSyncEstado)
 	r.With(requireAuth).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
 	r.With(requireAuth).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)

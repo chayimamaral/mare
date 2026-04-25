@@ -20,6 +20,8 @@ type SyncEstadoRow = {
     ultimo_motivo?: string;
     ultima_verificacao?: string | null;
     proxima_consulta_apos?: string | null;
+    /** qtDfeRet da última resposta SC (regra de intervalo 118). */
+    ultima_qt_dfe_ret?: number;
 };
 
 type SyncResponse = {
@@ -32,6 +34,7 @@ type SyncResponse = {
     total_persistidos: number;
     cstat: number;
     x_motivo?: string;
+    ultima_qt_dfe_ret?: number;
 };
 
 const PROVIDER_OPTIONS = [
@@ -123,11 +126,12 @@ export default function NFESincronizacaoPage() {
                 ambiente,
                 simular,
             });
+            const qtPart = ` | qtDfeRet: ${res.ultima_qt_dfe_ret ?? '—'}`;
             toast.current?.show({
                 severity: 'success',
                 summary: 'Sincronização concluída',
-                detail: `Recebidos: ${res.total_recebidos} | Persistidos: ${res.total_persistidos} | NSU: ${res.anterior_nsu} -> ${res.novo_nsu}`,
-                life: 6000,
+                detail: `cStat ${res.cstat}${res.x_motivo ? ` — ${res.x_motivo}` : ''} | Recebidos: ${res.total_recebidos} | Persistidos: ${res.total_persistidos} | NSU: ${res.anterior_nsu} -> ${res.novo_nsu}${qtPart}`,
+                life: 8000,
             });
             setFProvider(res.provider);
             setFUF(res.uf);
@@ -276,6 +280,12 @@ export default function NFESincronizacaoPage() {
                         <Column field="cnpj" header="CNPJ/CPF" body={(r: SyncEstadoRow) => formatCNPJCPF(r.cnpj)} style={{ minWidth: '11rem' }} />
                         <Column field="ultimo_nsu" header="Último NSU" style={{ minWidth: '8rem' }} />
                         <Column field="ultimo_cstat" header="cStat" style={{ minWidth: '6rem' }} />
+                        <Column
+                            field="ultima_qt_dfe_ret"
+                            header="qtDfeRet"
+                            body={(r: SyncEstadoRow) => (r.ultima_qt_dfe_ret != null ? String(r.ultima_qt_dfe_ret) : '—')}
+                            style={{ minWidth: '6rem' }}
+                        />
                         <Column field="ultimo_motivo" header="Motivo" style={{ minWidth: '20rem' }} />
                         <Column field="ultima_verificacao" header="Última verificação" body={(r: SyncEstadoRow) => formatDateTime(r.ultima_verificacao)} style={{ minWidth: '12rem' }} />
                         <Column field="proxima_consulta_apos" header="Próxima consulta" body={(r: SyncEstadoRow) => formatDateTime(r.proxima_consulta_apos)} style={{ minWidth: '12rem' }} />

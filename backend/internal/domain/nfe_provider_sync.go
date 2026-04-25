@@ -12,6 +12,8 @@ type NFESyncEstado struct {
 	UltimoMotivo        string     `json:"ultimo_motivo,omitempty"`
 	UltimaVerificacao   *time.Time `json:"ultima_verificacao,omitempty"`
 	ProximaConsultaApos *time.Time `json:"proxima_consulta_apos,omitempty"`
+	/** qtDfeRet da última resposta retDistNFeSC (distribuição SC). */
+	UltimaQtDFeRet int `json:"ultima_qt_dfe_ret"`
 }
 
 type NFESincronizacaoResultado struct {
@@ -24,6 +26,8 @@ type NFESincronizacaoResultado struct {
 	TotalPersistidos int    `json:"total_persistidos"`
 	CStat            int    `json:"cstat"`
 	XMotivo          string `json:"x_motivo,omitempty"`
+	/** Última qtDfeRet retornada pelo provider (distribuição SC). */
+	UltimaQtDFeRet int `json:"ultima_qt_dfe_ret"`
 }
 
 type NFESyncEstadoListResponse struct {

@@ -18,6 +18,8 @@ type ResultadoSincronizacao struct {
 	NovoMaxNSU string
 	CStat      int
 	XMotivo    string
+	// QtDFeRet: quantidade de DF-e na última resposta retDistNFeSC (BT SC-2021/001). Para backoff 118 vs lote cheio.
+	QtDFeRet int
 }
 
 type NFeProvider interface {

@@ -72,11 +72,6 @@ const AppMenu = () => {
             icon: 'pi pi-fw pi-table',
             items: [
               {
-                label: 'Manutenção de Empresas',
-                icon: 'pi pi-fw pi-building',
-                to: '/empresas',
-              },
-              {
                 label: 'Manutenção de NFe',
                 icon: 'pi pi-fw pi-file',
                 to: '/nfe/manutencao',
@@ -85,6 +80,11 @@ const AppMenu = () => {
                 label: 'Sincronização de NFe',
                 icon: 'pi pi-fw pi-sync',
                 to: '/nfe/sincronizacao',
+              },
+              {
+                label: 'Manutenção de Empresas',
+                icon: 'pi pi-fw pi-building',
+                to: '/empresas',
               },
             ],
           },

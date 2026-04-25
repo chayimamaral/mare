@@ -30,6 +30,7 @@ func (p *MockProvider) SincronizarDocumentos(_ context.Context, cnpj string, ult
 			NovoMaxNSU: ultNSU,
 			CStat:      117,
 			XMotivo:    "Nenhum DF-e localizado (mock)",
+			QtDFeRet:   0,
 		}, nil
 	}
 	chave := "35240312345678000199550010000006371000000000"
@@ -47,5 +48,6 @@ func (p *MockProvider) SincronizarDocumentos(_ context.Context, cnpj string, ult
 		NovoMaxNSU: nsu,
 		CStat:      118,
 		XMotivo:    "DF-e localizados (mock)",
+		QtDFeRet:   1,
 	}, nil
 }

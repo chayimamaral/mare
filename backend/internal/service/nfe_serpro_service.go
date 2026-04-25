@@ -137,15 +137,33 @@ func (s *NFESerproService) resolveProvider(providerName, uf, ambiente string, si
 	}
 }
 
-func proximaConsultaPorCStat(cstat int) *time.Time {
+// proximaConsultaDistribuicaoSC aplica o Boletim Técnico SC-2021/001 (distribuição NF-e SC), seção 03.2 e nota (*1):
+// - 110: aguardar 1 hora (DF-e em reprocessamento);
+// - 117: aguardar 12 horas (nenhum DF-e + política pós-sincronismo);
+// - 118/138: se qtDfeRet < 50, aguardar 12 horas; se 50, sem bloqueio (nova consulta imediata permitida);
+// - 108, 109, 657: backoff 1 hora (paralisação / bloqueio por excesso — mínimo 1 h na BT para 657).
+// - 143, 146: NSU ajustado no provider; sem bloqueio explícito (nova tentativa imediata permitida).
+func proximaConsultaDistribuicaoSC(cstat int, qtDfeRet int) *time.Time {
 	now := time.Now().UTC()
 	switch cstat {
+	case 108, 109, 657:
+		t := now.Add(1 * time.Hour)
+		return &t
+	case 143, 146:
+		// NSU corrigido no provider; nova consulta pode ser imediata (sem espera BT explícita aqui).
+		return nil
 	case 110:
 		t := now.Add(1 * time.Hour)
 		return &t
 	case 117:
 		t := now.Add(12 * time.Hour)
 		return &t
+	case 118, 138:
+		if qtDfeRet >= 0 && qtDfeRet < 50 {
+			t := now.Add(12 * time.Hour)
+			return &t
+		}
+		return nil
 	default:
 		return nil
 	}
@@ -234,7 +252,7 @@ func (s *NFESerproService) SincronizarPorProvider(
 	}
 
 	now := time.Now().UTC()
-	proxima := proximaConsultaPorCStat(res.CStat)
+	proxima := proximaConsultaDistribuicaoSC(res.CStat, res.QtDFeRet)
 	_, err = s.repo.UpsertSyncEstado(ctx, schemaName, repository.NFESyncStateUpsert{
 		Provider:            providerNorm,
 		UF:                  ufNorm,
@@ -244,6 +262,7 @@ func (s *NFESerproService) SincronizarPorProvider(
 		UltimoMotivo:        res.XMotivo,
 		UltimaVerificacao:   now,
 		ProximaConsultaApos: proxima,
+		UltimaQtDFeRet:      res.QtDFeRet,
 	})
 	if err != nil {
 		return domain.NFESincronizacaoResultado{}, err
@@ -259,6 +278,7 @@ func (s *NFESerproService) SincronizarPorProvider(
 		TotalPersistidos: totalPersistidos,
 		CStat:            res.CStat,
 		XMotivo:          strings.TrimSpace(res.XMotivo),
+		UltimaQtDFeRet:   res.QtDFeRet,
 	}, nil
 }
 
