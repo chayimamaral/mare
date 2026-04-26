@@ -30,11 +30,11 @@ const MODULOS: ModuloCard[] = [
     tooltip: 'Menu Operações → Cadastros Operacionais → Clientes.',
   },
   {
-    titulo: 'Manutenção de Empresas',
-    descricao: 'Cadastro de clientes (formulário único), iniciar processo e gerar compromissos após conclusão dos passos.',
-    href: '/empresas',
-    icon: 'pi pi-building',
-    tooltip: 'Operações sobre empresas já cadastradas; cadastro em Clientes.',
+    titulo: 'Manutenção de NFe',
+    descricao: 'Gestão de notas fiscais eletrônicas no tenant: vínculo com empresas, situação e operações de manutenção.',
+    href: '/nfe/manutencao',
+    icon: 'pi pi-file',
+    tooltip: 'Menu Home → Manutenção de Empresas → Manutenção de NFe.',
   },
   {
     titulo: 'Manutenção de Cliente PF (IRPF)',

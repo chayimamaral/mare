@@ -489,7 +489,12 @@ const LandingPage: Page = () => {
                   >
                     Sobre nós
                   </button>
-                  <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">News</a>
+                  <Link
+                    href="/pages/landing/sobre-vecx"
+                    className="line-height-3 text-xl block cursor-pointer mb-2 text-700"
+                  >
+                    Sobre o VECX
+                  </Link>
                   <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">Relação com Clientes</a>
                   <a className="line-height-3 text-xl block cursor-pointer mb-2 text-700">Carreira</a>
                 </div>
