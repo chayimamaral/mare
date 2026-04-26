@@ -15,17 +15,19 @@ type TenantHandler struct {
 }
 
 type tenantCreatePayload struct {
-	Nome    string `json:"nome"`
-	Contato string `json:"contato"`
-	Plano   string `json:"plano"`
+	Nome             string `json:"nome"`
+	Contato          string `json:"contato"`
+	Plano            string `json:"plano"`
+	RepresentativeID string `json:"representative_id"`
 }
 
 type tenantUpdatePayload struct {
-	ID      string `json:"id"`
-	Nome    string `json:"nome"`
-	Active  bool   `json:"active"`
-	Contato string `json:"contato"`
-	Plano   string `json:"plano"`
+	ID               string  `json:"id"`
+	Nome             string  `json:"nome"`
+	Active           bool    `json:"active"`
+	Contato          string  `json:"contato"`
+	Plano            string  `json:"plano"`
+	RepresentativeID *string `json:"representative_id,omitempty"`
 }
 
 type tenantDetailPayload struct {
@@ -48,7 +50,7 @@ func (h *TenantHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.service.Create(r.Context(), payload.Nome, payload.Contato, payload.Plano)
+	response, err := h.service.Create(r.Context(), payload.Nome, payload.Contato, payload.Plano, payload.RepresentativeID)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -111,7 +113,13 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 		payload.Plano = ""
 	}
 
-	response, err := h.service.Update(r.Context(), payload.ID, payload.Nome, payload.Contato, payload.Plano, payload.Active)
+	var repPtr *string
+	if role == "SUPER" && payload.RepresentativeID != nil {
+		rid := strings.TrimSpace(*payload.RepresentativeID)
+		repPtr = &rid
+	}
+
+	response, err := h.service.Update(r.Context(), payload.ID, payload.Nome, payload.Contato, payload.Plano, payload.Active, repPtr)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -123,8 +131,9 @@ func (h *TenantHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) List(w http.ResponseWriter, r *http.Request) {
 	role := middleware.Role(r.Context())
 	tenantID := middleware.TenantID(r.Context())
+	repID := middleware.RepresentativeID(r.Context())
 
-	response, err := h.service.List(r.Context(), role, tenantID)
+	response, err := h.service.List(r.Context(), role, tenantID, repID)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

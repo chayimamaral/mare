@@ -13,12 +13,12 @@ type CidadeService struct {
 
 type CidadeListResponse struct {
 	Municipios   []domain.CidadeListItem `json:"municipios"`
-	TotalRecords int64                       `json:"totalRecords"`
+	TotalRecords int64                   `json:"totalRecords"`
 }
 
 type CidadeMutationResponse struct {
 	Cidades      []domain.Cidade `json:"cidades"`
-	TotalRecords int64               `json:"totalRecords"`
+	TotalRecords int64           `json:"totalRecords"`
 }
 
 type CidadeLiteResponse struct {

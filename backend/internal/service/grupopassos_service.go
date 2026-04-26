@@ -13,12 +13,12 @@ type GrupoPassosService struct {
 
 type GrupoPassosListResponse struct {
 	GrupoPassos  []domain.GrupoPassosListItem `json:"grupopassos"`
-	TotalRecords int64                            `json:"totalRecords"`
+	TotalRecords int64                        `json:"totalRecords"`
 }
 
 type GrupoPassosMutationResponse struct {
 	GrupoPassos  []domain.GrupoPassosMutationItem `json:"grupopassos"`
-	TotalRecords int64                                `json:"totalRecords"`
+	TotalRecords int64                            `json:"totalRecords"`
 }
 
 type GrupoPassosInput struct {

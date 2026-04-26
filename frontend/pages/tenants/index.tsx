@@ -1,5 +1,6 @@
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
+import { DataTable } from 'primereact/datatable';
 import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
@@ -11,8 +12,22 @@ import type { TreeNode } from 'primereact/treenode';
 import { classNames } from 'primereact/utils';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
+import { setCookie, parseCookies } from 'nookies';
+import Router from 'next/router';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import api from '../../components/api/apiClient';
+import {
+  AUTH_TOKEN_COOKIE,
+  clearLegacyAuthTokenCookieBrowser,
+  getAuthTokenFromParsedCookies,
+} from '../../constants/authCookie';
 import UsuarioService from '../../services/cruds/UsuarioService';
+
+type RepresentanteOpt = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+};
 
 type TenantListRow = {
   id: string;
@@ -23,6 +38,10 @@ type TenantListRow = {
   cnpj?: string;
   razaosocial?: string;
   fantasia?: string;
+  schema_name?: string;
+  representative_id?: string;
+  representante_nome?: string;
+  is_vec_master?: boolean;
 };
 
 type DadosTenant = {
@@ -99,6 +118,8 @@ export default function TenantsPage() {
   const [contato, setContato] = useState('');
   const [plano, setPlano] = useState('DEMO');
   const [active, setActive] = useState(true);
+  const [representativeId, setRepresentativeId] = useState('');
+  const [tenantIsVecMaster, setTenantIsVecMaster] = useState(false);
   const [dados, setDados] = useState<DadosTenant>(emptyDados(''));
 
   const [userDialog, setUserDialog] = useState(false);
@@ -115,12 +136,33 @@ export default function TenantsPage() {
   const [filtroTenant, setFiltroTenant] = useState('');
   const [filtroPlano, setFiltroPlano] = useState<string>('');
 
+  const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
+  const sessionToken =
+    typeof window !== 'undefined' ? String(window.sessionStorage.getItem('vecontab_token') ?? '').trim() : '';
+  const token =
+    sessionToken ||
+    cookieToken ||
+    (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
+
+  const { data: userRole = '' } = useQuery({
+    queryKey: ['tenant-page-role', token],
+    enabled: !!token,
+    queryFn: async () => {
+      const { data } = await api.get<{ logado?: { role?: string } }>('/api/usuariorole');
+      return String(data?.logado?.role ?? '').trim();
+    },
+  });
+
+  const isRepresentante = userRole === 'REPRESENTANTE';
+  const isSuper = userRole === 'SUPER';
+
   const { data: tenants = [], isFetching, refetch } = useQuery({
-    queryKey: ['tenants-super-list'],
+    queryKey: ['tenants-super-list', isRepresentante ? 'rep' : 'super', token],
     queryFn: async () => {
       const { data } = await api.get<TenantListRow[]>('/api/tenants');
       return Array.isArray(data) ? data : [];
     },
+    enabled: !!token && (isSuper || isRepresentante),
   });
 
   const { data: dadosApi, isFetching: loadingDados } = useQuery({
@@ -131,6 +173,20 @@ export default function TenantsPage() {
       return data;
     },
   });
+
+  const { data: representantesLista = [] } = useQuery({
+    queryKey: ['representantes-ddl', token],
+    enabled: !!token && isSuper && tenantDialog,
+    queryFn: async () => {
+      const { data } = await api.get<RepresentanteOpt[]>('/api/representantes');
+      return Array.isArray(data) ? data.filter((r) => r.ativo) : [];
+    },
+  });
+
+  const representanteDropdownOptions = useMemo(
+    () => [{ label: 'Sem representante comercial', value: '' }, ...representantesLista.map((r) => ({ label: r.nome, value: r.id }))],
+    [representantesLista],
+  );
 
   const tenantsFiltrados = useMemo(() => {
     const nomeFiltro = filtroTenant.trim().toLowerCase();
@@ -145,7 +201,7 @@ export default function TenantsPage() {
   const usuariosPorTenantQueries = useQueries({
     queries: tenantsFiltrados.map((t) => ({
       queryKey: ['usuarios-tenant', t.id] as const,
-      enabled: tenants.length > 0,
+      enabled: !isRepresentante && tenants.length > 0,
       queryFn: async () => {
         const { data } = await api.get<{ usuarios: UsuarioLinha[]; totalRecords?: { resTotal: number } }>('/api/usuarios', {
           params: {
@@ -190,6 +246,9 @@ export default function TenantsPage() {
           cnpj: t.cnpj ?? '',
           razaosocial: t.razaosocial ?? '',
           fantasia: t.fantasia ?? '',
+          representative_id: t.representative_id ?? '',
+          representante_nome: t.representante_nome ?? '',
+          is_vec_master: Boolean(t.is_vec_master),
         },
         children: filhos,
       };
@@ -233,6 +292,8 @@ export default function TenantsPage() {
     setContato('');
     setPlano('DEMO');
     setActive(true);
+    setRepresentativeId('');
+    setTenantIsVecMaster(false);
     setDados(emptyDados(''));
     setSubmitted(false);
     setTenantDialog(true);
@@ -245,6 +306,8 @@ export default function TenantsPage() {
     setContato(row.contato ?? '');
     setPlano(row.plano || 'DEMO');
     setActive(row.active);
+    setTenantIsVecMaster(Boolean(row.is_vec_master));
+    setRepresentativeId(row.is_vec_master ? '' : String(row.representative_id ?? '').trim());
     setDados(emptyDados(row.id));
     setSubmitted(false);
     setTenantDialog(true);
@@ -262,7 +325,12 @@ export default function TenantsPage() {
       return;
     }
     try {
-      await api.post('/api/tenant', { nome: nome.trim(), contato: contato.trim(), plano });
+      await api.post('/api/tenant', {
+        nome: nome.trim(),
+        contato: contato.trim(),
+        plano,
+        representative_id: representativeId.trim() || undefined,
+      });
       toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Tenant criado.', life: 3000 });
       await qc.invalidateQueries({ queryKey: ['tenants-super-list'] });
       await qc.invalidateQueries({ queryKey: ['usuarios-tenant'] });
@@ -310,13 +378,17 @@ export default function TenantsPage() {
       return;
     }
     try {
-      await api.put('/api/tenant', {
+      const payload: Record<string, unknown> = {
         id: tenantId,
         nome: nome.trim(),
         contato: contato.trim(),
         plano,
         active,
-      });
+      };
+      if (isSuper && !tenantIsVecMaster) {
+        payload.representative_id = representativeId.trim();
+      }
+      await api.put('/api/tenant', payload);
     } catch (e) {
       toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(e), life: 5000 });
       return;
@@ -335,6 +407,34 @@ export default function TenantsPage() {
     void qc.invalidateQueries({ queryKey: ['tenants-super-list'] });
     void qc.invalidateQueries({ queryKey: ['usuarios-tenant'] });
     void refetch();
+  };
+
+  const assumirEscritorio = async (tid: string) => {
+    try {
+      const { data } = await api.post<{ token?: string }>('/api/session/context-tenant', { tenant_id: tid });
+      const newToken = String(data?.token ?? '').trim();
+      if (!newToken) {
+        throw new Error('Resposta sem token');
+      }
+      setCookie(undefined, AUTH_TOKEN_COOKIE, newToken, {
+        maxAge: 60 * 60 * 24 * 30,
+        path: '/',
+        sameSite: 'lax',
+      });
+      clearLegacyAuthTokenCookieBrowser();
+      try {
+        window.sessionStorage.setItem('vecontab_token', newToken);
+        window.localStorage.setItem('vecontab_token', newToken);
+      } catch {
+        // ignore
+      }
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      await qc.invalidateQueries();
+      toast.current?.show({ severity: 'success', summary: 'Escritório ativo', detail: 'Redirecionando…', life: 2000 });
+      await Router.push('/');
+    } catch (e) {
+      toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(e), life: 5000 });
+    }
   };
 
   const limparFiltros = () => {
@@ -373,6 +473,16 @@ export default function TenantsPage() {
 
   const colunaListaRazao = (node: TreeNode) => (node.data?.tipo === 'tenant' ? node.data?.razaosocial || '—' : '—');
 
+  const colunaListaRepresentante = (node: TreeNode) => {
+    if (node.data?.tipo !== 'tenant') {
+      return '—';
+    }
+    if (node.data?.is_vec_master) {
+      return '—';
+    }
+    return node.data?.representante_nome || '—';
+  };
+
   const colunaListaAtivo = (node: TreeNode) => {
     if (node.data?.tipo !== 'tenant') {
       return '—';
@@ -391,6 +501,9 @@ export default function TenantsPage() {
         cnpj: String(node.data.cnpj ?? ''),
         razaosocial: String(node.data.razaosocial ?? ''),
         fantasia: String(node.data.fantasia ?? ''),
+        representative_id: String(node.data.representative_id ?? ''),
+        representante_nome: String(node.data.representante_nome ?? ''),
+        is_vec_master: Boolean(node.data.is_vec_master),
       };
       const tid = String(node.data.id);
       return (
@@ -507,55 +620,83 @@ export default function TenantsPage() {
       <div className="col-12">
         <div className="card">
           <Toast ref={toast} />
-          <Toolbar
-            className="mb-4"
-            left={
-              <div className="my-2 flex flex-wrap align-items-center gap-2">
-                <Button type="button" label="Novo tenant" icon="pi pi-plus" severity="success" onClick={openNew} />
-                <Button type="button" label="Expandir tudo" icon="pi pi-angle-double-down" text onClick={expandirTudoLista} disabled={tenants.length === 0} />
-                <Button type="button" label="Recolher tudo" icon="pi pi-angle-double-up" text onClick={recolherTudoLista} disabled={tenants.length === 0} />
-              </div>
-            }
-          />
+          {!isRepresentante ? (
+            <Toolbar
+              className="mb-4"
+              left={
+                <div className="my-2 flex flex-wrap align-items-center gap-2">
+                  <Button type="button" label="Novo tenant" icon="pi pi-plus" severity="success" onClick={openNew} />
+                  <Button type="button" label="Expandir tudo" icon="pi pi-angle-double-down" text onClick={expandirTudoLista} disabled={tenants.length === 0} />
+                  <Button type="button" label="Recolher tudo" icon="pi pi-angle-double-up" text onClick={recolherTudoLista} disabled={tenants.length === 0} />
+                </div>
+              }
+            />
+          ) : null}
 
           <div className="flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-            <h5 className="m-0">Cadastro de Tenants (SUPER)</h5>
+            <h5 className="m-0">{isRepresentante ? 'Escritórios vinculados ao representante' : 'Cadastro de Tenants (SUPER)'}</h5>
             <div className="flex align-items-center gap-2 flex-wrap">
-              <span className="p-input-icon-left">
-                <i className="pi pi-search" />
-                <InputText
-                  value={filtroTenant}
-                  onChange={(e) => setFiltroTenant(e.target.value)}
-                  placeholder="Filtrar tenant..."
-                />
-              </span>
-              <Dropdown
-                value={filtroPlano}
-                options={[{ label: 'Todos os planos', value: '' }, ...PLANO_OPTS]}
-                onChange={(e) => setFiltroPlano(String(e.value ?? ''))}
-                placeholder="Plano"
-                className="w-14rem"
-              />
-              <Button type="button" icon="pi pi-filter-slash" tooltip="Limpar filtros" className="p-button-text" onClick={limparFiltros} />
+              {!isRepresentante ? (
+                <>
+                  <span className="p-input-icon-left">
+                    <i className="pi pi-search" />
+                    <InputText
+                      value={filtroTenant}
+                      onChange={(e) => setFiltroTenant(e.target.value)}
+                      placeholder="Filtrar tenant..."
+                    />
+                  </span>
+                  <Dropdown
+                    value={filtroPlano}
+                    options={[{ label: 'Todos os planos', value: '' }, ...PLANO_OPTS]}
+                    onChange={(e) => setFiltroPlano(String(e.value ?? ''))}
+                    placeholder="Plano"
+                    className="w-14rem"
+                  />
+                  <Button type="button" icon="pi pi-filter-slash" tooltip="Limpar filtros" className="p-button-text" onClick={limparFiltros} />
+                </>
+              ) : null}
               <Button type="button" icon="pi pi-refresh" tooltip="Atualizar" className="p-button-text" onClick={() => recarregarCadastro()} />
             </div>
           </div>
-          <TreeTable
-            value={arvoreCadastroTenants}
-            loading={isFetching || loadingUsuariosLista}
-            emptyMessage="Nenhum tenant encontrado."
-            expandedKeys={expandedKeysLista}
-            onToggle={onToggleLista}
-            tableStyle={{ minWidth: '48rem' }}
-          >
-            <Column header="Tenant / Usuário" expander body={colunaListaIdentificacao} style={{ minWidth: '18rem' }} />
-            <Column header="Plano / Perfil" body={colunaListaPlano} style={{ minWidth: '9rem' }} />
-            <Column header="Contato (tenant)" body={colunaListaContato} style={{ minWidth: '10rem' }} />
-            <Column header="CNPJ" body={colunaListaCnpj} style={{ minWidth: '9rem' }} />
-            <Column header="Razão social" body={colunaListaRazao} style={{ minWidth: '12rem' }} />
-            <Column header="Ativo" body={colunaListaAtivo} style={{ width: '5rem' }} />
-            <Column header="Ações" body={colunaListaAcoes} style={{ minWidth: '8rem' }} />
-          </TreeTable>
+          {isRepresentante ? (
+            <DataTable value={tenants} loading={isFetching} emptyMessage="Nenhum escritório vinculado." dataKey="id" tableStyle={{ minWidth: '40rem' }}>
+              <Column field="nome" header="Escritório" sortable />
+              <Column field="cnpj" header="CNPJ" />
+              <Column field="plano" header="Plano" />
+              <Column
+                header="Acesso"
+                body={(row: TenantListRow) => (
+                  <Button
+                    type="button"
+                    label="Acessar"
+                    icon="pi pi-sign-in"
+                    size="small"
+                    onClick={() => void assumirEscritorio(row.id)}
+                    disabled={!row.active}
+                  />
+                )}
+              />
+            </DataTable>
+          ) : (
+            <TreeTable
+              value={arvoreCadastroTenants}
+              loading={isFetching || loadingUsuariosLista}
+              emptyMessage="Nenhum tenant encontrado."
+              expandedKeys={expandedKeysLista}
+              onToggle={onToggleLista}
+              tableStyle={{ minWidth: '48rem' }}
+            >
+              <Column header="Tenant / Usuário" expander body={colunaListaIdentificacao} style={{ minWidth: '18rem' }} />
+              <Column header="Plano / Perfil" body={colunaListaPlano} style={{ minWidth: '9rem' }} />
+              <Column header="Contato (tenant)" body={colunaListaContato} style={{ minWidth: '10rem' }} />
+              <Column header="CNPJ" body={colunaListaCnpj} style={{ minWidth: '9rem' }} />
+              <Column header="Razão social" body={colunaListaRazao} style={{ minWidth: '12rem' }} />
+              <Column header="Representante" body={colunaListaRepresentante} style={{ minWidth: '10rem' }} />
+              <Column header="Ativo" body={colunaListaAtivo} style={{ width: '5rem' }} />
+              <Column header="Ações" body={colunaListaAcoes} style={{ minWidth: '8rem' }} />
+            </TreeTable>
+          )}
 
           <Dialog
             visible={tenantDialog}
@@ -602,6 +743,23 @@ export default function TenantsPage() {
                   <label htmlFor="tplano">Plano</label>
                   <Dropdown inputId="tplano" value={plano} options={PLANO_OPTS} onChange={(e) => setPlano(e.value)} className="w-full" />
                 </div>
+                {isSuper ? (
+                  <div className="field">
+                    <label htmlFor="trepnew">Representante comercial</label>
+                    <Dropdown
+                      inputId="trepnew"
+                      value={representativeId}
+                      options={representanteDropdownOptions}
+                      onChange={(e) => setRepresentativeId(String(e.value ?? ''))}
+                      className="w-full"
+                      filter
+                      showClear={!!representativeId}
+                    />
+                    <small className="text-600 block mt-1">
+                      A matriz de módulos do representante passa a valer para este escritório (usuários precisam entrar de novo ou trocar o contexto para atualizar o token).
+                    </small>
+                  </div>
+                ) : null}
               </>
             ) : (
               <>
@@ -636,6 +794,26 @@ export default function TenantsPage() {
                   <label htmlFor="tcontato2">Contato</label>
                   <InputText id="tcontato2" value={contato} onChange={(e) => setContato(e.target.value)} className="w-full" />
                 </div>
+                {isSuper && !tenantIsVecMaster ? (
+                  <div className="field">
+                    <label htmlFor="trepedit">Representante comercial</label>
+                    <Dropdown
+                      inputId="trepedit"
+                      value={representativeId}
+                      options={representanteDropdownOptions}
+                      onChange={(e) => setRepresentativeId(String(e.value ?? ''))}
+                      className="w-full"
+                      filter
+                      showClear={!!representativeId}
+                    />
+                    <small className="text-600 block mt-1">
+                      Vínculo do escritório ao representante; módulos liberados seguem a matriz definida em Gestão de Tenants → Representantes comerciais.
+                    </small>
+                  </div>
+                ) : null}
+                {isSuper && tenantIsVecMaster ? (
+                  <p className="text-600 text-sm mt-2 mb-0">Tenant master da plataforma: sem representante comercial.</p>
+                ) : null}
                 <fieldset className="border-round p-3 mt-3" style={{ border: '1px solid var(--surface-border)' }}>
                   <legend className="text-sm font-semibold px-2">Endereço (tenant_dados)</legend>
                   <div className="formgrid grid">

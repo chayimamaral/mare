@@ -23,7 +23,7 @@ type CnaeInput struct {
 
 type CnaeListResponse struct {
 	Cnaes        []domain.CnaeRecord `json:"cnaes"`
-	TotalRecords int64                   `json:"totalRecords"`
+	TotalRecords int64               `json:"totalRecords"`
 }
 
 type CnaeLiteResponse struct {

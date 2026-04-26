@@ -16,12 +16,13 @@ type UserHandler struct {
 }
 
 type createUserPayload struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenantId"`
+	ID              string `json:"id"`
+	Nome            string `json:"nome"`
+	Email           string `json:"email"`
+	Password        string `json:"password"`
+	Role            string `json:"role"`
+	TenantID        string `json:"tenantId"`
+	RepresentanteID string `json:"representanteId"`
 }
 
 func NewUserHandler(service *service.UserService) *UserHandler {
@@ -43,6 +44,11 @@ func (h *UserHandler) UserRole(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+
+	if raw := middleware.FeatureSlugs(r.Context()); raw != nil {
+		cp := append([]string(nil), raw...)
+		response.Logado.FeatureSlugs = &cp
 	}
 
 	render.WriteJSON(w, http.StatusOK, response)
@@ -111,7 +117,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		targetRole = "USER"
 	}
 
-	if targetRole != "USER" && targetRole != "ADMIN" && targetRole != "SUPER" {
+	if targetRole != "USER" && targetRole != "ADMIN" && targetRole != "SUPER" && targetRole != "REPRESENTANTE" {
 		render.WriteError(w, http.StatusBadRequest, "Role invalida")
 		return
 	}
@@ -121,11 +127,25 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if targetRole == "REPRESENTANTE" {
+		if requesterRole != "SUPER" || !middleware.TenantIsVecMaster(r.Context()) {
+			render.WriteError(w, http.StatusForbidden, "Usuario nao autorizado")
+			return
+		}
+		if strings.TrimSpace(payload.RepresentanteID) == "" {
+			render.WriteError(w, http.StatusBadRequest, "representanteId obrigatorio para perfil REPRESENTANTE")
+			return
+		}
+	}
+
 	targetTenantID := payload.TenantID
 	if requesterRole == "ADMIN" {
 		targetTenantID = requesterTenantID
 	}
 	if targetRole == "SUPER" {
+		targetTenantID = requesterTenantID
+	}
+	if targetRole == "REPRESENTANTE" {
 		targetTenantID = requesterTenantID
 	}
 
@@ -135,11 +155,12 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Create(r.Context(), service.CreateUserInput{
-		Nome:     payload.Nome,
-		Email:    payload.Email,
-		Password: payload.Password,
-		Role:     targetRole,
-		TenantID: targetTenantID,
+		Nome:            payload.Nome,
+		Email:           payload.Email,
+		Password:        payload.Password,
+		Role:            targetRole,
+		TenantID:        targetTenantID,
+		RepresentanteID: payload.RepresentanteID,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
@@ -178,7 +199,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		targetRole = "USER"
 	}
 
-	if targetRole != "USER" && targetRole != "ADMIN" && targetRole != "SUPER" {
+	if targetRole != "USER" && targetRole != "ADMIN" && targetRole != "SUPER" && targetRole != "REPRESENTANTE" {
 		render.WriteError(w, http.StatusBadRequest, "Role invalida")
 		return
 	}
@@ -188,11 +209,25 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if targetRole == "REPRESENTANTE" {
+		if requesterRole != "SUPER" || !middleware.TenantIsVecMaster(r.Context()) {
+			render.WriteError(w, http.StatusForbidden, "Usuario nao autorizado")
+			return
+		}
+		if strings.TrimSpace(payload.RepresentanteID) == "" {
+			render.WriteError(w, http.StatusBadRequest, "representanteId obrigatorio para perfil REPRESENTANTE")
+			return
+		}
+	}
+
 	targetTenantID := payload.TenantID
 	if requesterRole == "ADMIN" {
 		targetTenantID = requesterTenantID
 	}
 	if targetRole == "SUPER" {
+		targetTenantID = requesterTenantID
+	}
+	if targetRole == "REPRESENTANTE" {
 		targetTenantID = requesterTenantID
 	}
 
@@ -202,11 +237,12 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Update(r.Context(), service.UpdateUserInput{
-		ID:       payload.ID,
-		Nome:     payload.Nome,
-		Email:    payload.Email,
-		Role:     targetRole,
-		TenantID: targetTenantID,
+		ID:              payload.ID,
+		Nome:            payload.Nome,
+		Email:           payload.Email,
+		Role:            targetRole,
+		TenantID:        targetTenantID,
+		RepresentanteID: payload.RepresentanteID,
 	}, requesterRole, requesterTenantID)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())

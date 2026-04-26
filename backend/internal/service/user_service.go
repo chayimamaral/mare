@@ -21,19 +21,21 @@ type ListUsersInput struct {
 }
 
 type CreateUserInput struct {
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenantId"`
+	Nome            string `json:"nome"`
+	Email           string `json:"email"`
+	Password        string `json:"password"`
+	Role            string `json:"role"`
+	TenantID        string `json:"tenantId"`
+	RepresentanteID string `json:"representanteId"`
 }
 
 type UpdateUserInput struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenantId"`
+	ID              string `json:"id"`
+	Nome            string `json:"nome"`
+	Email           string `json:"email"`
+	Role            string `json:"role"`
+	TenantID        string `json:"tenantId"`
+	RepresentanteID string `json:"representanteId"`
 }
 
 type UserService struct {
@@ -104,7 +106,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (Create
 		return CreateUserResponse{}, err
 	}
 
-	usuarios, err := s.users.Create(ctx, input.Nome, input.Email, string(passwordHash), input.Role, input.TenantID)
+	usuarios, err := s.users.Create(ctx, input.Nome, input.Email, string(passwordHash), input.Role, input.TenantID, input.RepresentanteID)
 	if err != nil {
 		return CreateUserResponse{}, err
 	}
@@ -115,7 +117,7 @@ func (s *UserService) Create(ctx context.Context, input CreateUserInput) (Create
 func (s *UserService) Update(ctx context.Context, input UpdateUserInput, requesterRole, requesterTenantID string) (CreateUserResponse, error) {
 	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
 
-	usuarios, err := s.users.Update(ctx, input.ID, input.Nome, input.Email, input.Role, input.TenantID, requesterRole, requesterTenantID)
+	usuarios, err := s.users.Update(ctx, input.ID, input.Nome, input.Email, input.Role, input.TenantID, input.RepresentanteID, requesterRole, requesterTenantID)
 	if err != nil {
 		return CreateUserResponse{}, err
 	}

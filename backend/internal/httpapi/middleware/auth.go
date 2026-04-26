@@ -15,11 +15,14 @@ type contextKey string
 type TenantSchemaResolver func(ctx context.Context, tenantID string) (string, error)
 
 const (
-	userIDKey       contextKey = "userID"
-	userNameKey     contextKey = "userName"
-	roleKey         contextKey = "role"
-	tenantIDKey     contextKey = "tenantID"
-	tenantSchemaKey contextKey = "tenantSchema"
+	userIDKey            contextKey = "userID"
+	userNameKey          contextKey = "userName"
+	roleKey              contextKey = "role"
+	tenantIDKey          contextKey = "tenantID"
+	tenantSchemaKey      contextKey = "tenantSchema"
+	representativeIDKey  contextKey = "representativeID"
+	featureSlugsKey      contextKey = "featureSlugs"
+	tenantIsVecMasterKey contextKey = "tenantIsVecMaster"
 )
 
 var tenantSchemaResolver TenantSchemaResolver
@@ -65,6 +68,9 @@ func RequireAuth(tokens *auth.TokenService) func(http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, userNameKey, claims.Nome)
 			ctx = context.WithValue(ctx, roleKey, claims.Role)
 			ctx = context.WithValue(ctx, tenantIDKey, claims.Tenant.ID)
+			ctx = context.WithValue(ctx, representativeIDKey, strings.TrimSpace(claims.RepresentativeID))
+			ctx = context.WithValue(ctx, featureSlugsKey, claims.FeatureSlugs)
+			ctx = context.WithValue(ctx, tenantIsVecMasterKey, claims.Tenant.IsVecMaster)
 			tenantSchema := strings.TrimSpace(claims.Tenant.SchemaName)
 			if tenantSchema == "" && tenantSchemaResolver != nil && strings.TrimSpace(claims.Tenant.ID) != "" {
 				if resolved, err := tenantSchemaResolver(r.Context(), claims.Tenant.ID); err == nil {
@@ -144,5 +150,20 @@ func TenantID(ctx context.Context) string {
 
 func TenantSchema(ctx context.Context) string {
 	value, _ := ctx.Value(tenantSchemaKey).(string)
+	return value
+}
+
+func RepresentativeID(ctx context.Context) string {
+	value, _ := ctx.Value(representativeIDKey).(string)
+	return value
+}
+
+func FeatureSlugs(ctx context.Context) []string {
+	value, _ := ctx.Value(featureSlugsKey).([]string)
+	return value
+}
+
+func TenantIsVecMaster(ctx context.Context) bool {
+	value, _ := ctx.Value(tenantIsVecMasterKey).(bool)
 	return value
 }

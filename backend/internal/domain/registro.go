@@ -18,11 +18,11 @@ type DadosComplementaresRecord struct {
 }
 
 type RegistroUserRecord struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	TenantID string `json:"tenantid"`
+	ID           string `json:"id"`
+	Nome         string `json:"nome"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	TenantID     string `json:"tenantid"`
 	TenantSchema string `json:"tenant_schema,omitempty"`
-	Active   bool   `json:"active"`
+	Active       bool   `json:"active"`
 }

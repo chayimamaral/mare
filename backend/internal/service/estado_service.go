@@ -13,7 +13,7 @@ type EstadoService struct {
 
 type EstadoListResponse struct {
 	Estados      []domain.Estado `json:"estados"`
-	TotalRecords int64               `json:"totalRecords"`
+	TotalRecords int64           `json:"totalRecords"`
 }
 
 type EstadoLiteResponse struct {

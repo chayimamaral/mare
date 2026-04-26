@@ -25,7 +25,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	r.Use(apiMiddleware.CORS)
 
 	tokenService := auth.NewTokenService(cfg.JWTSecret)
-	authService := service.NewAuthService(repository.NewUserRepository(pool), tokenService)
+	featureMatrixRepo := repository.NewFeatureMatrixRepository(pool)
+	authService := service.NewAuthService(repository.NewUserRepository(pool), featureMatrixRepo, tokenService)
 	userService := service.NewUserService(repository.NewUserRepository(pool))
 	estadoService := service.NewEstadoService(repository.NewEstadoRepository(pool))
 	cidadeService := service.NewCidadeService(repository.NewCidadeRepository(pool))
@@ -109,6 +110,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraTabelaConsumoHandler := handlers.NewIntegraTabelaConsumoHandler(integraTabelaConsumoService)
 	nfeSerproHandler := handlers.NewNFESerproHandler(nfeSerproService)
 
+	representanteService := service.NewRepresentanteService(repository.NewRepresentanteRepository(pool))
+	representanteHandler := handlers.NewRepresentanteHandler(representanteService)
+
 	caixaPostalRepo := repository.NewCaixaPostalRepository(pool)
 	caixaPostalService := service.NewCaixaPostalService(caixaPostalRepo)
 	caixaPostalHandler := handlers.NewCaixaPostalHandler(caixaPostalService)
@@ -118,6 +122,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	requireAdminOnly := apiMiddleware.RequireAnyRole("ADMIN")
 	requireAdminOrUser := apiMiddleware.RequireAnyRole("ADMIN", "USER")
 	requireSuper := apiMiddleware.RequireAnyRole("SUPER")
+	requireVecMaster := apiMiddleware.RequireTenantVecMaster()
+	requireNFe := apiMiddleware.RequireFeature(auth.FeatureNFe)
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -125,7 +131,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper)
+		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -177,24 +183,41 @@ func registerRoutes(
 	integraTabelaConsumoHandler *handlers.IntegraTabelaConsumoHandler,
 	caixaPostalHandler *handlers.CaixaPostalHandler,
 	nfeSerproHandler *handlers.NFESerproHandler,
+	representanteHandler *handlers.RepresentanteHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOnly func(http.Handler) http.Handler,
 	requireAdminOrUser func(http.Handler) http.Handler,
 	requireSuper func(http.Handler) http.Handler,
+	requireVecMaster func(http.Handler) http.Handler,
+	requireNFe func(http.Handler) http.Handler,
 ) {
+	requireCaixaPostal := apiMiddleware.RequireFeature(auth.FeatureCaixaPostal)
+	requireMonitorMod := apiMiddleware.RequireFeature(auth.FeatureMonitor)
+	requireIntegraCnt := apiMiddleware.RequireFeature(auth.FeatureIntegraContador)
+	requireCompromissos := apiMiddleware.RequireFeature(auth.FeatureCompromissos)
+
 	r.Post("/registro", registroHandler.Create)
 	r.With(requireAuth).Put("/registro", registroHandler.Update)
 	r.With(requireAuth).Get("/registro", registroHandler.Detail)
 
-	r.With(requireAuth, requireSuper).Post("/tenant", tenantHandler.Create)
+	r.With(requireAuth, requireSuper, requireVecMaster).Post("/tenant", tenantHandler.Create)
 	r.With(requireAuth).Get("/tenant", tenantHandler.Detail)
 	r.With(requireAuth, requireAdmin).Put("/tenant", tenantHandler.Update)
 	r.With(requireAuth).Get("/tenants", tenantHandler.List)
 	r.With(requireAuth, requireSuper).Get("/tenant-dados", registroHandler.TenantDadosDetail)
 	r.With(requireAuth, requireSuper).Put("/tenant-dados", registroHandler.TenantDadosUpdate)
 
+	r.With(requireAuth, requireSuper, requireVecMaster).Get("/representantes", representanteHandler.List)
+	r.With(requireAuth, requireSuper, requireVecMaster).Post("/representantes", representanteHandler.Create)
+	r.With(requireAuth, requireSuper, requireVecMaster).Put("/representantes", representanteHandler.Update)
+	r.With(requireAuth, requireSuper, requireVecMaster).Delete("/representantes", representanteHandler.Delete)
+	r.With(requireAuth, requireSuper, requireVecMaster).Get("/modulos-plataforma", representanteHandler.ListModulos)
+	r.With(requireAuth, requireSuper, requireVecMaster).Get("/matriz-acesso", representanteHandler.GetMatriz)
+	r.With(requireAuth, requireSuper, requireVecMaster).Put("/matriz-acesso", representanteHandler.PutMatriz)
+
 	r.Post("/session", authHandler.Login)
+	r.With(requireAuth).Post("/session/context-tenant", authHandler.AssumeTenant)
 	r.With(requireAuth).Get("/me", userHandler.Me)
 	r.With(requireAuth, requireAdmin).Get("/usuarios", userHandler.List)
 	r.With(requireAuth).Get("/usuariorole", userHandler.UserRole)
@@ -276,7 +299,7 @@ func registerRoutes(
 	r.With(requireAuth).Get("/empresa-processos", empresaHandler.ListProcessos)
 	r.With(requireAuth, requireAdmin).Post("/empresa-processo", empresaHandler.CreateProcesso)
 	r.With(requireAuth, requireAdmin).Put("/empresa-processo/iniciar", empresaHandler.IniciarProcessoFilho)
-	r.With(requireAuth, requireAdmin).Put("/empresa-processo/compromissos", empresaHandler.MarcarCompromissosProcesso)
+	r.With(requireAuth, requireCompromissos, requireAdmin).Put("/empresa-processo/compromissos", empresaHandler.MarcarCompromissosProcesso)
 
 	r.With(requireAuth).Get("/empresadados", empresaDadosHandler.Get)
 	// ADMIN/USER/SUPER: cadastro unificado de cliente (issue #59) grava empresa + clientes_dados.
@@ -302,43 +325,43 @@ func registerRoutes(
 	r.With(requireAuth, requireAdmin).Put("/salario-minimo", salarioMinimoHandler.Update)
 	r.With(requireAuth, requireAdmin).Delete("/salario-minimo", salarioMinimoHandler.Delete)
 
-	r.With(requireAuth).Get("/agendalist", agendaHandler.List)
-	r.With(requireAuth).Get("/agendadetalhes", agendaHandler.Detail)
-	r.With(requireAuth).Post("/agenda/concluir-passo", agendaHandler.ConcluirPasso)
-	r.With(requireAuth).Post("/agenda/item", agendaHandler.CreateAgendaItem)
-	r.With(requireAuth).Put("/agenda/item", agendaHandler.UpdateAgendaItem)
-	r.With(requireAuth).Delete("/agenda/item", agendaHandler.DeleteAgendaItem)
+	r.With(requireAuth, requireCompromissos).Get("/agendalist", agendaHandler.List)
+	r.With(requireAuth, requireCompromissos).Get("/agendadetalhes", agendaHandler.Detail)
+	r.With(requireAuth, requireCompromissos).Post("/agenda/concluir-passo", agendaHandler.ConcluirPasso)
+	r.With(requireAuth, requireCompromissos).Post("/agenda/item", agendaHandler.CreateAgendaItem)
+	r.With(requireAuth, requireCompromissos).Put("/agenda/item", agendaHandler.UpdateAgendaItem)
+	r.With(requireAuth, requireCompromissos).Delete("/agenda/item", agendaHandler.DeleteAgendaItem)
 	// Reabrir: mesmo payload que concluir; rota plana alinhada a /agendalist (aninhada mantida para simetria).
-	r.With(requireAuth).Post("/agendareabrirpasso", agendaHandler.ReabrirPasso)
-	r.With(requireAuth).Post("/agenda/reabrir-passo", agendaHandler.ReabrirPasso)
+	r.With(requireAuth, requireCompromissos).Post("/agendareabrirpasso", agendaHandler.ReabrirPasso)
+	r.With(requireAuth, requireCompromissos).Post("/agenda/reabrir-passo", agendaHandler.ReabrirPasso)
 
 	r.With(requireAuth).Get("/obrigacoes", obrigacaoHandler.List)
 	r.With(requireAuth, requireAdmin).Post("/obrigacao", obrigacaoHandler.Create)
 	r.With(requireAuth, requireAdmin).Put("/obrigacao", obrigacaoHandler.Update)
 	r.With(requireAuth, requireAdmin).Put("/deleteobrigacao", obrigacaoHandler.Delete)
 
-	r.With(requireAuth).Get("/empresaagenda", empresaAgendaHandler.List)
-	r.With(requireAuth).Get("/empresaagenda/acompanhamento", empresaAgendaHandler.Acompanhamento)
-	r.With(requireAuth, requireAdmin).Post("/empresaagenda/gerar", empresaAgendaHandler.Gerar)
-	r.With(requireAuth).Put("/empresaagenda/status", empresaAgendaHandler.UpdateStatus)
-	r.With(requireAuth).Put("/empresaagenda/item", empresaAgendaHandler.UpdateItem)
+	r.With(requireAuth, requireCompromissos).Get("/empresaagenda", empresaAgendaHandler.List)
+	r.With(requireAuth, requireCompromissos).Get("/empresaagenda/acompanhamento", empresaAgendaHandler.Acompanhamento)
+	r.With(requireAuth, requireCompromissos, requireAdmin).Post("/empresaagenda/gerar", empresaAgendaHandler.Gerar)
+	r.With(requireAuth, requireCompromissos).Put("/empresaagenda/status", empresaAgendaHandler.UpdateStatus)
+	r.With(requireAuth, requireCompromissos).Put("/empresaagenda/item", empresaAgendaHandler.UpdateItem)
 
-	r.With(requireAuth).Get("/empresacompromissos/acompanhamento", empresaCompromissoHandler.Acompanhamento)
-	r.With(requireAuth).Get("/empresacompromissos/form-options", empresaCompromissoHandler.FormOptions)
-	r.With(requireAuth).Get("/empresacompromissos/obrigacoes", empresaCompromissoHandler.ObrigacoesByEmpresa)
-	r.With(requireAuth, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
+	r.With(requireAuth, requireCompromissos).Get("/empresacompromissos/acompanhamento", empresaCompromissoHandler.Acompanhamento)
+	r.With(requireAuth, requireCompromissos).Get("/empresacompromissos/form-options", empresaCompromissoHandler.FormOptions)
+	r.With(requireAuth, requireCompromissos).Get("/empresacompromissos/obrigacoes", empresaCompromissoHandler.ObrigacoesByEmpresa)
+	r.With(requireAuth, requireCompromissos, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
 	r.With(requireAuth, requireSuper).Post("/empresacompromissos/gerar-geral", empresaCompromissoHandler.GerarGeralTodosTenants)
-	r.With(requireAuth, requireAdmin).Get("/monitor/operacoes", monitorOperacaoHandler.List)
-	r.With(requireAuth).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
-	r.With(requireAuth).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)
-	r.With(requireAuth).Put("/empresacompromissos/item", empresaCompromissoHandler.UpdateItem)
+	r.With(requireAuth, requireMonitorMod, requireAdmin).Get("/monitor/operacoes", monitorOperacaoHandler.List)
+	r.With(requireAuth, requireCompromissos).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
+	r.With(requireAuth, requireCompromissos).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)
+	r.With(requireAuth, requireCompromissos).Put("/empresacompromissos/item", empresaCompromissoHandler.UpdateItem)
 
 	r.With(requireAuth, requireSuper).Get("/chavessuper", configuracaoIntegracaoHandler.GetChavesSuper)
 	r.With(requireAuth, requireSuper).Put("/chavessuper", configuracaoIntegracaoHandler.SaveChavesSuper)
-	r.With(requireAuth).Get("/tenant-configuracoes", configuracaoIntegracaoHandler.GetTenantConfiguracoes)
-	r.With(requireAuth).Put("/tenant-configuracoes", configuracaoIntegracaoHandler.SaveTenantConfiguracoes)
-	r.With(requireAuth).Get("/certificado-digital", configuracaoIntegracaoHandler.GetCertificadoDigital)
-	r.With(requireAuth, requireAdmin).Post("/certificado-digital/upload", configuracaoIntegracaoHandler.UploadCertificadoDigital)
+	r.With(requireAuth, requireIntegraCnt).Get("/tenant-configuracoes", configuracaoIntegracaoHandler.GetTenantConfiguracoes)
+	r.With(requireAuth, requireIntegraCnt).Put("/tenant-configuracoes", configuracaoIntegracaoHandler.SaveTenantConfiguracoes)
+	r.With(requireAuth, requireIntegraCnt).Get("/certificado-digital", configuracaoIntegracaoHandler.GetCertificadoDigital)
+	r.With(requireAuth, requireIntegraCnt, requireAdmin).Post("/certificado-digital/upload", configuracaoIntegracaoHandler.UploadCertificadoDigital)
 	r.With(requireAuth).Get("/catalogo-servicos", catalogoServicoHandler.List)
 	r.With(requireAuth, requireSuper).Post("/catalogo-servico", catalogoServicoHandler.Create)
 	r.With(requireAuth, requireSuper).Put("/catalogo-servico", catalogoServicoHandler.Update)
@@ -346,33 +369,33 @@ func registerRoutes(
 	r.With(requireAuth).Get("/serpro-servico-enquadramento", serproServicoEnquadramentoHandler.List)
 	r.With(requireAuth, requireAdmin).Put("/serpro-servico-enquadramento", serproServicoEnquadramentoHandler.Save)
 
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/autenticar", integraContadorHandler.Authenticate)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/chamar", integraContadorHandler.Call)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das", integraContadorHandler.PGMEIGerarDAS)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das-codigo-barras", integraContadorHandler.PGMEIGerarDASCodBarras)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/atualizar-beneficio", integraContadorHandler.PGMEIAtualizarBeneficio)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/consultar-divida-ativa", integraContadorHandler.PGMEIConsultarDividaAtiva)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/servicos-procuracao", integraServicoProcHandler.List)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/gastos", integraTabelaConsumoHandler.ListGastos)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.ListFaixas)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/autenticar", integraContadorHandler.Authenticate)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/chamar", integraContadorHandler.Call)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das", integraContadorHandler.PGMEIGerarDAS)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/gerar-das-codigo-barras", integraContadorHandler.PGMEIGerarDASCodBarras)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/atualizar-beneficio", integraContadorHandler.PGMEIAtualizarBeneficio)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/integra-contador/pgmei/consultar-divida-ativa", integraContadorHandler.PGMEIConsultarDividaAtiva)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/servicos-procuracao", integraServicoProcHandler.List)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/gastos", integraTabelaConsumoHandler.ListGastos)
+	r.With(requireAuth, requireIntegraCnt, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Get("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.ListFaixas)
 	r.With(requireAuth, requireSuper).Post("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.CreateFaixa)
 	r.With(requireAuth, requireSuper).Put("/integra-contador/tabela-consumo", integraTabelaConsumoHandler.UpdateFaixa)
 	r.With(requireAuth, requireSuper).Put("/integra-contador/tabela-consumo/delete", integraTabelaConsumoHandler.DeleteFaixa)
 
-	r.With(requireAuth).Get("/caixa-postal/count-nao-lidas", caixaPostalHandler.UnreadCount)
-	r.With(requireAuth).Get("/caixa-postal", caixaPostalHandler.List)
-	r.With(requireAuth).Post("/caixa-postal/enviar", caixaPostalHandler.Send)
-	r.With(requireAuth).Put("/caixa-postal/{id}/ler", caixaPostalHandler.Read)
+	r.With(requireAuth, requireCaixaPostal).Get("/caixa-postal/count-nao-lidas", caixaPostalHandler.UnreadCount)
+	r.With(requireAuth, requireCaixaPostal).Get("/caixa-postal", caixaPostalHandler.List)
+	r.With(requireAuth, requireCaixaPostal).Post("/caixa-postal/enviar", caixaPostalHandler.Send)
+	r.With(requireAuth, requireCaixaPostal).Put("/caixa-postal/{id}/ler", caixaPostalHandler.Read)
 
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/sincronizar-provider", nfeSerproHandler.SincronizarProvider)
-	r.With(requireAuth, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/manifestar-destinatario", nfeSerproHandler.ManifestarDestinatario)
-	r.With(requireAuth).Get("/serpro/nfe/manifestacao", nfeSerproHandler.ListManifestacaoDest)
-	r.With(requireAuth).Get("/serpro/nfe/sync-estado", nfeSerproHandler.ListSyncEstado)
-	r.With(requireAuth).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
-	r.With(requireAuth).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
-	r.With(requireAuth).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
-	r.With(requireAuth).Get("/serpro/nfe/documento/danfe-html", nfeSerproHandler.ExportarDanfeHTML)
-	r.With(requireAuth).Post("/serpro/nfe/documento/danfe-html", nfeSerproHandler.GerarDanfeHTMLFromXMLBody)
+	r.With(requireAuth, requireNFe, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/consultar", nfeSerproHandler.Consultar)
+	r.With(requireAuth, requireNFe, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/sincronizar-provider", nfeSerproHandler.SincronizarProvider)
+	r.With(requireAuth, requireNFe, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/manifestar-destinatario", nfeSerproHandler.ManifestarDestinatario)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/manifestacao", nfeSerproHandler.ListManifestacaoDest)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/sync-estado", nfeSerproHandler.ListSyncEstado)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento/danfe-html", nfeSerproHandler.ExportarDanfeHTML)
+	r.With(requireAuth, requireNFe).Post("/serpro/nfe/documento/danfe-html", nfeSerproHandler.GerarDanfeHTMLFromXMLBody)
 	r.Post("/serpro/nfe/push/notificacao", nfeSerproHandler.PushNotificacao)
 }

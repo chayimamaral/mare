@@ -74,4 +74,3 @@ func IsValidCNPJ(raw string) bool {
 	d2 := calc(base2, w2)
 	return cnpj == cnpj[:12]+string(rune('0'+d1))+string(rune('0'+d2))
 }
-

@@ -17,20 +17,20 @@ type EmpresaDadosHandler struct {
 
 type empresaDadosEnvelope struct {
 	Params struct {
-		ID               string `json:"id"`
-		MunicipioID      string `json:"municipio_id"`
-		Bairro           string `json:"bairro"`
-		CNPJ             string `json:"cnpj"`
+		ID               string   `json:"id"`
+		MunicipioID      string   `json:"municipio_id"`
+		Bairro           string   `json:"bairro"`
+		CNPJ             string   `json:"cnpj"`
 		CapitalSocial    *float64 `json:"capital_social"`
-		Endereco         string `json:"endereco"`
-		Numero           string `json:"numero"`
-		CEP              string `json:"cep"`
-		EmailContato     string `json:"email_contato"`
-		Telefone         string `json:"telefone"`
-		Telefone2        string `json:"telefone2"`
-		DataAbertura     string `json:"data_abertura"`
-		DataEncerramento string `json:"data_encerramento"`
-		Observacao       string `json:"observacao"`
+		Endereco         string   `json:"endereco"`
+		Numero           string   `json:"numero"`
+		CEP              string   `json:"cep"`
+		EmailContato     string   `json:"email_contato"`
+		Telefone         string   `json:"telefone"`
+		Telefone2        string   `json:"telefone2"`
+		DataAbertura     string   `json:"data_abertura"`
+		DataEncerramento string   `json:"data_encerramento"`
+		Observacao       string   `json:"observacao"`
 	} `json:"params"`
 }
 

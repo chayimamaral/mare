@@ -32,12 +32,12 @@ type RotinaSuccessResponse struct {
 }
 
 type RotinaInput struct {
-	ID             string `json:"id"`
-	Descricao      string `json:"descricao"`
-	CidadeID       string `json:"cidade_id"`
-	TipoEmpresaID  string `json:"tipo_empresa_id"`
-	Link           string `json:"link"`
-	TempoEstimado  int    `json:"tempoestimado"`
+	ID            string `json:"id"`
+	Descricao     string `json:"descricao"`
+	CidadeID      string `json:"cidade_id"`
+	TipoEmpresaID string `json:"tipo_empresa_id"`
+	Link          string `json:"link"`
+	TempoEstimado int    `json:"tempoestimado"`
 }
 
 func NewRotinaService(repo *repository.RotinaRepository) *RotinaService {
@@ -84,10 +84,10 @@ func (s *RotinaService) ListLite(ctx context.Context, municipioID string) (Rotin
 
 func (s *RotinaService) Create(ctx context.Context, input RotinaInput) (RotinaListResponse, error) {
 	rotinas, total, err := s.repo.Create(ctx, repository.RotinaInput{
-		Descricao:      input.Descricao,
-		MunicipioID:    input.CidadeID,
-		TipoEmpresaID:  strings.TrimSpace(input.TipoEmpresaID),
-		Link:           input.Link,
+		Descricao:     input.Descricao,
+		MunicipioID:   input.CidadeID,
+		TipoEmpresaID: strings.TrimSpace(input.TipoEmpresaID),
+		Link:          input.Link,
 	})
 	if err != nil {
 		return RotinaListResponse{}, err
@@ -97,11 +97,11 @@ func (s *RotinaService) Create(ctx context.Context, input RotinaInput) (RotinaLi
 
 func (s *RotinaService) Update(ctx context.Context, input RotinaInput) (RotinaListResponse, error) {
 	rotinas, total, err := s.repo.Update(ctx, repository.RotinaInput{
-		ID:             input.ID,
-		Descricao:      input.Descricao,
-		MunicipioID:    input.CidadeID,
-		TipoEmpresaID:  strings.TrimSpace(input.TipoEmpresaID),
-		Link:           input.Link,
+		ID:            input.ID,
+		Descricao:     input.Descricao,
+		MunicipioID:   input.CidadeID,
+		TipoEmpresaID: strings.TrimSpace(input.TipoEmpresaID),
+		Link:          input.Link,
 	})
 	if err != nil {
 		return RotinaListResponse{}, err

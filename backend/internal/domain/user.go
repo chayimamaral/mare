@@ -1,40 +1,44 @@
 package domain
 
 type Tenant struct {
-	ID      string `json:"id"`
-	Active  bool   `json:"active"`
-	Nome    string `json:"nome"`
-	Contato string `json:"contato,omitempty"`
-	Plano   string `json:"plano,omitempty"`
-	SchemaName string `json:"schema_name,omitempty"`
+	ID          string `json:"id"`
+	Active      bool   `json:"active"`
+	Nome        string `json:"nome"`
+	Contato     string `json:"contato,omitempty"`
+	Plano       string `json:"plano,omitempty"`
+	SchemaName  string `json:"schema_name,omitempty"`
+	IsVecMaster bool   `json:"is_vec_master,omitempty"`
 }
 
 type User struct {
-	ID       string `json:"id"`
-	Nome     string `json:"nome"`
-	Email    string `json:"email"`
-	TenantID string `json:"tenantid"`
-	Password string `json:"-"`
-	Role     string `json:"role"`
-	Active   bool   `json:"active,omitempty"`
-	Tenant   Tenant `json:"tenant"`
+	ID              string `json:"id"`
+	Nome            string `json:"nome"`
+	Email           string `json:"email"`
+	TenantID        string `json:"tenantid"`
+	Password        string `json:"-"`
+	Role            string `json:"role"`
+	Active          bool   `json:"active,omitempty"`
+	RepresentanteID string `json:"representante_id,omitempty"`
+	Tenant          Tenant `json:"tenant"`
 }
 
 type UserDetailTenant struct {
-	ID         string `json:"id"`
-	Active     bool   `json:"active"`
-	Nome       string `json:"nome"`
-	SchemaName string `json:"schema_name,omitempty"`
+	ID          string `json:"id"`
+	Active      bool   `json:"active"`
+	Nome        string `json:"nome"`
+	SchemaName  string `json:"schema_name,omitempty"`
+	IsVecMaster bool   `json:"is_vec_master,omitempty"`
 }
 
 type UserDetailResult struct {
-	ID       string           `json:"id"`
-	Nome     string           `json:"nome"`
-	Email    string           `json:"email"`
-	Active   bool             `json:"active"`
-	TenantID string           `json:"tenantId"`
-	Role     string           `json:"role"`
-	Tenant   UserDetailTenant `json:"tenant"`
+	ID              string           `json:"id"`
+	Nome            string           `json:"nome"`
+	Email           string           `json:"email"`
+	Active          bool             `json:"active"`
+	TenantID        string           `json:"tenantId"`
+	Role            string           `json:"role"`
+	RepresentanteID string           `json:"representante_id,omitempty"`
+	Tenant          UserDetailTenant `json:"tenant"`
 }
 
 type UserDetailEntry struct {
@@ -46,10 +50,12 @@ type UserDetailResponse struct {
 }
 
 type UserRoleData struct {
-	ID       string `json:"id"`
-	Email    string `json:"email"`
-	TenantID string `json:"tenantid"`
-	Role     string `json:"role"`
+	ID              string    `json:"id"`
+	Email           string    `json:"email"`
+	TenantID        string    `json:"tenantid"`
+	Role            string    `json:"role"`
+	RepresentanteID string    `json:"representante_id,omitempty"`
+	FeatureSlugs    *[]string `json:"feature_slugs,omitempty"`
 }
 
 type UserRoleResponse struct {

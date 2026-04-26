@@ -11,21 +11,21 @@ import (
 )
 
 type RotinaListParams struct {
-	First     int
-	Rows      int
-	SortField string
-	SortOrder int
-	Descricao string
-	MunicipioID string
+	First         int
+	Rows          int
+	SortField     string
+	SortOrder     int
+	Descricao     string
+	MunicipioID   string
 	TipoEmpresaID string
 }
 
 type RotinaInput struct {
-	ID             string
-	Descricao      string
-	MunicipioID    string
-	TipoEmpresaID  string
-	Link           string
+	ID            string
+	Descricao     string
+	MunicipioID   string
+	TipoEmpresaID string
+	Link          string
 }
 
 type RotinaPassoSelection struct {

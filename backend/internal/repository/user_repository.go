@@ -2,12 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrLoginEmailNaoEncontrado indica nenhuma linha para o email (ou JOIN com tenant sem resultado).
+var ErrLoginEmailNaoEncontrado = errors.New("login: email nao encontrado ou usuario sem tenant valido")
 
 type UserRepository struct {
 	pool *pgxpool.Pool
@@ -26,12 +31,14 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 			u.tenantid,
 			u.password,
 			u.role,
+			COALESCE(u.representante_id::text, ''),
 			t.id,
 			t.active,
 			t.nome,
 			COALESCE(t.contato, ''),
 			COALESCE(t.plano::text, ''),
-			COALESCE(tsc.schema_name, '')
+			COALESCE(tsc.schema_name, ''),
+			COALESCE(t.is_vec_master, false)
 		FROM public.usuario u
 		JOIN public.tenant t ON t.id = u.tenantid
 		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
@@ -46,17 +53,97 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 		&user.TenantID,
 		&user.Password,
 		&user.Role,
+		&user.RepresentanteID,
 		&user.Tenant.ID,
 		&user.Tenant.Active,
 		&user.Tenant.Nome,
 		&user.Tenant.Contato,
 		&user.Tenant.Plano,
 		&user.Tenant.SchemaName,
+		&user.Tenant.IsVecMaster,
 	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrLoginEmailNaoEncontrado
+		}
 		return nil, fmt.Errorf("find user by email: %w", err)
 	}
 
 	return &user, nil
+}
+
+func (r *UserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
+	const query = `
+		SELECT
+			u.id,
+			u.nome,
+			u.email,
+			u.tenantid,
+			u.password,
+			u.role,
+			COALESCE(u.representante_id::text, ''),
+			t.id,
+			t.active,
+			t.nome,
+			COALESCE(t.contato, ''),
+			COALESCE(t.plano::text, ''),
+			COALESCE(tsc.schema_name, ''),
+			COALESCE(t.is_vec_master, false)
+		FROM public.usuario u
+		JOIN public.tenant t ON t.id = u.tenantid
+		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
+		WHERE u.id = $1::uuid`
+
+	var user domain.User
+	if err := dbQueryRow(ctx, r.pool, query, id).Scan(
+		&user.ID,
+		&user.Nome,
+		&user.Email,
+		&user.TenantID,
+		&user.Password,
+		&user.Role,
+		&user.RepresentanteID,
+		&user.Tenant.ID,
+		&user.Tenant.Active,
+		&user.Tenant.Nome,
+		&user.Tenant.Contato,
+		&user.Tenant.Plano,
+		&user.Tenant.SchemaName,
+		&user.Tenant.IsVecMaster,
+	); err != nil {
+		return nil, fmt.Errorf("find user by id: %w", err)
+	}
+
+	return &user, nil
+}
+
+func (r *UserRepository) LoadTenantForAssume(ctx context.Context, tenantID string) (domain.Tenant, error) {
+	const query = `
+		SELECT
+			t.id,
+			t.active,
+			t.nome,
+			COALESCE(t.contato, ''),
+			COALESCE(t.plano::text, ''),
+			COALESCE(tsc.schema_name, ''),
+			COALESCE(t.is_vec_master, false)
+		FROM public.tenant t
+		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
+		WHERE t.id = $1::uuid`
+
+	var t domain.Tenant
+	if err := dbQueryRow(ctx, r.pool, query, tenantID).Scan(
+		&t.ID,
+		&t.Active,
+		&t.Nome,
+		&t.Contato,
+		&t.Plano,
+		&t.SchemaName,
+		&t.IsVecMaster,
+	); err != nil {
+		return domain.Tenant{}, fmt.Errorf("load tenant: %w", err)
+	}
+
+	return t, nil
 }
 
 func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.UserDetailResponse, error) {
@@ -68,10 +155,12 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 			u.active,
 			u.tenantid,
 			u.role,
+			COALESCE(u.representante_id::text, ''),
 			t.id,
 			t.active,
 			t.nome,
-			COALESCE(tsc.schema_name, '')
+			COALESCE(tsc.schema_name, ''),
+			COALESCE(t.is_vec_master, false)
 		FROM public.usuario u
 		JOIN public.tenant t ON t.id = u.tenantid
 		LEFT JOIN public.tenant_schema_catalog tsc ON tsc.tenant_id = t.id
@@ -85,10 +174,12 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 		&user.Active,
 		&user.TenantID,
 		&user.Role,
+		&user.RepresentanteID,
 		&user.Tenant.ID,
 		&user.Tenant.Active,
 		&user.Tenant.Nome,
 		&user.Tenant.SchemaName,
+		&user.Tenant.IsVecMaster,
 	); err != nil {
 		return domain.UserDetailResponse{}, fmt.Errorf("detail user: %w", err)
 	}
@@ -97,17 +188,19 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 		Usuarios: []domain.UserDetailEntry{
 			{
 				Resultado: domain.UserDetailResult{
-					ID:       user.ID,
-					Nome:     user.Nome,
-					Email:    user.Email,
-					Active:   user.Active,
-					TenantID: user.TenantID,
-					Role:     user.Role,
+					ID:              user.ID,
+					Nome:            user.Nome,
+					Email:           user.Email,
+					Active:          user.Active,
+					TenantID:        user.TenantID,
+					Role:            user.Role,
+					RepresentanteID: user.RepresentanteID,
 					Tenant: domain.UserDetailTenant{
-						ID:         user.Tenant.ID,
-						Active:     user.Tenant.Active,
-						Nome:       user.Tenant.Nome,
-						SchemaName: user.Tenant.SchemaName,
+						ID:          user.Tenant.ID,
+						Active:      user.Tenant.Active,
+						Nome:        user.Tenant.Nome,
+						SchemaName:  user.Tenant.SchemaName,
+						IsVecMaster: user.Tenant.IsVecMaster,
 					},
 				},
 			},
@@ -117,16 +210,16 @@ func (r *UserRepository) Detail(ctx context.Context, userID string) (domain.User
 
 func (r *UserRepository) UserRole(ctx context.Context, userID string) (domain.UserRoleResponse, error) {
 	const query = `
-		SELECT u.id, u.email, u.tenantid, u.role
+		SELECT u.id, u.email, u.tenantid, u.role, COALESCE(u.representante_id::text, '')
 		FROM public.usuario u
 		WHERE u.id = $1::uuid`
 
-	var id, email, tenantID, role string
-	if err := dbQueryRow(ctx, r.pool, query, userID).Scan(&id, &email, &tenantID, &role); err != nil {
+	var id, email, tenantID, role, repID string
+	if err := dbQueryRow(ctx, r.pool, query, userID).Scan(&id, &email, &tenantID, &role, &repID); err != nil {
 		return domain.UserRoleResponse{}, fmt.Errorf("user role: %w", err)
 	}
 
-	return domain.UserRoleResponse{Logado: domain.UserRoleData{ID: id, Email: email, TenantID: tenantID, Role: role}}, nil
+	return domain.UserRoleResponse{Logado: domain.UserRoleData{ID: id, Email: email, TenantID: tenantID, Role: role, RepresentanteID: repID}}, nil
 }
 
 func (r *UserRepository) TenantID(ctx context.Context, userID string) (domain.UserTenantIDResponse, error) {
@@ -224,13 +317,21 @@ func (r *UserRepository) ListByTenant(ctx context.Context, role, tenantID string
 	return usuarios, total, nil
 }
 
-func (r *UserRepository) Create(ctx context.Context, nome, email, password, role, tenantID string) ([]domain.UserListItem, error) {
+func (r *UserRepository) Create(ctx context.Context, nome, email, password, role, tenantID, representanteID string) ([]domain.UserListItem, error) {
+	var rep any
+	representanteID = strings.TrimSpace(representanteID)
+	if representanteID == "" {
+		rep = nil
+	} else {
+		rep = representanteID
+	}
+
 	const sqlQuery = `
-		INSERT INTO public.usuario (nome, email, password, role, tenantid, active)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO public.usuario (nome, email, password, role, tenantid, active, representante_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, nome, email, role, tenantid, active`
 
-	rows, err := dbQuery(ctx, r.pool, sqlQuery, nome, email, password, role, tenantID, true)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, nome, email, password, role, tenantID, true, rep)
 	if err != nil {
 		return nil, fmt.Errorf("create usuario: %w", err)
 	}
@@ -250,16 +351,25 @@ func (r *UserRepository) Create(ctx context.Context, nome, email, password, role
 	return usuarios, nil
 }
 
-func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
+func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tenantID, representanteID, requesterRole, requesterTenantID string) ([]domain.UserListItem, error) {
+	var rep any
+	representanteID = strings.TrimSpace(representanteID)
+	if representanteID == "" {
+		rep = nil
+	} else {
+		rep = representanteID
+	}
+
 	sqlQuery := `
 		UPDATE public.usuario
 		SET nome = $1,
 			email = $2,
 			role = $3,
-			tenantid = $4
+			tenantid = $4,
+			representante_id = $6
 		WHERE id = $5
 		RETURNING id, nome, email, role, tenantid, active`
-	args := []any{nome, email, role, tenantID, id}
+	args := []any{nome, email, role, tenantID, id, rep}
 
 	if requesterRole != "SUPER" {
 		sqlQuery = `
@@ -267,10 +377,11 @@ func (r *UserRepository) Update(ctx context.Context, id, nome, email, role, tena
 			SET nome = $1,
 				email = $2,
 				role = $3,
-				tenantid = $4
+				tenantid = $4,
+				representante_id = $7
 			WHERE id = $5 AND tenantid = $6
 			RETURNING id, nome, email, role, tenantid, active`
-		args = append(args, requesterTenantID)
+		args = []any{nome, email, role, tenantID, id, requesterTenantID, rep}
 	}
 
 	rows, err := dbQuery(ctx, r.pool, sqlQuery, args...)

@@ -17,13 +17,13 @@ type Certificado struct {
 	PFXCifrado   []byte `json:"-"`
 	SenhaCifrada []byte `json:"-"`
 
-	CNPJ        string    `json:"cnpj,omitempty"`
-	TitularNome string    `json:"titular_nome,omitempty"`
-	EmitidoPor  string    `json:"emitido_por,omitempty"`
-	ValidadeDe  time.Time `json:"validade_de,omitempty"`
-	ValidadeAte time.Time `json:"validade_ate"`
-	Ativo       bool      `json:"ativo"`
-	CriadoEm    time.Time `json:"criado_em,omitempty"`
+	CNPJ         string    `json:"cnpj,omitempty"`
+	TitularNome  string    `json:"titular_nome,omitempty"`
+	EmitidoPor   string    `json:"emitido_por,omitempty"`
+	ValidadeDe   time.Time `json:"validade_de,omitempty"`
+	ValidadeAte  time.Time `json:"validade_ate"`
+	Ativo        bool      `json:"ativo"`
+	CriadoEm     time.Time `json:"criado_em,omitempty"`
 	AtualizadoEm time.Time `json:"atualizado_em,omitempty"`
 }
 

@@ -28,7 +28,7 @@ type RotinaPFMutationResponse struct {
 
 type RotinaPFItensResponse struct {
 	Itens        []domain.RotinaPFItemRow `json:"itens"`
-	TotalRecords int64                   `json:"totalRecords"`
+	TotalRecords int64                    `json:"totalRecords"`
 }
 
 func NewRotinaPFService(repo *repository.RotinaPFRepository) *RotinaPFService {

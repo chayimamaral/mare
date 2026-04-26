@@ -13,22 +13,22 @@ type FeriadoService struct {
 
 type FeriadoListResponse struct {
 	Feriados     []domain.FeriadoListItem `json:"feriados"`
-	TotalRecords int64                        `json:"totalRecords"`
+	TotalRecords int64                    `json:"totalRecords"`
 }
 
 type FeriadoCreateResponse struct {
 	FeriadoCriado []domain.FeriadoMutationItem `json:"feriadoCriado"`
-	TotalRecords  int64                            `json:"totalRecords"`
+	TotalRecords  int64                        `json:"totalRecords"`
 }
 
 type FeriadoUpdateResponse struct {
 	Feriado      []domain.FeriadoMutationItem `json:"feriado"`
-	TotalRecords int64                            `json:"totalRecords"`
+	TotalRecords int64                        `json:"totalRecords"`
 }
 
 type FeriadoDeleteResponse struct {
 	Feriados     []domain.FeriadoMutationItem `json:"feriados"`
-	TotalRecords int64                            `json:"totalRecords"`
+	TotalRecords int64                        `json:"totalRecords"`
 }
 
 type FeriadoInput struct {

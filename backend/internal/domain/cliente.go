@@ -17,23 +17,23 @@ type Cliente struct {
 	TipoPessoa  TipoPessoa `json:"tipoPessoa"`
 	Nome        string     `json:"nome"`
 	Documento   string     `json:"documento"` // CPF ou CNPJ (formato definido na camada de aplicação)
-	MunicipioID *string `json:"municipioId,omitempty"`
-	RotinaID    *string `json:"rotinaId,omitempty"`
+	MunicipioID *string    `json:"municipioId,omitempty"`
+	RotinaID    *string    `json:"rotinaId,omitempty"`
 	// RotinaPF: template federal/sazonal para PF (tabela rotina_pf no schema do tenant).
 	RotinaPFID   *string `json:"rotinaPfId,omitempty"`
 	RotinaPFNome string  `json:"rotinaPfNome,omitempty"`
 	CategoriaPF  string  `json:"categoriaPf,omitempty"`
 	Cnaes        any     `json:"cnaes,omitempty"`
-	Bairro      string     `json:"bairro,omitempty"`
-	Iniciado    bool       `json:"iniciado"`
-	Ativo       bool       `json:"ativo"`
+	Bairro       string  `json:"bairro,omitempty"`
+	Iniciado     bool    `json:"iniciado"`
+	Ativo        bool    `json:"ativo"`
 }
 
 // ClienteSocio vincula um cliente PF a um cliente PJ (sócio também atendido como PF).
 type ClienteSocio struct {
-	ID           string `json:"id"`
-	TenantID     string `json:"tenant_id"`
-	ClientePJID  string `json:"clientePjId"`
-	ClientePFID  string `json:"clientePfId"`
-	Ativo        bool   `json:"ativo"`
+	ID          string `json:"id"`
+	TenantID    string `json:"tenant_id"`
+	ClientePJID string `json:"clientePjId"`
+	ClientePFID string `json:"clientePfId"`
+	Ativo       bool   `json:"ativo"`
 }

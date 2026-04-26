@@ -26,7 +26,7 @@ type MonitorOperacaoListFilter struct {
 	ClienteNome string
 	Status      string
 	DataDeISO   string
-	DataAteISO string
+	DataAteISO  string
 }
 
 func (s *MonitorOperacaoService) Registrar(ctx context.Context, in repository.MonitorOperacaoInsert) (string, error) {
@@ -58,7 +58,7 @@ func (s *MonitorOperacaoService) ListPage(ctx context.Context, viewerRole, viewe
 		ClienteNome: strings.TrimSpace(f.ClienteNome),
 		Status:      strings.TrimSpace(strings.ToUpper(f.Status)),
 		DataDeISO:   strings.TrimSpace(f.DataDeISO),
-		DataAteISO: strings.TrimSpace(f.DataAteISO),
+		DataAteISO:  strings.TrimSpace(f.DataAteISO),
 	}
 	total, err := s.repo.CountList(ctx, role, viewerTenantID, rf)
 	if err != nil {

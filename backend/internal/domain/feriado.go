@@ -6,12 +6,12 @@ type FeriadoRef struct {
 }
 
 type FeriadoListItem struct {
-	ID        string       `json:"id"`
-	Descricao string       `json:"descricao"`
-	Data      string       `json:"data"`
-	Feriado   string       `json:"feriado"`
-	Municipio *FeriadoRef  `json:"municipio,omitempty"`
-	Estado    *FeriadoRef  `json:"estado,omitempty"`
+	ID        string      `json:"id"`
+	Descricao string      `json:"descricao"`
+	Data      string      `json:"data"`
+	Feriado   string      `json:"feriado"`
+	Municipio *FeriadoRef `json:"municipio,omitempty"`
+	Estado    *FeriadoRef `json:"estado,omitempty"`
 }
 
 type FeriadoMutationItem struct {

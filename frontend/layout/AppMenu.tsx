@@ -8,24 +8,58 @@ import setupAPIClient from '../components/api/api';
 // Onde está o nome: logoIntegra
 // Onde está o local: '../assets/logo_integracontador_limpo.avif'
 import logoIntegra from '../public/logo_integracontador.avif';
+import { sessionAllowsFeature } from '../constants/featureAccess';
+
+type MenuSession = {
+  role: string | null;
+  /** Ausente no JSON = token legado (não restringe por módulo). Array (vazio ou não) = claim presente no JWT. */
+  featureSlugs: string[] | undefined;
+};
 
 const AppMenu = () => {
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [menuSession, setMenuSession] = useState<MenuSession | null>(null);
+  /** Evita divergência SSR/cliente: até montar no browser, o menu não usa o papel (igual ao HTML do servidor). */
+  const [menuMounted, setMenuMounted] = useState(false);
+
+  useEffect(() => {
+    setMenuMounted(true);
+  }, []);
 
   useEffect(() => {
     const api = setupAPIClient(undefined);
-    api.get('/api/usuariorole')
-      .then((r) => setUserRole(r.data?.logado?.role ?? null))
-      .catch(() => setUserRole(null));
+    api
+      .get('/api/usuariorole')
+      .then((r) => {
+        const logado = r.data?.logado as { role?: string; feature_slugs?: string[] } | undefined;
+        const hasFeatureKey = Boolean(logado && Object.prototype.hasOwnProperty.call(logado, 'feature_slugs'));
+        setMenuSession({
+          role: logado?.role ?? null,
+          featureSlugs: hasFeatureKey ? logado?.feature_slugs ?? [] : undefined,
+        });
+      })
+      .catch(() => setMenuSession({ role: null, featureSlugs: undefined }));
   }, []);
 
-  const podeGerenciarUsuarios = userRole === 'ADMIN' || userRole === 'SUPER';
-  const podeVerMonitor = userRole === 'ADMIN' || userRole === 'SUPER';
-  const isSuper = userRole === 'SUPER';
-  const podeConsultarNFe = userRole === 'SUPER' || userRole === 'ADMIN' || userRole === 'USER';
+  const roleForMenu = menuMounted ? menuSession?.role ?? null : null;
 
-  const model: AppMenuItem[] = useMemo(
-    () => [
+  const model: AppMenuItem[] = useMemo(() => {
+    const podeGerenciarUsuarios = roleForMenu === 'ADMIN' || roleForMenu === 'SUPER';
+    const podeVerMonitor = roleForMenu === 'ADMIN' || roleForMenu === 'SUPER';
+    const isSuper = roleForMenu === 'SUPER';
+    const podeConsultarNFe =
+      roleForMenu === 'SUPER' ||
+      roleForMenu === 'ADMIN' ||
+      roleForMenu === 'USER' ||
+      roleForMenu === 'REPRESENTANTE';
+
+    const hasFeature = (slug: string): boolean => {
+      if (!menuMounted || menuSession === null) {
+        return true;
+      }
+      return sessionAllowsFeature(menuSession.role, menuSession.featureSlugs, slug);
+    };
+
+    return [
       {
         label: 'Home',
         items: [
@@ -33,6 +67,7 @@ const AppMenu = () => {
           {
             label: 'Compromissos Fiscais/Tributários',
             icon: 'pi pi-fw pi-list',
+            visible: hasFeature('compromissos'),
             items: [
               {
                 label: 'Compromissos por empresas',
@@ -54,6 +89,7 @@ const AppMenu = () => {
           {
             label: 'Fluxos de Processos',
             icon: 'pi pi-fw pi-calendar',
+            visible: hasFeature('compromissos'),
             items: [
               {
                 label: 'Fluxo em Árvore',
@@ -70,16 +106,19 @@ const AppMenu = () => {
           {
             label: 'Manutenção de Empresas',
             icon: 'pi pi-fw pi-table',
+            visible: hasFeature('core') || hasFeature('nfe'),
             items: [
               {
                 label: 'Manutenção de NFe',
                 icon: 'pi pi-fw pi-file',
                 to: '/nfe/manutencao',
+                visible: hasFeature('nfe'),
               },
               {
                 label: 'Sincronização de NFe',
                 icon: 'pi pi-fw pi-sync',
                 to: '/nfe/sincronizacao',
+                visible: hasFeature('nfe'),
               },
               {
                 label: 'Manutenção de Empresas',
@@ -92,16 +131,19 @@ const AppMenu = () => {
             label: 'Manutenção de Cliente PF (IRPF)',
             icon: 'pi pi-fw pi-user',
             to: '/cliente-pf',
+            visible: hasFeature('core'),
           },
           {
             label: 'Caixa Postal',
             icon: 'pi pi-fw pi-envelope',
             to: '/caixa-postal',
+            visible: hasFeature('caixa_postal'),
           },
         ],
       },
       {
         label: 'Operações',
+        visible: hasFeature('core'),
         items: [
           {
             label: 'Cadastros',
@@ -224,7 +266,7 @@ const AppMenu = () => {
           {
             label: 'Monitor',
             icon: 'pi pi-fw pi-chart-line',
-            visible: podeVerMonitor,
+            visible: podeVerMonitor && hasFeature('monitor'),
             items: [
               {
                 label: 'Operações',
@@ -286,7 +328,7 @@ const AppMenu = () => {
           {
             label: 'Configurações do Tenant',
             icon: 'pi pi-fw pi-building',
-            visible: userRole === 'SUPER' || userRole === 'ADMIN',
+            visible: roleForMenu === 'SUPER' || roleForMenu === 'ADMIN',
             items: [
               {
                 label: 'Integra Contador - Tenant',
@@ -296,19 +338,19 @@ const AppMenu = () => {
                     label: 'Geração de Guias',
                     icon: 'pi pi-fw pi-file',
                     to: '/configuracoes/geracao-guias',
-                    visible: userRole === 'SUPER' || userRole === 'ADMIN',
+                    visible: (roleForMenu === 'SUPER' || roleForMenu === 'ADMIN') && hasFeature('integra_contador'),
                   },
                   {
                     label: 'Certificado Digital',
                     icon: 'pi pi-fw pi-shield',
                     to: '/configuracoes/certificado-digital',
-                    visible: userRole === 'SUPER' || userRole === 'ADMIN',
+                    visible: (roleForMenu === 'SUPER' || roleForMenu === 'ADMIN') && hasFeature('integra_contador'),
                   },
                   {
                     label: 'Consulta NFe',
                     icon: 'pi pi-fw pi-file-check',
                     to: '/nfe/consulta',
-                    visible: podeConsultarNFe,
+                    visible: podeConsultarNFe && hasFeature('nfe'),
                   },
                 ],
               },
@@ -317,7 +359,7 @@ const AppMenu = () => {
           {
             label: 'Gestão de Tenants',
             icon: 'pi pi-fw pi-server',
-            visible: userRole === 'SUPER',
+            visible: roleForMenu === 'SUPER' || roleForMenu === 'REPRESENTANTE',
             items: [
               {
                 label: 'Manutenção',
@@ -325,9 +367,16 @@ const AppMenu = () => {
                 to: '/tenants',
               },
               {
+                label: 'Representantes comerciais',
+                icon: 'pi pi-fw pi-users',
+                to: '/representantes',
+                visible: roleForMenu === 'SUPER',
+              },
+              {
                 label: 'Broadcast & Sessões',
                 icon: 'pi pi-fw pi-megaphone',
                 to: '/admin/broadcast',
+                visible: roleForMenu === 'SUPER',
               },
             ],
           },
@@ -338,16 +387,15 @@ const AppMenu = () => {
           },
         ],
       },
-    ],
-    [podeGerenciarUsuarios, podeVerMonitor, userRole],
-  );
+    ];
+  }, [roleForMenu, menuMounted, menuSession]);
 
   return (
     <MenuProvider>
       <ul className="layout-menu">
         {model.map((item, i) => {
           return !item?.seperator ? (
-            <AppMenuitem item={item} root={true} index={i} key={item.label} />
+            <AppMenuitem item={item} root={true} index={i} key={`root-${i}-${item.label}`} />
           ) : (
             <li className="menu-separator"></li>
           );

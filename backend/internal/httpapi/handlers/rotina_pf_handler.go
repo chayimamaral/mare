@@ -22,16 +22,16 @@ func NewRotinaPFHandler(svc *service.RotinaPFService) *RotinaPFHandler {
 
 type rotinaPFEnvelope struct {
 	Params struct {
-		ID          string `json:"id"`
-		Nome        string `json:"nome"`
-		Categoria   string `json:"categoria"`
-		Descricao   string `json:"descricao"`
-		Ativo       *bool  `json:"ativo"`
-		RotinaPFID  string `json:"rotina_pf_id"`
-		ItemID      string `json:"item_id"`
-		Ordem       int    `json:"ordem"`
-		PassoID     string `json:"passo_id"`
-		TempoEstimado int  `json:"tempo_estimado"`
+		ID            string `json:"id"`
+		Nome          string `json:"nome"`
+		Categoria     string `json:"categoria"`
+		Descricao     string `json:"descricao"`
+		Ativo         *bool  `json:"ativo"`
+		RotinaPFID    string `json:"rotina_pf_id"`
+		ItemID        string `json:"item_id"`
+		Ordem         int    `json:"ordem"`
+		PassoID       string `json:"passo_id"`
+		TempoEstimado int    `json:"tempo_estimado"`
 	} `json:"params"`
 }
 

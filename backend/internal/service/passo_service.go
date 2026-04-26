@@ -13,22 +13,22 @@ type PassoService struct {
 
 type PassoListResponse struct {
 	Passos       []domain.PassoListItem `json:"passos"`
-	TotalRecords int64                      `json:"totalRecords"`
+	TotalRecords int64                  `json:"totalRecords"`
 }
 
 type PassoMutationResponse struct {
 	Passos       []domain.PassoMutationItem `json:"passos"`
-	TotalRecords int64                          `json:"totalRecords"`
+	TotalRecords int64                      `json:"totalRecords"`
 }
 
 type PassoDetailResponse struct {
 	Passos       []domain.PassoDetailItem `json:"passos"`
-	TotalRecords int64                        `json:"totalRecords"`
+	TotalRecords int64                    `json:"totalRecords"`
 }
 
 type PassoCidadeResponse struct {
 	Passos       []domain.PassoCidadeItem `json:"passos"`
-	TotalRecords int64                        `json:"totalRecords"`
+	TotalRecords int64                    `json:"totalRecords"`
 }
 
 type PassoCreateInput struct {

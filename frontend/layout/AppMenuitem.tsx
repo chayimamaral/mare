@@ -66,10 +66,13 @@ const AppMenuitem = (props: AppMenuItemProps) => {
         );
 
     const subMenu = item!.items && item!.visible !== false && (
-        <CSSTransition nodeRef={subMenuRef} timeout={{ enter: 1000, exit: 450 }} classNames="layout-submenu" in={props.root ? true : active} key={item!.label}>
+        <CSSTransition nodeRef={subMenuRef} timeout={{ enter: 1000, exit: 450 }} classNames="layout-submenu" in={props.root ? true : active} key={`sub-${key}`}>
             <ul ref={subMenuRef}>
                 {item!.items.map((child, i) => {
-                    return <AppMenuitem item={child} index={i} className={child.badgeClass} parentKey={key} key={child.label} />;
+                    const childKey = `${key}-${i}-${child.to ?? child.label ?? 'group'}`;
+                    return (
+                        <AppMenuitem item={child} index={i} className={child.badgeClass} parentKey={key} key={childKey} />
+                    );
                 })}
             </ul>
         </CSSTransition>

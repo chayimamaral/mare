@@ -18,8 +18,8 @@ type EmpresaCompromissoService struct {
 
 type EmpresaCompromissoGerarResponse struct {
 	Itens      []domain.EmpresaCompromissoItem `json:"itens"`
-	Quantidade int                                 `json:"quantidade"`
-	Message    string                              `json:"message"`
+	Quantidade int                             `json:"quantidade"`
+	Message    string                          `json:"message"`
 }
 
 type EmpresaCompromissoAcompanhamentoResponse struct {

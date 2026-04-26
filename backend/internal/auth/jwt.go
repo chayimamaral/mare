@@ -8,20 +8,24 @@ import (
 )
 
 type TenantClaims struct {
-	ID      string `json:"id"`
-	Active  bool   `json:"active"`
-	Nome    string `json:"nome"`
-	Contato string `json:"contato"`
-	Plano   string `json:"plano"`
-	SchemaName string `json:"schema_name,omitempty"`
+	ID          string `json:"id"`
+	Active      bool   `json:"active"`
+	Nome        string `json:"nome"`
+	Contato     string `json:"contato"`
+	Plano       string `json:"plano"`
+	SchemaName  string `json:"schema_name,omitempty"`
+	IsVecMaster bool   `json:"is_vec_master,omitempty"`
 }
 
 type Claims struct {
-	UserID string       `json:"-"`
-	Nome   string       `json:"nome"`
-	Email  string       `json:"email"`
-	Tenant TenantClaims `json:"tenant"`
-	Role   string       `json:"role"`
+	UserID           string       `json:"-"`
+	Nome             string       `json:"nome"`
+	Email            string       `json:"email"`
+	Tenant           TenantClaims `json:"tenant"`
+	Role             string       `json:"role"`
+	RepresentativeID string       `json:"representative_id,omitempty"`
+	// Sem omitempty: lista vazia deve ir como [] no JWT para o middleware não confundir com token legado.
+	FeatureSlugs     []string     `json:"feature_slugs"`
 	jwt.RegisteredClaims
 }
 

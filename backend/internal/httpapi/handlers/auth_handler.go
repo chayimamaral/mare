@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
 	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
 	"github.com/chayimamaral/vecontab/backend/internal/service"
 )
@@ -29,6 +30,29 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Login(r.Context(), input)
+	if err != nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	render.WriteJSON(w, http.StatusOK, response)
+}
+
+func (h *AuthHandler) AssumeTenant(w http.ResponseWriter, r *http.Request) {
+	var input service.AssumeTenantInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		return
+	}
+
+	response, err := h.service.AssumeTenant(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		middleware.Role(r.Context()),
+		middleware.TenantID(r.Context()),
+		middleware.RepresentativeID(r.Context()),
+		input,
+	)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

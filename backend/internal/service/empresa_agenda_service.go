@@ -22,7 +22,7 @@ type EmpresaAgendaListResponse struct {
 
 type EmpresaAgendaGerarResponse struct {
 	Itens   []domain.EmpresaAgendaItem `json:"itens"`
-	Message string                         `json:"message"`
+	Message string                     `json:"message"`
 }
 
 type EmpresaAgendaAcompanhamentoResponse struct {

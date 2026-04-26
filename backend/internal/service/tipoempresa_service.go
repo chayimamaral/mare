@@ -13,7 +13,7 @@ type TipoEmpresaService struct {
 
 type TipoEmpresaListResponse struct {
 	TiposEmpresa []domain.TipoEmpresa `json:"tiposEmpresa"`
-	TotalRecords int64                    `json:"totalRecords"`
+	TotalRecords int64                `json:"totalRecords"`
 }
 
 type TipoEmpresaLiteResponse struct {

@@ -17,18 +17,18 @@ type RotinaHandler struct {
 
 type rotinaEnvelope struct {
 	Params struct {
-		ID             string `json:"id"`
-		Descricao      string `json:"descricao"`
-		CidadeID       string `json:"cidade_id"`
-		TipoEmpresaID  string `json:"tipo_empresa_id"`
-		TipoempresaID  string `json:"tipoempresa_id"`
-		TipoEmpresa    struct {
+		ID            string `json:"id"`
+		Descricao     string `json:"descricao"`
+		CidadeID      string `json:"cidade_id"`
+		TipoEmpresaID string `json:"tipo_empresa_id"`
+		TipoempresaID string `json:"tipoempresa_id"`
+		TipoEmpresa   struct {
 			ID string `json:"id"`
 		} `json:"tipo_empresa"`
-		Link           string `json:"link"`
-		TempoEstimado  int    `json:"tempoestimado"`
-		RotinaID       string `json:"rotina_id"`
-		Passos         any    `json:"passos"`
+		Link          string `json:"link"`
+		TempoEstimado int    `json:"tempoestimado"`
+		RotinaID      string `json:"rotina_id"`
+		Passos        any    `json:"passos"`
 	} `json:"params"`
 }
 
@@ -39,12 +39,12 @@ func NewRotinaHandler(service *service.RotinaService) *RotinaHandler {
 func (h *RotinaHandler) List(w http.ResponseWriter, r *http.Request) {
 	first, rows := rotinaListPaging(r.URL.Query().Get("first"), r.URL.Query().Get("rows"))
 	params := repository.RotinaListParams{
-		First:     first,
-		Rows:      rows,
-		SortField: r.URL.Query().Get("sortField"),
-		SortOrder: parseIntRotina(r.URL.Query().Get("sortOrder"), 1),
-		Descricao: parseDescricaoFilterRotina(r.URL.Query().Get("filters")),
-		MunicipioID: parseMunicipioFilterRotina(r.URL.Query().Get("filters")),
+		First:         first,
+		Rows:          rows,
+		SortField:     r.URL.Query().Get("sortField"),
+		SortOrder:     parseIntRotina(r.URL.Query().Get("sortOrder"), 1),
+		Descricao:     parseDescricaoFilterRotina(r.URL.Query().Get("filters")),
+		MunicipioID:   parseMunicipioFilterRotina(r.URL.Query().Get("filters")),
 		TipoEmpresaID: parseTipoEmpresaFilterRotina(r.URL.Query().Get("filters")),
 	}
 
@@ -59,12 +59,12 @@ func (h *RotinaHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *RotinaHandler) ListRotinas(w http.ResponseWriter, r *http.Request) {
 	first, rows := rotinaListPaging(r.URL.Query().Get("first"), r.URL.Query().Get("rows"))
 	params := repository.RotinaListParams{
-		First:     first,
-		Rows:      rows,
-		SortField: r.URL.Query().Get("sortField"),
-		SortOrder: parseIntRotina(r.URL.Query().Get("sortOrder"), 1),
-		Descricao: parseDescricaoFilterRotina(r.URL.Query().Get("filters")),
-		MunicipioID: parseMunicipioFilterRotina(r.URL.Query().Get("filters")),
+		First:         first,
+		Rows:          rows,
+		SortField:     r.URL.Query().Get("sortField"),
+		SortOrder:     parseIntRotina(r.URL.Query().Get("sortOrder"), 1),
+		Descricao:     parseDescricaoFilterRotina(r.URL.Query().Get("filters")),
+		MunicipioID:   parseMunicipioFilterRotina(r.URL.Query().Get("filters")),
 		TipoEmpresaID: parseTipoEmpresaFilterRotina(r.URL.Query().Get("filters")),
 	}
 

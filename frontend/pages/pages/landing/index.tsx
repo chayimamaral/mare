@@ -118,7 +118,7 @@ const LandingPage: Page = () => {
           <div className="mx-4 md:mx-8 mt-0 md:mt-4">
             <h1 className="text-6xl font-bold text-gray-900 line-height-2">
               <span className="font-light block" style={{ color: '#6d98e9' }}></span>
-              <span style={{ color: '#6d98e9' }}>Controle de Agendamentos Contábeis</span>
+              <span style={{ color: '#6d98e9' }}>Estratégia Contábil de Alta Performance</span>
             </h1>
             <Link href="/">
               <Button
