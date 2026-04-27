@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { TabPanel, TabView } from 'primereact/tabview';
 
 import type { NFEDanfeView } from '../../lib/nfeDanfeClient';
@@ -8,18 +8,55 @@ type Props = {
   data: NFEDanfeView;
 };
 
-const fmt = (v?: string) => (v && v.trim() ? v : '—');
+const fmt = (v?: string) => (v && String(v).trim() ? String(v).trim() : '—');
+
+function fmtBRL(v?: string): string {
+  if (v == null || !String(v).trim()) return '—';
+  const s = String(v).trim();
+  const n = Number(s);
+  if (Number.isFinite(n)) {
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return s;
+}
+
+function fmtBRLFlexible(v?: string): string {
+  if (v == null || !String(v).trim()) return '—';
+  const s = String(v).trim();
+  const n = Number(s);
+  if (!Number.isFinite(n)) return s;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 10 });
+}
+
+function fmtQtd(v?: string): string {
+  if (v == null || !String(v).trim()) return '—';
+  const s = String(v).trim();
+  const n = Number(s);
+  if (!Number.isFinite(n)) return s;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+}
 
 export function DanfeView({ data }: Props) {
   const itens = data.itens.slice(0, 200);
   const itensLimitados = data.itens.length > itens.length;
+  const [expIdx, setExpIdx] = useState<Record<number, boolean>>({});
+
+  const toggleExp = useCallback((i: number) => {
+    setExpIdx((p) => ({ ...p, [i]: !p[i] }));
+  }, []);
+
+  const id = data.identificacao;
+  const em = data.emitente;
+  const de = data.destinatario;
+  const tot = data.totais;
+  const tr = data.transporte;
 
   return (
     <div className={`${styles.wrapper} surface-0 border-round border-1 surface-border p-3`}>
       <div className="flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
         <div>
           <h3 className="m-0">Consulta da NF-e</h3>
-          <small className="text-600">Visualização da DANFE em abas</small>
+          <small className="text-600">Visualização conforme DANFE (abas)</small>
         </div>
         <button type="button" className="p-button p-component p-button-sm" onClick={() => window.print()}>
           <span className="p-button-icon p-c pi pi-print" />
@@ -28,297 +65,855 @@ export function DanfeView({ data }: Props) {
       </div>
 
       <fieldset className={styles.fieldset}>
-        <legend>Dados Gerais</legend>
+        <legend>Identificação</legend>
         <div className={styles.row}>
           <div className={`${styles.cell} ${styles.w80}`}>
             <div className={styles.label}>Chave de Acesso</div>
-            <strong>{fmt(data.identificacao.chave)}</strong>
+            <strong>{fmt(id.chave)}</strong>
           </div>
           <div className={`${styles.cell} ${styles.w20}`}>
             <div className={styles.label}>Número</div>
-            <strong>{fmt(data.identificacao.numero)}</strong>
+            <strong>{fmt(id.numero)}</strong>
           </div>
         </div>
       </fieldset>
 
-      <TabView className={styles.tabview} pt={{ inkbar: { style: { display: 'none' } } }}>
+      <TabView
+        className={styles.tabview}
+        pt={{
+          inkbar: { className: 'danfe-tabview-inkbar-hidden', style: { display: 'none' } },
+          nav: { className: 'danfe-tabview-nav-no-bullets' },
+        }}
+      >
         <TabPanel header="NFe">
           <fieldset className={styles.fieldset}>
             <legend>Dados da NF-e</legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>Modelo</div><strong>{fmt(data.identificacao.modelo)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>Série</div><strong>{fmt(data.identificacao.serie)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>Número</div><strong>{fmt(data.identificacao.numero)}</strong></div>
-              <div className={`${styles.cell} ${styles.w35}`}><div className={styles.label}>Data de Emissão</div><strong>{fmt(data.identificacao.emissao_em)}</strong></div>
-              <div className={`${styles.cell} ${styles.w35}`}><div className={styles.label}>Situação</div><strong>{fmt(data.identificacao.situacao)}</strong></div>
+              <div className={`${styles.cell} ${styles.w10}`}>
+                <div className={styles.label}>Modelo</div>
+                <strong>{fmt(id.modelo)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w10}`}>
+                <div className={styles.label}>Série</div>
+                <strong>{fmt(id.serie)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w10}`}>
+                <div className={styles.label}>Número</div>
+                <strong>{fmt(id.numero)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w35}`}>
+                <div className={styles.label}>Data de Emissão</div>
+                <strong>{fmt(id.emissao_em)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w35}`}>
+                <div className={styles.label}>Data/Hora Saída/Entrada</div>
+                <strong>{fmt(id.saida_entrada_em)}</strong>
+              </div>
             </div>
             <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w50}`}><div className={styles.label}>Data/Hora de Saída ou Entrada</div><strong>{fmt(data.identificacao.saida_entrada_em)}</strong></div>
-              <div className={`${styles.cell} ${styles.w50}`}><div className={styles.label}>Valor Total da Nota Fiscal</div><strong>{fmt(data.totais.valor_nota)}</strong></div>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Valor Total da Nota Fiscal</div>
+                <strong>{fmtBRLFlexible(tot.valor_nota)}</strong>
+              </div>
             </div>
           </fieldset>
+
+          <fieldset className={styles.fieldset}>
+            <legend>Emitente</legend>
+            <div className={styles.row}>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>CNPJ</div>
+                <strong>{fmt(em.cnpj_cpf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w45}`}>
+                <div className={styles.label}>Nome / Razão Social</div>
+                <strong>{fmt(em.nome)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w20}`}>
+                <div className={styles.label}>Inscrição Estadual</div>
+                <strong>{fmt(em.ie)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w10}`}>
+                <div className={styles.label}>UF</div>
+                <strong>{fmt(em.uf)}</strong>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.fieldset}>
+            <legend>Destinatário</legend>
+            <div className={styles.row}>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>CNPJ</div>
+                <strong>{fmt(de.cnpj_cpf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w45}`}>
+                <div className={styles.label}>Nome / Razão Social</div>
+                <strong>{fmt(de.nome)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w20}`}>
+                <div className={styles.label}>Inscrição Estadual</div>
+                <strong>{fmt(de.ie)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w10}`}>
+                <div className={styles.label}>UF</div>
+                <strong>{fmt(de.uf)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w33}`}>
+                <div className={styles.label}>Destino da Operação</div>
+                <strong>{fmt(id.destino_operacao)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w33}`}>
+                <div className={styles.label}>Consumidor Final</div>
+                <strong>{fmt(id.consumidor_final)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w33}`}>
+                <div className={styles.label}>Presença do Comprador</div>
+                <strong>{fmt(id.presenca_comprador)}</strong>
+              </div>
+            </div>
+          </fieldset>
+
           <fieldset className={styles.fieldset}>
             <legend>Emissão</legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w40}`}><div className={styles.label}>Natureza da Operação</div><strong>{fmt(data.identificacao.natureza_operacao)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Ambiente</div><strong>{fmt(data.identificacao.ambiente)}</strong></div>
-              <div className={`${styles.cell} ${styles.w40}`}><div className={styles.label}>Protocolo</div><strong>{fmt(data.identificacao.protocolo)}</strong></div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Processo</div>
+                <strong>{fmt(id.processo_emissao)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Versão do Processo</div>
+                <strong>{fmt(id.versao_processo)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Tipo de Emissão</div>
+                <strong>{fmt(id.tipo_emissao)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Finalidade</div>
+                <strong>{fmt(id.finalidade)}</strong>
+              </div>
             </div>
             <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Tipo da Operação</div><strong>{fmt(data.identificacao.tipo_operacao)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Destino da Operação</div><strong>{fmt(data.identificacao.destino_operacao)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Consumidor Final</div><strong>{fmt(data.identificacao.consumidor_final)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Presença do Comprador</div><strong>{fmt(data.identificacao.presenca_comprador)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Processo de Emissão</div><strong>{fmt(data.identificacao.processo_emissao)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Versão do Processo</div><strong>{fmt(data.identificacao.versao_processo)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Finalidade</div><strong>{fmt(data.identificacao.finalidade)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Forma de Pagamento</div><strong>{fmt(data.identificacao.forma_pagamento)}</strong></div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Natureza da Operação</div>
+                <strong>{fmt(id.natureza_operacao)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Tipo da Operação</div>
+                <strong>{fmt(id.tipo_operacao)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Forma de Pagamento</div>
+                <strong>{fmt(id.forma_pagamento)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Digest Value NF-e</div>
+                <strong className={styles.digest}>{fmt(id.digest_value)}</strong>
+              </div>
             </div>
           </fieldset>
+
           <fieldset className={styles.fieldset}>
-            <legend>Situação Atual: {fmt(data.identificacao.situacao)} (Ambiente de autorização: {fmt(data.identificacao.ambiente)})</legend>
+            <legend>
+              Situação atual: {fmt(id.situacao)}
+              {id.ambiente ? ` (Ambiente: ${fmt(id.ambiente)})` : ''}
+            </legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w50}`}>
+              <div className={`${styles.cell} ${styles.w25}`}>
                 <div className={styles.label}>Eventos da NF-e</div>
-                <strong>{fmt(data.identificacao.evento_descricao)}</strong>
+                <strong>{fmt(id.evento_descricao)}</strong>
               </div>
-              <div className={`${styles.cell} ${styles.w20}`}>
+              <div className={`${styles.cell} ${styles.w25}`}>
                 <div className={styles.label}>Protocolo</div>
-                <strong>{fmt(data.identificacao.protocolo)}</strong>
+                <strong>{fmt(id.protocolo)}</strong>
               </div>
-              <div className={`${styles.cell} ${styles.w20}`}>
+              <div className={`${styles.cell} ${styles.w25}`}>
                 <div className={styles.label}>Data Autorização</div>
-                <strong>{fmt(data.identificacao.data_autorizacao)}</strong>
+                <strong>{fmt(id.data_autorizacao)}</strong>
               </div>
-              <div className={`${styles.cell} ${styles.w10}`}>
-                <div className={styles.label}>cStat</div>
-                <strong>{fmt(data.identificacao.codigo_status)}</strong>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Data Inclusão BD</div>
+                <strong>{fmt(id.data_inclusao_bd)}</strong>
               </div>
             </div>
           </fieldset>
+
+          {data.cobranca.pagamentos.length > 0 ? (
+            <fieldset className={styles.fieldset}>
+              <legend>Pagamentos (detalhe)</legend>
+              <div className="overflow-auto">
+                <table className={`${styles.table} ${styles.tableHover} w-full text-sm`}>
+                  <thead>
+                    <tr>
+                      <th className="text-left">Forma</th>
+                      <th className="text-right">Valor</th>
+                      <th className="text-left">CNPJ Credenciadora</th>
+                      <th className="text-left">Bandeira</th>
+                      <th className="text-left">Autorização</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.cobranca.pagamentos.map((p, i) => (
+                      <tr key={`${p.forma}-${i}`}>
+                        <td>{fmt(p.forma)}</td>
+                        <td className="text-right">{fmtBRL(p.valor)}</td>
+                        <td>{fmt(p.cnpj_credenciadora)}</td>
+                        <td>{fmt(p.bandeira)}</td>
+                        <td>{fmt(p.autorizacao)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </fieldset>
+          ) : null}
         </TabPanel>
 
         <TabPanel header="Emitente">
           <fieldset className={styles.fieldset}>
-            <legend>Emitente</legend>
+            <legend>Dados do emitente</legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>CNPJ/CPF</div><strong>{fmt(data.emitente.cnpj_cpf)}</strong></div>
-              <div className={`${styles.cell} ${styles.w45}`}><div className={styles.label}>Nome / Razão Social</div><strong>{fmt(data.emitente.nome)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Inscrição Estadual</div><strong>{fmt(data.emitente.ie)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>UF</div><strong>{fmt(data.emitente.uf)}</strong></div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Nome / Razão Social</div>
+                <strong>{fmt(em.nome)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Nome Fantasia</div>
+                <strong>{fmt(em.nome_fantasia)}</strong>
+              </div>
             </div>
             <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w70}`}><div className={styles.label}>Endereço</div><strong>{fmt(data.emitente.logradouro)}, {fmt(data.emitente.numero)} - {fmt(data.emitente.bairro)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Município</div><strong>{fmt(data.emitente.municipio)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>CEP</div><strong>{fmt(data.emitente.cep)}</strong></div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CNPJ</div>
+                <strong>{fmt(em.cnpj_cpf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Endereço</div>
+                <strong>{fmt(em.endereco_completo || [em.logradouro, em.numero].filter(Boolean).join(', '))}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Bairro / Distrito</div>
+                <strong>{fmt(em.bairro)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CEP</div>
+                <strong>{fmt(em.cep)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Município</div>
+                <strong>{fmt(em.municipio_cod_nome || em.municipio)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Telefone</div>
+                <strong>{fmt(em.telefone)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>UF</div>
+                <strong>{fmt(em.uf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>País</div>
+                <strong>{fmt(em.pais_cod_nome || em.pais_nome)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Inscrição Estadual</div>
+                <strong>{fmt(em.ie)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Inscrição Estadual do Substituto</div>
+                <strong>{fmt(em.ie_substituto)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Inscrição Municipal</div>
+                <strong>{fmt(em.im)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Município Fato Gerador do ICMS</div>
+                <strong>{fmt(em.cod_mun_fato_gerador_icms)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CNAE Fiscal</div>
+                <strong>{fmt(em.cnae)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Código de Regime Tributário</div>
+                <strong>{fmt(em.crt_descricao || em.crt)}</strong>
+              </div>
             </div>
           </fieldset>
         </TabPanel>
 
         <TabPanel header="Destinatário">
           <fieldset className={styles.fieldset}>
-            <legend>Destinatário</legend>
+            <legend>Dados do destinatário</legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>CNPJ/CPF</div><strong>{fmt(data.destinatario.cnpj_cpf)}</strong></div>
-              <div className={`${styles.cell} ${styles.w45}`}><div className={styles.label}>Nome / Razão Social</div><strong>{fmt(data.destinatario.nome)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Inscrição Estadual</div><strong>{fmt(data.destinatario.ie)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>UF</div><strong>{fmt(data.destinatario.uf)}</strong></div>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Nome / Razão Social</div>
+                <strong>{fmt(de.nome)}</strong>
+              </div>
             </div>
             <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Indicador IE Dest.</div><strong>{fmt(data.destinatario.indicador_ie_dest)}</strong></div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CNPJ</div>
+                <strong>{fmt(de.cnpj_cpf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Endereço</div>
+                <strong>{fmt(de.endereco_completo || [de.logradouro, de.numero].filter(Boolean).join(', '))}</strong>
+              </div>
             </div>
             <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w70}`}><div className={styles.label}>Endereço</div><strong>{fmt(data.destinatario.logradouro)}, {fmt(data.destinatario.numero)} - {fmt(data.destinatario.bairro)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Município</div><strong>{fmt(data.destinatario.municipio)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>CEP</div><strong>{fmt(data.destinatario.cep)}</strong></div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Bairro / Distrito</div>
+                <strong>{fmt(de.bairro)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CEP</div>
+                <strong>{fmt(de.cep)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Município</div>
+                <strong>{fmt(de.municipio_cod_nome || de.municipio)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Telefone</div>
+                <strong>{fmt(de.telefone)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>UF</div>
+                <strong>{fmt(de.uf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>País</div>
+                <strong>{fmt(de.pais_cod_nome || de.pais_nome)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Indicador IE</div>
+                <strong className="line-height-3">{fmt(de.indicador_ie_descricao || de.indicador_ie_dest)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Inscrição Estadual</div>
+                <strong>{fmt(de.ie)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Inscrição SUFRAMA</div>
+                <strong>{fmt(de.isuf)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>IM</div>
+                <strong>{fmt(de.im)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>E-mail</div>
+                <strong>{fmt(de.email)}</strong>
+              </div>
             </div>
           </fieldset>
         </TabPanel>
 
         <TabPanel header="Produtos e Serviços">
-          <div className={`${styles.box} overflow-auto`}>
-            <table className={`${styles.table} w-full text-sm`}>
-              <thead>
-                <tr>
-                  <th className="text-left">Código</th>
-                  <th className="text-left">Descrição</th>
-                  <th className="text-left">NCM</th>
-                  <th className="text-left">EAN</th>
-                  <th className="text-left">CFOP</th>
-                  <th className="text-right">Qtd</th>
-                  <th className="text-left">Un</th>
-                  <th className="text-right">Vlr Unit</th>
-                  <th className="text-right">Vlr Total</th>
-                  <th className="text-right">Desc.</th>
-                  <th className="text-right">Frete</th>
-                  <th className="text-right">Outros</th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((it, idx) => (
-                  <tr key={`${it.codigo}-${idx}`}>
-                    <td>{fmt(it.codigo)}</td>
-                    <td>{fmt(it.descricao)}</td>
-                    <td>{fmt(it.ncm)}</td>
-                    <td>{fmt(it.cean)}</td>
-                    <td>{fmt(it.cfop)}</td>
-                    <td className="text-right">{fmt(it.quantidade)}</td>
-                    <td>{fmt(it.unidade)}</td>
-                    <td className="text-right">{fmt(it.valor_unitario)}</td>
-                    <td className="text-right">{fmt(it.valor_total)}</td>
-                    <td className="text-right">{fmt(it.valor_desconto)}</td>
-                    <td className="text-right">{fmt(it.valor_frete)}</td>
-                    <td className="text-right">{fmt(it.valor_outros)}</td>
+          <fieldset className={styles.fieldset}>
+            <legend>Dados dos produtos e serviços</legend>
+            <div className="overflow-auto">
+              <table className={`${styles.table} w-full text-sm`}>
+                <thead>
+                  <tr>
+                    <th className="text-left w-3rem">Num.</th>
+                    <th className="text-left">Descrição</th>
+                    <th className="text-right">Qtd.</th>
+                    <th className="text-left">Unidade Comercial</th>
+                    <th className="text-right">Valor (R$)</th>
+                    <th className="w-6rem" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {itens.map((it, idx) => (
+                    <React.Fragment key={`${it.codigo}-${idx}`}>
+                      <tr>
+                        <td>{idx + 1}</td>
+                        <td>{fmt(it.descricao)}</td>
+                        <td className="text-right">{fmtQtd(it.quantidade)}</td>
+                        <td>{fmt(it.unidade)}</td>
+                        <td className="text-right">{fmtBRLFlexible(it.valor_total)}</td>
+                        <td className="text-center">
+                          <button
+                            type="button"
+                            className="p-button p-component p-button-text p-button-sm"
+                            onClick={() => toggleExp(idx)}
+                          >
+                            {expIdx[idx] ? 'Ocultar' : 'Detalhes'}
+                          </button>
+                        </td>
+                      </tr>
+                      {expIdx[idx] ? (
+                        <tr>
+                          <td colSpan={6} className="p-0 border-none">
+                            <div className="p-3 surface-50 border-top-1 surface-border">
+                              <div className={styles.subBlock}>
+                                <div className={styles.subBlockTitle}>Detalhamento do item</div>
+                                <div className={styles.row}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Código do Produto</div>
+                                    <strong>{fmt(it.codigo)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Código NCM</div>
+                                    <strong>{fmt(it.ncm)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Código EX da TIPI</div>
+                                    <strong>{fmt(it.extipi)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>CFOP</div>
+                                    <strong>{fmt(it.cfop)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Outras Despesas Acessórias</div>
+                                    <strong>{fmtBRLFlexible(it.valor_outros)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Valor do Desconto</div>
+                                    <strong>{fmtBRLFlexible(it.valor_desconto)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Valor Total do Frete</div>
+                                    <strong>{fmtBRLFlexible(it.valor_frete)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Valor do Seguro</div>
+                                    <strong>{fmtBRLFlexible(it.valor_seguro)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w100}`}>
+                                    <div className={styles.label}>Indicador de Composição do Valor Total da NF-e</div>
+                                    <strong>{fmt(it.indicador_total_desc || it.indicador_total_nf)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className={styles.subBlock}>
+                                <div className={styles.subBlockTitle}>Informações comerciais e tributáveis</div>
+                                <div className={styles.row}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Código EAN Comercial</div>
+                                    <strong>{fmt(it.cean)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Unidade Comercial</div>
+                                    <strong>{fmt(it.unidade)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Quantidade Comercial</div>
+                                    <strong>{fmtQtd(it.quantidade)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Código EAN Tributável</div>
+                                    <strong>{fmt(it.cean_trib)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Unidade Tributável</div>
+                                    <strong>{fmt(it.u_trib)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Quantidade Tributável</div>
+                                    <strong>{fmtQtd(it.q_trib)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Valor Unit. Comercializ.</div>
+                                    <strong>{fmtBRLFlexible(it.valor_unitario)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Valor Unit. Tributação</div>
+                                    <strong>{fmtBRLFlexible(it.v_un_trib)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Valor Aproximado dos Tributos</div>
+                                    <strong>{fmtBRLFlexible(it.valor_total_tributos)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Número do Pedido Compra</div>
+                                    <strong>{fmt(it.x_ped)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Item do Pedido de Compra</div>
+                                    <strong>{fmt(it.n_item_ped)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Número da FCI</div>
+                                    <strong>{fmt(it.n_fci)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className={styles.subBlock}>
+                                <div className={styles.subBlockTitle}>ICMS normal e ST</div>
+                                <div className={styles.row}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Origem da Mercadoria</div>
+                                    <strong>{fmt(it.icms?.origem)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Tributação do ICMS</div>
+                                    <strong>{fmt(it.icms?.tributacao)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className={styles.subBlock}>
+                                <div className={styles.subBlockTitle}>Imposto sobre Produtos Industrializados (IPI)</div>
+                                <div className={styles.row}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Classe de Enquadramento</div>
+                                    <strong>{fmt(it.ipi?.cl_enq)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Código de Enquadramento</div>
+                                    <strong>{fmt(it.ipi?.c_enq)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Código do Selo</div>
+                                    <strong>{fmt(it.ipi?.c_selo)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>CNPJ do Produtor</div>
+                                    <strong>{fmt(it.ipi?.cnpj_prod)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Qtd. Selo</div>
+                                    <strong>{fmt(it.ipi?.q_selo)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>CST</div>
+                                    <strong>{fmt(it.ipi?.cst)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Qtd Total Unidade Padrão</div>
+                                    <strong>{fmtQtd(it.ipi?.q_unid)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Valor por Unidade</div>
+                                    <strong>{fmtBRLFlexible(it.ipi?.v_unid)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w33}`}>
+                                    <div className={styles.label}>Valor IPI</div>
+                                    <strong>{fmtBRLFlexible(it.ipi?.v_ipi || it.valor_ipi)}</strong>
+                                  </div>
+                                </div>
+                                <div className={`${styles.row} ${styles.rowTop}`}>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Base de Cálculo</div>
+                                    <strong>{fmtBRLFlexible(it.ipi?.v_bc)}</strong>
+                                  </div>
+                                  <div className={`${styles.cell} ${styles.w50}`}>
+                                    <div className={styles.label}>Alíquota</div>
+                                    <strong>{fmt(it.ipi?.p_ipi || it.aliquota_ipi)}</strong>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className={styles.subBlock}>
+                                <div className={styles.subBlockTitle}>PIS / COFINS</div>
+                                <div className={`${styles.cell} ${styles.w100} border-none`}>
+                                  <div className={styles.label}>PIS — CST</div>
+                                  <strong>{fmt(it.pis_cst)}</strong>
+                                </div>
+                                <div className={`${styles.cell} ${styles.w100} ${styles.rowTop} border-none`}>
+                                  <div className={styles.label}>COFINS — CST</div>
+                                  <strong>{fmt(it.cofins_cst)}</strong>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {itensLimitados ? <small className="text-600 block mt-2">Pré-visualização limitada a 200 itens.</small> : null}
-          </div>
+          </fieldset>
         </TabPanel>
 
         <TabPanel header="Totais">
           <fieldset className={styles.fieldset}>
-            <legend>Totais</legend>
-            <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Base ICMS</div><strong>{fmt(data.totais.base_icms)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>ICMS</div><strong>{fmt(data.totais.valor_icms)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>IPI</div><strong>{fmt(data.totais.valor_ipi)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>PIS</div><strong>{fmt(data.totais.valor_pis)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>ICMS Desonerado</div><strong>{fmt(data.totais.valor_icms_desonerado)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Base ICMS ST</div><strong>{fmt(data.totais.base_icms_st)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>COFINS</div><strong>{fmt(data.totais.valor_cofins)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Frete</div><strong>{fmt(data.totais.valor_frete)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>ICMS ST</div><strong>{fmt(data.totais.valor_st)}</strong></div>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>Imposto de Importação (II)</div><strong>{fmt(data.totais.valor_ii)}</strong></div>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>Outras Despesas</div><strong>{fmt(data.totais.valor_outros)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>Desconto</div><strong>{fmt(data.totais.valor_desconto)}</strong></div>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>Valor Total dos Tributos</div><strong>{fmt(data.totais.valor_total_tributos)}</strong></div>
-              <div className={`${styles.cell} ${styles.w33}`}><div className={styles.label}>Valor Total NF-e</div><strong>{fmt(data.totais.valor_nota)}</strong></div>
+            <legend>Totais — ICMS e demais</legend>
+            <div className={styles.grid4}>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Base de Cálculo ICMS</div>
+                <div className={styles.totValue}>{fmtBRL(tot.base_icms)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor do ICMS</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_icms)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor ICMS Desonerado</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_icms_desonerado)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Base de Cálculo ICMS ST</div>
+                <div className={styles.totValue}>{fmtBRL(tot.base_icms_st)}</div>
+              </div>
+
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor ICMS Substit.</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_st)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor Total Produtos</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_produtos)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor do Frete</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_frete)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor do Seguro</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_seguro)}</div>
+              </div>
+
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Outras Desp. Aces.</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_outros)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor Total do IPI</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_ipi)}</div>
+              </div>
+              <div className={`${styles.totCell} ${styles.totDestaque}`}>
+                <div className={styles.totLabel}>Valor Total da NFe</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_nota)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor Total dos Descontos</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_desconto)}</div>
+              </div>
+
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor Total do II</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_ii)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor do PIS</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_pis)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor da COFINS</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_cofins)}</div>
+              </div>
+              <div className={styles.totCell}>
+                <div className={styles.totLabel}>Valor Aproximado Tributos</div>
+                <div className={styles.totValue}>{fmtBRL(tot.valor_total_tributos)}</div>
+              </div>
             </div>
           </fieldset>
         </TabPanel>
 
         <TabPanel header="Transporte">
           <fieldset className={styles.fieldset}>
-            <legend>Transporte</legend>
+            <legend>Dados do transporte</legend>
             <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>Modalidade</div><strong>{fmt(data.transporte.modalidade)}</strong></div>
-              <div className={`${styles.cell} ${styles.w40}`}><div className={styles.label}>Transportador</div><strong>{fmt(data.transporte.transportador)}</strong></div>
-              <div className={`${styles.cell} ${styles.w20}`}><div className={styles.label}>CNPJ/CPF</div><strong>{fmt(data.transporte.cnpj_cpf)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>Placa</div><strong>{fmt(data.transporte.placa)}</strong></div>
-              <div className={`${styles.cell} ${styles.w10}`}><div className={styles.label}>UF</div><strong>{fmt(data.transporte.uf)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Inscrição Estadual</div><strong>{fmt(data.transporte.ie)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>RNTC</div><strong>{fmt(data.transporte.rntc)}</strong></div>
-              <div className={`${styles.cell} ${styles.w50}`}><div className={styles.label}>Endereço / Município</div><strong>{fmt(data.transporte.endereco)} - {fmt(data.transporte.municipio)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w100}`}><div className={styles.label}>Quantidade de Volumes</div><strong>{fmt(data.transporte.quantidade_volumes)}</strong></div>
-            </div>
-            {data.transporte.volumes.length > 0 ? (
-              <div className={`${styles.row} ${styles.rowTop}`}>
-                <div className={`${styles.cell} ${styles.w100} overflow-auto`}>
-                  <div className={styles.label}>Volumes</div>
-                  <table className={`${styles.table} w-full text-sm`}>
-                    <thead>
-                      <tr>
-                        <th>Qtd</th><th>Espécie</th><th>Marca</th><th>Numeração</th><th>Peso Líquido</th><th>Peso Bruto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.transporte.volumes.map((v, i) => (
-                        <tr key={`${v.numero}-${i}`}>
-                          <td>{fmt(v.quantidade)}</td>
-                          <td>{fmt(v.especie)}</td>
-                          <td>{fmt(v.marca)}</td>
-                          <td>{fmt(v.numero)}</td>
-                          <td>{fmt(v.peso_liquido)}</td>
-                          <td>{fmt(v.peso_bruto)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Modalidade do Frete</div>
+                <strong>{fmt(tr.modalidade)}</strong>
               </div>
-            ) : null}
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.fieldset}>
+            <legend>Transportador</legend>
+            <div className={styles.row}>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>CNPJ</div>
+                <strong>{fmt(tr.cnpj_cpf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w50}`}>
+                <div className={styles.label}>Razão Social / Nome</div>
+                <strong>{fmt(tr.transportador)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.transGrid12} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.transCol3}`}>
+                <div className={styles.label}>Inscrição Estadual</div>
+                <strong>{fmt(tr.ie)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.transCol6}`}>
+                <div className={styles.label}>Endereço Completo</div>
+                <strong>{fmt(tr.endereco)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.transCol3}`}>
+                <div className={styles.label}>Município</div>
+                <strong>{fmt(tr.municipio)}</strong>
+              </div>
+            </div>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>UF</div>
+                <strong>{fmt(tr.uf)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Placa</div>
+                <strong>{fmt(tr.placa)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>RNTC</div>
+                <strong>{fmt(tr.rntc)}</strong>
+              </div>
+              <div className={`${styles.cell} ${styles.w25}`}>
+                <div className={styles.label}>Qtd. volumes (soma)</div>
+                <strong>{fmt(tr.quantidade_volumes)}</strong>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className={styles.fieldset}>
+            <legend>Volumes</legend>
+            {tr.volumes.length === 0 ? (
+              <p className={`m-0 ${styles.cellMuted}`}>Nenhum volume informado.</p>
+            ) : (
+              tr.volumes.map((v, i) => (
+                <div key={`${v.numero}-${i}`} className={styles.volCard}>
+                  <div className={styles.volTitle}>Volume {i + 1}</div>
+                  <div className={styles.row}>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Quantidade</div>
+                      <strong>{fmt(v.quantidade)}</strong>
+                    </div>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Espécie</div>
+                      <strong>{fmt(v.especie)}</strong>
+                    </div>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Marca dos Volumes</div>
+                      <strong>{fmt(v.marca)}</strong>
+                    </div>
+                  </div>
+                  <div className={`${styles.row} ${styles.rowTop}`}>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Numeração</div>
+                      <strong>{fmt(v.numero)}</strong>
+                    </div>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Peso Líquido</div>
+                      <strong>{fmt(v.peso_liquido)}</strong>
+                    </div>
+                    <div className={`${styles.cell} ${styles.w33}`}>
+                      <div className={styles.label}>Peso Bruto</div>
+                      <strong>{fmt(v.peso_bruto)}</strong>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </fieldset>
         </TabPanel>
 
         <TabPanel header="Cobrança">
           <fieldset className={styles.fieldset}>
-            <legend>Cobrança</legend>
-            <div className={styles.row}>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Nº Fatura</div><strong>{fmt(data.cobranca.numero_fatura)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Valor Original</div><strong>{fmt(data.cobranca.valor_original)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Valor Desconto</div><strong>{fmt(data.cobranca.valor_desconto)}</strong></div>
-              <div className={`${styles.cell} ${styles.w25}`}><div className={styles.label}>Valor Líquido</div><strong>{fmt(data.cobranca.valor_liquido)}</strong></div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w100}`}>
-                <div className={styles.label}>Duplicatas</div>
-                {data.cobranca.duplicatas.length > 0 ? (
-                  <ul className="m-0 pl-3">
+            <legend>Dados de cobrança — Duplicatas</legend>
+            {data.cobranca.duplicatas.length === 0 ? (
+              <p className="m-0 text-600">Nenhuma duplicata informada para esta nota.</p>
+            ) : (
+              <div className="overflow-auto">
+                <table className={`${styles.table} ${styles.tableHover} w-full text-sm`}>
+                  <thead>
+                    <tr>
+                      <th className="text-left">Número</th>
+                      <th className="text-left">Vencimento</th>
+                      <th className="text-right">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {data.cobranca.duplicatas.map((d, idx) => (
-                      <li key={`${d.numero}-${idx}`}>Nº {fmt(d.numero)} | Venc.: {fmt(d.vencimento)} | Valor: {fmt(d.valor)}</li>
-                    ))}
-                  </ul>
-                ) : <strong>—</strong>}
-              </div>
-            </div>
-            <div className={`${styles.row} ${styles.rowTop}`}>
-              <div className={`${styles.cell} ${styles.w100} overflow-auto`}>
-                <div className={styles.label}>Formas de Pagamento</div>
-                {data.cobranca.pagamentos.length > 0 ? (
-                  <table className={`${styles.table} w-full text-sm`}>
-                    <thead>
-                      <tr>
-                        <th>Forma</th><th>Valor</th><th>CNPJ Credenciadora</th><th>Bandeira</th><th>Autorização</th>
+                      <tr key={`${d.numero}-${idx}`}>
+                        <td>{fmt(d.numero)}</td>
+                        <td>{fmt(d.vencimento)}</td>
+                        <td className="text-right">{fmtBRL(d.valor)}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.cobranca.pagamentos.map((p, i) => (
-                        <tr key={`${p.forma}-${i}`}>
-                          <td>{fmt(p.forma)}</td>
-                          <td>{fmt(p.valor)}</td>
-                          <td>{fmt(p.cnpj_credenciadora)}</td>
-                          <td>{fmt(p.bandeira)}</td>
-                          <td>{fmt(p.autorizacao)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <strong>—</strong>}
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
+            )}
           </fieldset>
         </TabPanel>
 
         <TabPanel header="Informações Adicionais">
           <fieldset className={styles.fieldset}>
-            <legend>Informações Adicionais</legend>
-            <div className={`${styles.cell} ${styles.w100}`}>
-              <div className={styles.label}>Informações complementares</div>
-              <strong>{fmt(data.adicionais.informacoes_complementares)}</strong>
+            <legend>Informações adicionais</legend>
+            <div className={styles.row}>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Formato de Impressão DANFE</div>
+                <strong>{fmt(data.adicionais.tp_imp)}</strong>
+              </div>
             </div>
-            <div className={`${styles.cell} ${styles.w100} ${styles.rowTop}`}>
-              <div className={styles.label}>Informações adicionais do Fisco</div>
-              <strong>{fmt(data.adicionais.informacoes_fisco)}</strong>
+            <div className={`${styles.row} ${styles.rowTop}`}>
+              <div className={`${styles.cell} ${styles.w100}`}>
+                <div className={styles.label}>Informações complementares de interesse do contribuinte</div>
+                {!(data.adicionais.informacoes_complementares ?? '').trim() ? (
+                  <span className="text-500">—</span>
+                ) : (
+                  <div className={`${styles.preWrap} text-900`}>{data.adicionais.informacoes_complementares}</div>
+                )}
+              </div>
             </div>
+            {data.adicionais.informacoes_fisco?.trim() ? (
+              <div className={`${styles.row} ${styles.rowTop}`}>
+                <div className={`${styles.cell} ${styles.w100}`}>
+                  <div className={styles.label}>Informações adicionais de interesse do Fisco</div>
+                  <div className={styles.preWrap}>
+                    <strong>{data.adicionais.informacoes_fisco}</strong>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </fieldset>
         </TabPanel>
       </TabView>
     </div>
   );
 }
-
-

@@ -3,6 +3,9 @@
 # ==========================================
 FROM golang:1.26.2-alpine AS builder
 
+# Adicionamos um argumento que o Docker vai receber lá de fora
+ARG APP_VERSION=dev
+
 # Instala git e certificados (necessários para baixar dependências via HTTPS)
 RUN apk add --no-cache git ca-certificates
 
@@ -19,16 +22,15 @@ COPY . .
 # deixa só o index.html mínimo e o app em produção não carrega.
 COPY ./frontend_static ./frontend/out
 
-# Compila o binário estático para Linux
-# -ldflags="-w -s" remove tabelas de símbolos e debug para reduzir o tamanho
-#RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o vecontab-backend ./cmd/api/main.go
+# 1. Compila o SERVIDOR (Linux) injetando a versão
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s -X 'main.Version=${APP_VERSION}'" \
+    -o vecx-backend ./cmd/api/main.go
 
-# 1. Compila o binário do SERVIDOR (Linux)
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o vecx-backend ./cmd/api/main.go
-
-# 2. Compila o executável do CLIENTE (Windows .exe)
-RUN CGO_ENABLED=0 GOOS=windows go build -ldflags="-w -s" -o vecx-client.exe ./cmd/api/main.go
-
+# 2. Compila o CLIENTE (Windows .exe) injetando a mesma versão
+RUN CGO_ENABLED=0 GOOS=windows go build \
+    -ldflags="-w -s -X 'main.Version=${APP_VERSION}'" \
+    -o vecx-client.exe ./cmd/api/main.go
 # ==========================================
 # Estágio 2: Execução (Final)
 # ==========================================
@@ -39,7 +41,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 # 2. Cria um usuário comum para não rodar como root (Segurança)
 # -D ignora a criação de senha
-RUN adduser -D vecontabuser
+RUN adduser -D vecxuser
 
 # 3. Configura o fuso horário (Florianópolis/São Paulo)
 ENV TZ=America/Sao_Paulo
@@ -48,10 +50,11 @@ ENV TZ=America/Sao_Paulo
 WORKDIR /app
 
 # 4. Copia o binário do estágio builder e já define o dono como o novo usuário
-COPY --from=builder --chown=vecontabuser:vecontabuser /app/vecontab-backend .
-
+# 4. Copia os arquivos e já define o "dono" como o vecxuser
+COPY --from=builder --chown=vecxuser:vecxuser /app/vecx-backend .
+COPY --from=builder --chown=vecxuser:vecxuser /app/vecx-client.exe .
 # 5. Muda para o usuário sem privilégios
-USER vecontabuser
+USER vecxuser
 
 # O Cloud Run injetará o tráfego geralmente na porta 8080
 EXPOSE 8080
@@ -59,4 +62,4 @@ EXPOSE 8080
 # Execução do backend
 # O uso de strings separadas no CMD ["cmd", "arg"] é a forma recomendada (exec form)
 #CMD ["./vecontab-backend", "-port", "8080"]
-CMD ["./vecontab-backend"]
+CMD ["./vecx-backend"]

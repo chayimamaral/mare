@@ -1,6 +1,5 @@
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
@@ -15,7 +14,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { DanfeView } from '../../components/nfe/DanfeView';
-import { fetchDanfeHtmlFromRetorno, fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
+import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import { parseNFEApiError } from '../../lib/nfeError';
 
 type AmbienteNFe = 'trial' | 'producao';
@@ -54,11 +53,6 @@ type NFEValidacaoRegra = {
     descricao: string;
 };
 
-const DanfeHtmlIframe = dynamic(
-    () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
-    { ssr: false },
-);
-
 export default function NFEConsultaPage() {
     useRouteClientGuard();
     const router = useRouter();
@@ -73,9 +67,6 @@ export default function NFEConsultaPage() {
     const [danfeVisible, setDanfeVisible] = useState(false);
     const [danfeLoading, setDanfeLoading] = useState(false);
     const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
-    const [danfeSaxonVisible, setDanfeSaxonVisible] = useState(false);
-    const [danfeSaxonLoading, setDanfeSaxonLoading] = useState(false);
-    const [danfeSaxonHtml, setDanfeSaxonHtml] = useState<string | null>(null);
     const closeDanfePreview = useCallback(() => {
         setDanfeVisible(false);
         setDanfeData(null);
@@ -304,36 +295,6 @@ export default function NFEConsultaPage() {
         await abrirDanfePorChave(chave);
     };
 
-    const visualizarDanfeSaxon = async () => {
-        const texto = retorno.trim();
-        if (!texto) {
-            toast.current?.show({
-                severity: 'warn',
-                summary: 'Retorno vazio',
-                detail: 'Consulte a NF-e ou busque no tenant antes de abrir a visualização Saxon.',
-                life: 5000,
-            });
-            return;
-        }
-        setDanfeSaxonVisible(true);
-        setDanfeSaxonLoading(true);
-        setDanfeSaxonHtml(null);
-        try {
-            const html = await fetchDanfeHtmlFromRetorno(texto);
-            setDanfeSaxonHtml(html);
-        } catch (e: unknown) {
-            setDanfeSaxonVisible(false);
-            toast.current?.show({
-                severity: 'error',
-                summary: 'Erro na DANFE Saxon',
-                detail: parseDanfeErrorMessage(e),
-                life: 9000,
-            });
-        } finally {
-            setDanfeSaxonLoading(false);
-        }
-    };
-
     return (
         <div className="grid">
             <div className="col-12">
@@ -370,47 +331,6 @@ export default function NFEConsultaPage() {
                         </div>
                     ) : null}
                     {!danfeLoading && danfeData ? <DanfeView data={danfeData} /> : null}
-                </Dialog>
-                <Dialog
-                    header="DANFE (Saxon-HE legado)"
-                    visible={danfeSaxonVisible}
-                    modal={false}
-                    style={{ width: 'min(96vw, 980px)' }}
-                    contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
-                    maximizable
-                    dismissableMask
-                    closeOnEscape
-                    footer={(
-                        <div className="flex justify-content-end">
-                            <Button
-                                type="button"
-                                label="Fechar visualização Saxon"
-                                icon="pi pi-times"
-                                text
-                                onClick={() => {
-                                    setDanfeSaxonVisible(false);
-                                    setDanfeSaxonLoading(false);
-                                    setDanfeSaxonHtml(null);
-                                }}
-                            />
-                        </div>
-                    )}
-                    onHide={() => {
-                        setDanfeSaxonVisible(false);
-                        setDanfeSaxonLoading(false);
-                        setDanfeSaxonHtml(null);
-                    }}
-                >
-                    <p className="text-600 text-sm mt-0 mb-3">
-                        Visualização legada para comparação de campos com o padrão antigo (Saxon + XSLT SVRS).
-                    </p>
-                    {danfeSaxonLoading ? (
-                        <div className="flex flex-column align-items-center gap-3 py-6">
-                            <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
-                            <span className="text-600">Gerando DANFE Saxon…</span>
-                        </div>
-                    ) : null}
-                    {!danfeSaxonLoading && danfeSaxonHtml ? <DanfeHtmlIframe html={danfeSaxonHtml} /> : null}
                 </Dialog>
                 <Card title="Consulta NF-e (Tenant)">
                     <p className="text-600 mt-0 mb-4">
@@ -477,15 +397,6 @@ export default function NFEConsultaPage() {
                                 disabled={!retorno.trim() || loading || danfeLoading}
                                 loading={danfeLoading}
                                 onClick={() => void visualizarDanfe()}
-                            />
-                            <Button
-                                type="button"
-                                label="Visualizar DANFE Saxon (legado)"
-                                icon="pi pi-desktop"
-                                severity="contrast"
-                                disabled={!retorno.trim() || loading || danfeSaxonLoading}
-                                loading={danfeSaxonLoading}
-                                onClick={() => void visualizarDanfeSaxon()}
                             />
                         </div>
                         <div className="col-12">
