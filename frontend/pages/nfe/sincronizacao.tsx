@@ -82,12 +82,15 @@ export default function NFESincronizacaoPage() {
     const [fProvider, setFProvider] = useState('');
     const [fUF, setFUF] = useState('');
     const [fCNPJ, setFCNPJ] = useState('');
+    const [appliedFProvider, setAppliedFProvider] = useState('');
+    const [appliedFUF, setAppliedFUF] = useState('');
+    const [appliedFCNPJ, setAppliedFCNPJ] = useState('');
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
 
     const queryKey = useMemo(
-        () => ({ first, rows, provider: fProvider, uf: fUF, cnpj: fCNPJ }),
-        [first, rows, fProvider, fUF, fCNPJ],
+        () => ({ first, rows, provider: appliedFProvider, uf: appliedFUF, cnpj: appliedFCNPJ }),
+        [first, rows, appliedFProvider, appliedFUF, appliedFCNPJ],
     );
 
     const { data, isFetching, refetch } = useQuery({
@@ -109,6 +112,13 @@ export default function NFESincronizacaoPage() {
     const onPage = (e: DataTablePageEvent) => {
         setFirst(e.first);
         setRows(e.rows);
+    };
+
+    const applyFiltros = () => {
+        setAppliedFProvider(fProvider);
+        setAppliedFUF(fUF);
+        setAppliedFCNPJ(fCNPJ);
+        setFirst(0);
     };
 
     const executarSincronizacao = async () => {
@@ -136,6 +146,9 @@ export default function NFESincronizacaoPage() {
             setFProvider(res.provider);
             setFUF(res.uf);
             setFCNPJ(res.cnpj);
+            setAppliedFProvider(res.provider);
+            setAppliedFUF(res.uf);
+            setAppliedFCNPJ(res.cnpj);
             setFirst(0);
             void refetch();
         } catch (e: any) {
@@ -248,15 +261,49 @@ export default function NFESincronizacaoPage() {
                     >
                         <div className="field mb-0">
                             <label htmlFor="fProvider" className="text-sm text-600 mb-2 block">Provider</label>
-                            <InputText id="fProvider" className="w-full" value={fProvider} onChange={(e) => setFProvider(String(e.target.value ?? '').toUpperCase())} />
+                            <InputText
+                                id="fProvider"
+                                className="w-full"
+                                value={fProvider}
+                                onChange={(e) => setFProvider(String(e.target.value ?? '').toUpperCase())}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        applyFiltros();
+                                    }
+                                }}
+                            />
                         </div>
                         <div className="field mb-0">
                             <label htmlFor="fUF" className="text-sm text-600 mb-2 block">UF</label>
-                            <InputText id="fUF" className="w-full" value={fUF} maxLength={2} onChange={(e) => setFUF(String(e.target.value ?? '').toUpperCase())} />
+                            <InputText
+                                id="fUF"
+                                className="w-full"
+                                value={fUF}
+                                maxLength={2}
+                                onChange={(e) => setFUF(String(e.target.value ?? '').toUpperCase())}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        applyFiltros();
+                                    }
+                                }}
+                            />
                         </div>
                         <div className="field mb-0">
                             <label htmlFor="fCnpj" className="text-sm text-600 mb-2 block">CNPJ/CPF</label>
-                            <InputText id="fCnpj" className="w-full" value={fCNPJ} onChange={(e) => setFCNPJ(onlyDigits(e.target.value))} />
+                            <InputText
+                                id="fCnpj"
+                                className="w-full"
+                                value={fCNPJ}
+                                onChange={(e) => setFCNPJ(onlyDigits(e.target.value))}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        applyFiltros();
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div className="field mb-0 flex align-items-end">
+                            <Button type="button" label="Aplicar filtros" icon="pi pi-filter" onClick={applyFiltros} />
                         </div>
                     </div>
 

@@ -25,8 +25,8 @@ rclone copy "$LOCAL_DIR" "$REMOTE_DEST"
 IF_SUCCESS=$?
 
 if [ $IF_SUCCESS -eq 0 ]; then
-    echo "✅ Upload concluído. Limpando pasta local..."
-    rm -rf "$LOCAL_DIR"/*
+    echo "✅ Upload concluído...."
+#    rm -rf "$LOCAL_DIR"/*
 else
     echo "❌ ERRO no upload. Os arquivos locais foram preservados para segurança."
 fi

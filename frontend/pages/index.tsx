@@ -155,14 +155,14 @@ export default function Home() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const {} = homeProps ?? {};
+  const { } = homeProps ?? {};
 
   return (
     <div className="card">
       <Tooltip target=".dash-modulo-tile" />
 
       <div className="mb-5">
-        <h1 className="m-0 text-3xl font-bold text-900">Bem-vindo ao VECONTAB</h1>
+        <h1 className="m-0 text-3xl font-bold text-900">Bem-vindo ao VECX</h1>
         <p className="mt-2 mb-0 text-600 line-height-3">
           Escolha um módulo abaixo ou use o menu lateral. Passe o mouse sobre os cartões para dicas rápidas.
         </p>

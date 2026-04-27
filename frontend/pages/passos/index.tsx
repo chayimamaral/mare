@@ -475,7 +475,6 @@ const Passos = () => {
                         sortField={lazyState.sortField}
                         //atenção para o padrão abaixo...sempre tem que ser assim senão não funcionayk
                         sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
-                        onFilter={onFilter}
                         loading={isFetching}
                         totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}

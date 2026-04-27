@@ -69,6 +69,7 @@ const RotinasPF = () => {
   const [editing, setEditing] = useState<Vec.RotinaPFListRow>(emptyRow);
   const [itens, setItens] = useState<Vec.RotinaPFItemRow[]>([]);
   const [itensLoading, setItensLoading] = useState(false);
+  const [nomeDraft, setNomeDraft] = useState('');
 
   const [itemDialog, setItemDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<Vec.RotinaPFItemRow>(emptyItem);
@@ -375,15 +376,18 @@ const RotinasPF = () => {
       <span className="p-input-icon-left w-full sm:w-auto">
         <i className="pi pi-search" />
         <InputText
-          value={(lazyState.filters?.nome as { value?: string })?.value ?? ''}
-          onChange={(e) =>
-            setLazyState((prev) => ({
-              ...prev,
-              first: 0,
-              page: 1,
-              filters: { ...prev.filters, nome: { value: e.target.value, matchMode: 'contains' } },
-            }))
-          }
+          value={nomeDraft}
+          onChange={(e) => setNomeDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setLazyState((prev) => ({
+                ...prev,
+                first: 0,
+                page: 1,
+                filters: { ...prev.filters, nome: { value: nomeDraft, matchMode: 'contains' } },
+              }));
+            }
+          }}
           placeholder="Buscar por nome"
           className="w-full"
         />

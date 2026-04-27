@@ -2,9 +2,13 @@
 
 START_TIME=$(date +%s)
 START_DATE=$(date +"%H:%M:%S")
+LOCAL_DIR="/home/camaral/backups/vecontab"
+
+echo "Limpando a pasta local dos backups"
+
+rm -rf "$LOCAL_DIR"/*
 
 # No início do deploy.sh
-#./backup.sh
 
 ./bkp_db.sh || { echo "Backup do banco de dados falhou, deploy cancelado"; exit 1; }
 

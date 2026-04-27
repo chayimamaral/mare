@@ -16,6 +16,7 @@ type NFEGestaoListParams struct {
 	SortField        string
 	SortOrder        int
 	TipoArquivo      string
+	ChaveNFe         string
 	EmissaoIni       *time.Time
 	EmissaoFim       *time.Time
 	CNPJEmitente     string
@@ -134,6 +135,11 @@ func (r *NFESerproRepository) ListGestao(ctx context.Context, schemaName string,
 	if t := strings.TrimSpace(p.TipoArquivo); t != "" {
 		where = append(where, fmt.Sprintf("tipo_arquivo = $%d", ai))
 		args = append(args, t)
+		ai++
+	}
+	if d := onlyDigitsRepo(p.ChaveNFe); d != "" {
+		where = append(where, fmt.Sprintf("regexp_replace(COALESCE(chave_nfe, ''), '[^0-9]', '', 'g') LIKE $%d", ai))
+		args = append(args, "%"+d+"%")
 		ai++
 	}
 	if p.EmissaoIni != nil {

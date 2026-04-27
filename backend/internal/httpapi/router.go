@@ -75,7 +75,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraContadorService := service.NewIntegraContadorService(certificadoService, configuracaoIntegracaoRepo, integraServicoProcRepo, integraTabelaConsumoService)
 	integraServicoProcService := service.NewIntegraContadorServicoProcuracaoService(integraServicoProcRepo)
 	nfeSerproRepo := repository.NewNFESerproRepository(pool)
+	nfeValidacaoCatalogoRepo := repository.NewNFEValidacaoCatalogoRepository(pool)
 	nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService), certificadoService)
+	nfeValidacaoCatalogoService := service.NewNFEValidacaoCatalogoService(nfeValidacaoCatalogoRepo)
 
 	authHandler := handlers.NewAuthHandler(authService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -108,7 +110,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	integraContadorHandler := handlers.NewIntegraContadorHandler(integraContadorService)
 	integraServicoProcHandler := handlers.NewIntegraContadorServicoProcuracaoHandler(integraServicoProcService)
 	integraTabelaConsumoHandler := handlers.NewIntegraTabelaConsumoHandler(integraTabelaConsumoService)
-	nfeSerproHandler := handlers.NewNFESerproHandler(nfeSerproService)
+	nfeSerproHandler := handlers.NewNFESerproHandler(nfeSerproService, nfeValidacaoCatalogoService, certificadoService)
 
 	representanteService := service.NewRepresentanteService(repository.NewRepresentanteRepository(pool))
 	representanteHandler := handlers.NewRepresentanteHandler(representanteService)
@@ -391,6 +393,7 @@ func registerRoutes(
 	r.With(requireAuth, requireNFe, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/sincronizar-provider", nfeSerproHandler.SincronizarProvider)
 	r.With(requireAuth, requireNFe, apiMiddleware.RequireAnyRole("ADMIN", "SUPER")).Post("/serpro/nfe/manifestar-destinatario", nfeSerproHandler.ManifestarDestinatario)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/manifestacao", nfeSerproHandler.ListManifestacaoDest)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/validacoes", nfeSerproHandler.ListRegrasValidacao)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/sync-estado", nfeSerproHandler.ListSyncEstado)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)

@@ -440,13 +440,8 @@ export default function CompromissosVisaoPage() {
                 sortOrder={sortOrder}
                 onSort={onSort}
                 filters={filters}
-                onFilter={(e) => {
-                    setFirst(0);
-                    setFilters(e.filters as TableFilters);
-                }}
                 globalFilter={globalFilterValue}
                 globalFilterFields={['empresaNome', 'nome', 'valorText', 'status', 'categoria']}
-                filterDisplay="row"
                 emptyMessage="Nenhum compromisso gerado para empresas deste tenant"
                 dataKey="id"
                 size="small"

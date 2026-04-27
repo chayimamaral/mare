@@ -37,7 +37,8 @@ export default function IntegraContadorTabelaConsumoPage() {
     const toast = useRef<Toast>(null);
     const svc = useMemo(() => IntegraTabelaConsumoService(), []);
     const [filtroTipo, setFiltroTipo] = useState<string>('');
-    const [filtroEmpresa, setFiltroEmpresa] = useState<string>('');
+    const [filtroEmpresaDraft, setFiltroEmpresaDraft] = useState<string>('');
+    const [filtroEmpresaApplied, setFiltroEmpresaApplied] = useState<string>('');
     const [dialogVisible, setDialogVisible] = useState(false);
     const [form, setForm] = useState<FormFaixa>(emptyForm);
     const [submitted, setSubmitted] = useState(false);
@@ -57,8 +58,8 @@ export default function IntegraContadorTabelaConsumoPage() {
     });
 
     const { data: gastosResult, isFetching: loadingGastos, refetch: refetchGastos } = useQuery({
-        queryKey: ['integra-tabela-consumo-gastos', filtroTipo, filtroEmpresa],
-        queryFn: () => svc.listGastos({ tipo: filtroTipo, empresaDocumento: filtroEmpresa.replace(/\D/g, '') }),
+        queryKey: ['integra-tabela-consumo-gastos', filtroTipo, filtroEmpresaApplied],
+        queryFn: () => svc.listGastos({ tipo: filtroTipo, empresaDocumento: filtroEmpresaApplied.replace(/\D/g, '') }),
     });
 
     const gastos = gastosResult?.gastos ?? [];
@@ -187,10 +188,29 @@ export default function IntegraContadorTabelaConsumoPage() {
                     <div className="grid">
                         <div className="col-12 md:col-3">
                             <label htmlFor="filtro-empresa" className="block mb-2 font-medium">Empresa (CNPJ/CPF)</label>
-                            <InputText id="filtro-empresa" className="w-full" value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value.replace(/\D/g, ''))} />
+                            <InputText
+                                id="filtro-empresa"
+                                className="w-full"
+                                value={filtroEmpresaDraft}
+                                onChange={(e) => setFiltroEmpresaDraft(e.target.value.replace(/\D/g, ''))}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        setFiltroEmpresaApplied(filtroEmpresaDraft);
+                                    }
+                                }}
+                            />
                         </div>
                         <div className="col-12 md:col-3 flex align-items-end">
-                            <Button type="button" icon="pi pi-refresh" label="Atualizar gastos" onClick={() => void refetchGastos()} loading={loadingGastos} />
+                            <Button
+                                type="button"
+                                icon="pi pi-refresh"
+                                label="Atualizar gastos"
+                                onClick={() => {
+                                    setFiltroEmpresaApplied(filtroEmpresaDraft);
+                                    void refetchGastos();
+                                }}
+                                loading={loadingGastos}
+                            />
                         </div>
                     </div>
                     <div className="mb-2 text-700">

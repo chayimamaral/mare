@@ -1156,7 +1156,6 @@ const Clientes = () => {
             sortField={lazyState.sortField}
             //atenção para o padrão abaixo...sempre tem que ser assim senão não funciona
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
-            onFilter={onFilter}
             loading={loading}
             totalRecords={totalRecords}
             paginatorLeft={paginatorLeft}

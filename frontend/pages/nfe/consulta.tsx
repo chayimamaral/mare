@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
@@ -14,6 +15,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { fetchDanfeHtmlFromRetorno, parseDanfeErrorMessage } from '../../lib/nfeDanfeClient';
+import { parseNFEApiError } from '../../lib/nfeError';
 
 const DanfeHtmlIframe = dynamic(
     () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
@@ -48,6 +50,14 @@ type NFEDocResponse = {
     ja_baixada?: boolean;
 };
 
+type NFEValidacaoRegra = {
+    id: string;
+    etapa: string;
+    codigo_regra: string;
+    titulo: string;
+    descricao: string;
+};
+
 export default function NFEConsultaPage() {
     useRouteClientGuard();
     const router = useRouter();
@@ -67,6 +77,14 @@ export default function NFEConsultaPage() {
 
     /** Evita reexecutar o fluxo automático ao trocar só a query (ex.: remover `visualizar`). */
     const autoDanfeRanForKey = useRef<string | null>(null);
+
+    const { data: validacoes } = useQuery({
+        queryKey: ['nfe-validacoes-consulta'],
+        queryFn: async () => {
+            const { data } = await api.get<{ items: NFEValidacaoRegra[] }>('/api/serpro/nfe/validacoes');
+            return data.items ?? [];
+        },
+    });
 
     useEffect(() => {
         const raw = router.query.chave;
@@ -174,9 +192,8 @@ export default function NFEConsultaPage() {
                     return;
                 }
                 autoDanfeRanForKey.current = null;
-                const err = e as { response?: { data?: { error?: string; message?: string } } };
-                const msg = err?.response?.data?.error || err?.response?.data?.message || 'NF-e não encontrada no tenant';
-                toast.current?.show({ severity: 'error', summary: 'Visualização', detail: String(msg), life: 7000 });
+                const parsed = parseNFEApiError(e);
+                toast.current?.show({ severity: 'error', summary: parsed.title, detail: parsed.detail, life: 7000 });
             } finally {
                 setLoading(false);
             }
@@ -212,9 +229,9 @@ export default function NFEConsultaPage() {
             } else {
                 toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'NF-e consultada e armazenada no schema do tenant.', life: 3500 });
             }
-        } catch (e: any) {
-            const msg = e?.response?.data?.error || e?.response?.data?.message || 'Falha ao consultar NF-e';
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: msg, life: 7000 });
+        } catch (e: unknown) {
+            const parsed = parseNFEApiError(e);
+            toast.current?.show({ severity: 'error', summary: parsed.title, detail: parsed.detail, life: 9000 });
         } finally {
             setLoading(false);
         }
@@ -231,9 +248,9 @@ export default function NFEConsultaPage() {
             const { data } = await api.get<NFEDocResponse>('/api/serpro/nfe/documento', { params: { chave } });
             setRetorno(JSON.stringify(data, null, 2));
             toast.current?.show({ severity: 'info', summary: 'Consulta local', detail: 'NF-e carregada do banco do tenant.', life: 3000 });
-        } catch (e: any) {
-            const msg = e?.response?.data?.error || e?.response?.data?.message || 'NF-e não encontrada no tenant';
-            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: msg, life: 5000 });
+        } catch (e: unknown) {
+            const parsed = parseNFEApiError(e);
+            toast.current?.show({ severity: 'warn', summary: parsed.title, detail: parsed.detail, life: 7000 });
         } finally {
             setLoading(false);
         }
@@ -261,9 +278,9 @@ export default function NFEConsultaPage() {
             a.click();
             URL.revokeObjectURL(url);
             toast.current?.show({ severity: 'success', summary: 'Exportado', detail: 'XML gerado com sucesso.', life: 3000 });
-        } catch (e: any) {
-            const msg = e?.response?.data?.error || e?.response?.data?.message || 'Falha ao exportar XML';
-            toast.current?.show({ severity: 'error', summary: 'Erro', detail: msg, life: 5000 });
+        } catch (e: unknown) {
+            const parsed = parseNFEApiError(e);
+            toast.current?.show({ severity: 'error', summary: parsed.title, detail: parsed.detail, life: 7000 });
         } finally {
             setLoading(false);
         }
@@ -371,6 +388,20 @@ export default function NFEConsultaPage() {
                                 loading={danfeLoading}
                                 onClick={() => void visualizarDanfe()}
                             />
+                        </div>
+                        <div className="col-12">
+                            <div className="surface-50 border-1 surface-border border-round p-3">
+                                <div className="font-medium mb-2">Regras de validação ativas (catálogo global)</div>
+                                {validacoes && validacoes.length > 0 ? (
+                                    <ul className="m-0 pl-3 text-sm">
+                                        {validacoes.slice(0, 6).map((r) => (
+                                            <li key={r.id}>{r.titulo} - {r.descricao}</li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <span className="text-600 text-sm">Nenhuma regra cadastrada.</span>
+                                )}
+                            </div>
                         </div>
                         <div className="col-12">
                             <label htmlFor="retorno" className="block mb-2 font-medium">Retorno</label>

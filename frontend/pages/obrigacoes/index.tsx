@@ -804,7 +804,6 @@ const ObrigacoesLegaisPage = () => {
               header={header}
               size="small"
               stripedRows
-              filterDisplay="row"
               first={lazyState.first}
               onPage={onPage}
               onSort={onSort}

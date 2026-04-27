@@ -893,7 +893,6 @@ const Rotinas = () => {
                         onSort={onSort}
                         sortField={lazyState.sortField || undefined}
                         sortOrder={lazyState.sortOrder === -1 ? -1 : 1}
-                        onFilter={onFilter}
                         loading={isFetching}
                         totalRecords={data?.totalRecords ?? totalRecords}
                         paginatorLeft={paginatorLeft}

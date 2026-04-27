@@ -15,11 +15,13 @@ import (
 )
 
 type NFESerproHandler struct {
-	svc *service.NFESerproService
+	svc            *service.NFESerproService
+	validacaoCat   *service.NFEValidacaoCatalogoService
+	certificadoSvc *service.CertificadoService
 }
 
-func NewNFESerproHandler(svc *service.NFESerproService) *NFESerproHandler {
-	return &NFESerproHandler{svc: svc}
+func NewNFESerproHandler(svc *service.NFESerproService, validacaoCat *service.NFEValidacaoCatalogoService, certificadoSvc *service.CertificadoService) *NFESerproHandler {
+	return &NFESerproHandler{svc: svc, validacaoCat: validacaoCat, certificadoSvc: certificadoSvc}
 }
 
 type nfeConsultaRequest struct {
@@ -47,16 +49,41 @@ type nfeManifestarDestRequest struct {
 	Simular    bool   `json:"simular"`
 }
 
+func hasOnlyDigits(v string) bool {
+	s := strings.TrimSpace(v)
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	var req nfeConsultaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
+		return
+	}
+	ch := strings.TrimSpace(req.ChaveNFe)
+	if len(ch) != 44 || !hasOnlyDigits(ch) {
+		h.writeNFEError(w, r, errNFEDadosInvalidos("chave_nfe deve ter 44 digitos numericos"), "area_dados")
 		return
 	}
 	schema := middleware.TenantSchema(r.Context())
+	tenantID := middleware.TenantID(r.Context())
+	if h.certificadoSvc != nil {
+		if _, err := h.certificadoSvc.ResumoPorTenant(r.Context(), tenantID); err != nil {
+			h.writeNFEError(w, r, err, "certificado_transmissao")
+			return
+		}
+	}
 	out, err := h.svc.ConsultarNFe(r.Context(), schema, req.Ambiente, req.ChaveNFe, req.RequestTag, req.Assinar)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -66,7 +93,12 @@ func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 func (h *NFESerproHandler) SincronizarProvider(w http.ResponseWriter, r *http.Request) {
 	var req nfeSyncProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
+		return
+	}
+	cnpj := strings.TrimSpace(req.CNPJ)
+	if cnpj != "" && !hasOnlyDigits(cnpj) {
+		h.writeNFEError(w, r, errNFEDadosInvalidos("cnpj/cpf deve conter apenas digitos"), "area_dados")
 		return
 	}
 	schema := middleware.TenantSchema(r.Context())
@@ -82,7 +114,7 @@ func (h *NFESerproHandler) SincronizarProvider(w http.ResponseWriter, r *http.Re
 		req.Simular,
 	)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -92,7 +124,12 @@ func (h *NFESerproHandler) SincronizarProvider(w http.ResponseWriter, r *http.Re
 func (h *NFESerproHandler) ManifestarDestinatario(w http.ResponseWriter, r *http.Request) {
 	var req nfeManifestarDestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
+		return
+	}
+	ch := strings.TrimSpace(req.ChaveNFe)
+	if len(ch) != 44 || !hasOnlyDigits(ch) {
+		h.writeNFEError(w, r, errNFEDadosInvalidos("chave_nfe deve ter 44 digitos numericos"), "area_dados")
 		return
 	}
 	schema := middleware.TenantSchema(r.Context())
@@ -113,10 +150,49 @@ func (h *NFESerproHandler) ManifestarDestinatario(w http.ResponseWriter, r *http
 		req.Simular,
 	)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *NFESerproHandler) ListRegrasValidacao(w http.ResponseWriter, r *http.Request) {
+	etapa := strings.TrimSpace(r.URL.Query().Get("etapa"))
+	if h.validacaoCat == nil {
+		render.WriteJSON(w, http.StatusOK, map[string]any{"items": []any{}, "totalRecords": 0})
+		return
+	}
+	items, err := h.validacaoCat.ListRegrasAtivasPorEtapa(r.Context(), etapa)
+	if err != nil {
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, map[string]any{
+		"items":        items,
+		"totalRecords": len(items),
+	})
+}
+
+func (h *NFESerproHandler) writeNFEError(w http.ResponseWriter, r *http.Request, err error, etapa string) {
+	if h.validacaoCat == nil {
+		render.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	d := h.validacaoCat.ResolverErro(r.Context(), "webservice", etapa, err)
+	render.WriteJSON(w, http.StatusBadRequest, map[string]any{
+		"error":           d.Mensagem,
+		"codigo":          d.Codigo,
+		"mensagem":        d.Mensagem,
+		"etapa_validacao": d.EtapaValidacao,
+		"acao_sugerida":   d.AcaoSugerida,
+		"origem":          d.Origem,
+	})
+}
+
+type errNFEDadosInvalidos string
+
+func (e errNFEDadosInvalidos) Error() string {
+	return string(e)
 }
 
 // ListManifestacaoDest GET /serpro/nfe/manifestacao — histórico por chave.
@@ -125,7 +201,7 @@ func (h *NFESerproHandler) ListManifestacaoDest(w http.ResponseWriter, r *http.R
 	schema := middleware.TenantSchema(r.Context())
 	out, err := h.svc.ListManifestacaoDest(r.Context(), schema, chave)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -144,7 +220,7 @@ func (h *NFESerproHandler) ListSyncEstado(w http.ResponseWriter, r *http.Request
 	}
 	out, err := h.svc.ListSyncEstado(r.Context(), schema, p)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -172,6 +248,7 @@ func (h *NFESerproHandler) ListGestao(w http.ResponseWriter, r *http.Request) {
 		SortField:        strings.TrimSpace(q.Get("sortField")),
 		SortOrder:        parseIntNFEGestao(q.Get("sortOrder"), -1),
 		TipoArquivo:      strings.TrimSpace(q.Get("tipo_arquivo")),
+		ChaveNFe:         strings.TrimSpace(q.Get("chave_nfe")),
 		CNPJEmitente:     q.Get("cnpj_emitente"),
 		CNPJDestinatario: q.Get("cnpj_destinatario"),
 	}
@@ -191,7 +268,7 @@ func (h *NFESerproHandler) ListGestao(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := h.svc.ListGestao(r.Context(), schema, p)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -202,7 +279,7 @@ func (h *NFESerproHandler) GetDocumento(w http.ResponseWriter, r *http.Request) 
 	schema := middleware.TenantSchema(r.Context())
 	out, err := h.svc.BuscarDocumento(r.Context(), schema, chave)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, out)
@@ -213,7 +290,7 @@ func (h *NFESerproHandler) ExportarXML(w http.ResponseWriter, r *http.Request) {
 	schema := middleware.TenantSchema(r.Context())
 	xmlPayload, err := h.svc.ExportarXML(r.Context(), schema, chave)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
@@ -226,7 +303,7 @@ func (h *NFESerproHandler) ExportarDanfeHTML(w http.ResponseWriter, r *http.Requ
 	schema := middleware.TenantSchema(r.Context())
 	html, err := h.svc.ExportarDanfeHTML(r.Context(), schema, chave)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -244,7 +321,7 @@ func (h *NFESerproHandler) GerarDanfeHTMLFromXMLBody(w http.ResponseWriter, r *h
 	r.Body = http.MaxBytesReader(w, r.Body, 12<<20)
 	var req danfeHTMLFromBodyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
 		return
 	}
 	src := strings.TrimSpace(req.Retorno)
@@ -252,17 +329,17 @@ func (h *NFESerproHandler) GerarDanfeHTMLFromXMLBody(w http.ResponseWriter, r *h
 		src = strings.TrimSpace(req.XML)
 	}
 	if src == "" {
-		render.WriteError(w, http.StatusBadRequest, "informe retorno ou xml")
+		h.writeNFEError(w, r, errNFEDadosInvalidos("informe retorno ou xml"), "area_dados")
 		return
 	}
 	xmlPayload, err := service.DanfeXMLFromConsultaRetorno(src)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "area_dados")
 		return
 	}
 	html, err := h.svc.GerarDanfeHTMLFromXML(r.Context(), xmlPayload)
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -273,7 +350,7 @@ func (h *NFESerproHandler) GerarDanfeHTMLFromXMLBody(w http.ResponseWriter, r *h
 func (h *NFESerproHandler) PushNotificacao(w http.ResponseWriter, r *http.Request) {
 	rawBody, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		render.WriteError(w, http.StatusBadRequest, "erro ao ler payload")
+		h.writeNFEError(w, r, err, "mensagem_inicial_webservice")
 		return
 	}
 	headers := map[string]string{}
@@ -281,7 +358,7 @@ func (h *NFESerproHandler) PushNotificacao(w http.ResponseWriter, r *http.Reques
 		headers[k] = strings.Join(vals, ",")
 	}
 	if err := h.svc.RegistrarPushNotificacao(r.Context(), rawBody, headers); err != nil {
-		render.WriteError(w, http.StatusInternalServerError, err.Error())
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
 		return
 	}
 	render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})

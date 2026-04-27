@@ -16,6 +16,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { fetchDanfeHtmlFromRetorno, parseDanfeErrorMessage } from '../../lib/nfeDanfeClient';
+import { parseNFEApiError } from '../../lib/nfeError';
 
 const DanfeHtmlIframe = dynamic(
     () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
@@ -44,6 +45,14 @@ type ManifestacaoRow = {
     x_motivo_evento?: string;
     n_prot?: string;
     criado_em: string;
+};
+
+type NFEValidacaoRegra = {
+    id: string;
+    etapa: string;
+    codigo_regra: string;
+    titulo: string;
+    descricao: string;
 };
 
 const MANIFEST_TIPO_OPTIONS = [
@@ -126,8 +135,12 @@ export default function NFEManutencaoPage() {
     const [tipoArquivo, setTipoArquivo] = useState('');
     const [emissaoIni, setEmissaoIni] = useState('');
     const [emissaoFim, setEmissaoFim] = useState('');
-    const [cnpjEmitente, setCnpjEmitente] = useState('');
-    const [cnpjDestinatario, setCnpjDestinatario] = useState('');
+    const [chaveNFeFiltroDraft, setChaveNFeFiltroDraft] = useState('');
+    const [chaveNFeFiltroApplied, setChaveNFeFiltroApplied] = useState('');
+    const [cnpjEmitenteDraft, setCnpjEmitenteDraft] = useState('');
+    const [cnpjEmitenteApplied, setCnpjEmitenteApplied] = useState('');
+    const [cnpjDestinatarioDraft, setCnpjDestinatarioDraft] = useState('');
+    const [cnpjDestinatarioApplied, setCnpjDestinatarioApplied] = useState('');
 
     const [first, setFirst] = useState(0);
     const [rows, setRows] = useState(20);
@@ -155,12 +168,13 @@ export default function NFEManutencaoPage() {
             sortField,
             sortOrder,
             tipoArquivo,
+            chaveNFeFiltroApplied,
             emissaoIni,
             emissaoFim,
-            cnpjEmitente,
-            cnpjDestinatario,
+            cnpjEmitenteApplied,
+            cnpjDestinatarioApplied,
         }),
-        [first, rows, sortField, sortOrder, tipoArquivo, emissaoIni, emissaoFim, cnpjEmitente, cnpjDestinatario],
+        [first, rows, sortField, sortOrder, tipoArquivo, chaveNFeFiltroApplied, emissaoIni, emissaoFim, cnpjEmitenteApplied, cnpjDestinatarioApplied],
     );
 
     const { data, isFetching, refetch } = useQuery({
@@ -173,10 +187,11 @@ export default function NFEManutencaoPage() {
                     sortField: queryKey.sortField,
                     sortOrder: queryKey.sortOrder,
                     tipo_arquivo: queryKey.tipoArquivo || undefined,
+                    chave_nfe: onlyDigitsChave(queryKey.chaveNFeFiltroApplied) || undefined,
                     emissao_ini: queryKey.emissaoIni || undefined,
                     emissao_fim: queryKey.emissaoFim || undefined,
-                    cnpj_emitente: queryKey.cnpjEmitente || undefined,
-                    cnpj_destinatario: queryKey.cnpjDestinatario || undefined,
+                    cnpj_emitente: queryKey.cnpjEmitenteApplied || undefined,
+                    cnpj_destinatario: queryKey.cnpjDestinatarioApplied || undefined,
                 },
             });
             return res;
@@ -195,6 +210,13 @@ export default function NFEManutencaoPage() {
             return res;
         },
     });
+    const { data: validacoesData } = useQuery({
+        queryKey: ['nfe-validacoes-manutencao'],
+        queryFn: async () => {
+            const { data } = await api.get<{ items: NFEValidacaoRegra[] }>('/api/serpro/nfe/validacoes');
+            return data.items ?? [];
+        },
+    });
 
     const onPage = (e: DataTablePageEvent) => {
         setFirst(e.first);
@@ -207,6 +229,13 @@ export default function NFEManutencaoPage() {
         setFirst(0);
     };
 
+    const applyTextFilters = () => {
+        setChaveNFeFiltroApplied(chaveNFeFiltroDraft);
+        setCnpjEmitenteApplied(cnpjEmitenteDraft);
+        setCnpjDestinatarioApplied(cnpjDestinatarioDraft);
+        setFirst(0);
+    };
+
     const exportarExcel = async () => {
         try {
             const { data: res } = await api.get<{ items: NFEGestaoRow[] }>('/api/serpro/nfe/gestao', {
@@ -216,10 +245,11 @@ export default function NFEManutencaoPage() {
                     sortField: queryKey.sortField,
                     sortOrder: queryKey.sortOrder,
                     tipo_arquivo: queryKey.tipoArquivo || undefined,
+                    chave_nfe: onlyDigitsChave(queryKey.chaveNFeFiltroApplied) || undefined,
                     emissao_ini: queryKey.emissaoIni || undefined,
                     emissao_fim: queryKey.emissaoFim || undefined,
-                    cnpj_emitente: queryKey.cnpjEmitente || undefined,
-                    cnpj_destinatario: queryKey.cnpjDestinatario || undefined,
+                    cnpj_emitente: queryKey.cnpjEmitenteApplied || undefined,
+                    cnpj_destinatario: queryKey.cnpjDestinatarioApplied || undefined,
                 },
             });
             const list = res?.items ?? [];
@@ -309,10 +339,9 @@ export default function NFEManutencaoPage() {
                 toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
                 return;
             }
-            const err = e as { response?: { data?: { error?: string; message?: string } } };
-            const fromApi = err?.response?.data?.error || err?.response?.data?.message;
-            const msg = fromApi ? String(fromApi) : parseDanfeErrorMessage(e);
-            toast.current?.show({ severity: 'error', summary: 'Visualização DANFE', detail: msg, life: 8000 });
+            const parsed = parseNFEApiError(e);
+            const msg = parsed.detail || parseDanfeErrorMessage(e);
+            toast.current?.show({ severity: 'error', summary: 'Visualização DANFE', detail: msg, life: 9000 });
         } finally {
             setDanfeLoading(false);
         }
@@ -363,9 +392,8 @@ export default function NFEManutencaoPage() {
             });
             void refetchManifest();
         } catch (e: unknown) {
-            const err = e as { response?: { data?: { error?: string; message?: string } } };
-            const msg = err?.response?.data?.error || err?.response?.data?.message || 'Falha ao manifestar';
-            toast.current?.show({ severity: 'error', summary: 'Manifestação', detail: String(msg), life: 9000 });
+            const parsed = parseNFEApiError(e);
+            toast.current?.show({ severity: 'error', summary: 'Manifestação', detail: parsed.detail, life: 10000 });
         } finally {
             setManifestSending(false);
         }
@@ -475,16 +503,40 @@ export default function NFEManutencaoPage() {
                                 />
                             </div>
                             <div className="field mb-0 min-w-0">
+                                <label htmlFor="chaveNfeFiltro" className="text-sm text-600 mb-2 block">
+                                    Chave NF-e
+                                </label>
+                                <InputText
+                                    id="chaveNfeFiltro"
+                                    className="w-full"
+                                    value={chaveNFeFiltroDraft}
+                                    maxLength={44}
+                                    onChange={(e) => {
+                                        setChaveNFeFiltroDraft(onlyDigitsChave(e.target.value));
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            applyTextFilters();
+                                        }
+                                    }}
+                                    placeholder="44 dígitos ou parcial"
+                                />
+                            </div>
+                            <div className="field mb-0 min-w-0">
                                 <label htmlFor="cnpjEmit" className="text-sm text-600 mb-2 block">
                                     CNPJ emitente
                                 </label>
                                 <InputText
                                     id="cnpjEmit"
                                     className="w-full"
-                                    value={cnpjEmitente}
+                                    value={cnpjEmitenteDraft}
                                     onChange={(e) => {
-                                        setCnpjEmitente(e.target.value);
-                                        setFirst(0);
+                                        setCnpjEmitenteDraft(e.target.value);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            applyTextFilters();
+                                        }
                                     }}
                                     placeholder="Somente números ou parcial"
                                 />
@@ -496,13 +548,20 @@ export default function NFEManutencaoPage() {
                                 <InputText
                                     id="cnpjDest"
                                     className="w-full"
-                                    value={cnpjDestinatario}
+                                    value={cnpjDestinatarioDraft}
                                     onChange={(e) => {
-                                        setCnpjDestinatario(e.target.value);
-                                        setFirst(0);
+                                        setCnpjDestinatarioDraft(e.target.value);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            applyTextFilters();
+                                        }
                                     }}
                                     placeholder="Somente números ou parcial"
                                 />
+                            </div>
+                            <div className="field mb-0 min-w-0 flex align-items-end">
+                                <Button type="button" label="Aplicar filtros" icon="pi pi-filter" onClick={applyTextFilters} className="w-full" />
                             </div>
                         </div>
                     </div>
@@ -516,6 +575,18 @@ export default function NFEManutencaoPage() {
                                 Detalhes e DANFE abrem em janelas sobre esta tela para você continuar consultando outras notas na lista.
                             </p>
                         </div>
+                    </div>
+                    <div className="surface-50 border-1 surface-border border-round p-3 mb-3">
+                        <div className="font-medium mb-2">Regras de validação ativas (catálogo global)</div>
+                        {validacoesData && validacoesData.length > 0 ? (
+                            <ul className="m-0 pl-3 text-sm">
+                                {validacoesData.slice(0, 8).map((r) => (
+                                    <li key={r.id}>{r.titulo} - {r.descricao}</li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <span className="text-600 text-sm">Nenhuma regra cadastrada.</span>
+                        )}
                     </div>
 
                     <DataTable
@@ -574,7 +645,6 @@ export default function NFEManutencaoPage() {
                             style={{ minWidth: '10rem' }}
                             body={(r: NFEGestaoRow) => formatDateTimeBR(r.data_download)}
                         />
-                        <Column field="chave_nfe" header="Chave" sortable style={{ minWidth: '12rem' }} />
                         <Column header="Detalhes" body={detalhesBody} style={{ minWidth: '6rem' }} />
                     </DataTable>
 

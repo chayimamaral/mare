@@ -129,14 +129,6 @@ function vencimentoOrdemFilter(value: unknown, filter: unknown): boolean {
     return dv.toDateString() === filter.toDateString();
 }
 
-type TreeTableFilterEvent =
-    | { filters: TableFilters }
-    | { value: unknown; field: string; matchMode?: string };
-
-function isWrappedFilters(e: TreeTableFilterEvent): e is { filters: TableFilters } {
-    return 'filters' in e && e.filters != null && typeof e.filters === 'object';
-}
-
 function emitFieldFilter(
     setFilters: Dispatch<SetStateAction<TableFilters>>,
     setFirst: Dispatch<SetStateAction<number>>,
@@ -181,25 +173,6 @@ export default function CompromissosEmpresasPage() {
     const [createObservacao, setCreateObservacao] = useState('');
     const [createStatus, setCreateStatus] = useState<'pendente' | 'concluido'>('pendente');
     const [createLoading, setCreateLoading] = useState(false);
-
-    const onTreeFilter = useCallback((event: unknown) => {
-        setFirst(0);
-        const e = event as TreeTableFilterEvent;
-        if (isWrappedFilters(e)) {
-            setFilters({ ...e.filters });
-            return;
-        }
-        if (e && typeof e === 'object' && 'field' in e) {
-            const { field, value, matchMode } = e as { field: string; value: unknown; matchMode?: string };
-            setFilters((prev) => ({
-                ...prev,
-                [field]: {
-                    value: value as never,
-                    matchMode: (matchMode || (prev[field] as { matchMode?: string } | undefined)?.matchMode || FilterMatchMode.CONTAINS) as never,
-                },
-            }));
-        }
-    }, []);
 
     const buildTree = (itens: Vec.EmpresaAgendaAcompanhamentoItem[]): TreeNode[] => {
         const byEmpresa = new Map<string, { nome: string; itens: Vec.EmpresaAgendaAcompanhamentoItem[] }>();
@@ -788,7 +761,6 @@ export default function CompromissosEmpresasPage() {
                 sortOrder={sortOrder}
                 onSort={onSort}
                 filters={filters}
-                onFilter={onTreeFilter}
                 globalFilter={globalFilterValue}
                 globalFilterMatchMode={FilterMatchMode.CONTAINS}
                 filterMode="lenient"

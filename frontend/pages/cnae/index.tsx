@@ -502,7 +502,6 @@ const Cnae = () => {
             onSort={onSort}
             sortField={lazyState.sortField}
             sortOrder={(lazyState.sortOrder === 1) ? 1 : -1}
-            onFilter={onFilter}
             loading={isFetching}
             totalRecords={data?.totalRecords ?? totalRecords}
             paginatorLeft={paginatorLeft}
