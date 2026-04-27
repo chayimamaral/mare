@@ -421,8 +421,8 @@ export default function NFEManutencaoPage() {
                         header={`DANFE — chave ${danfeChave || '…'}`}
                         visible={danfeVisible}
                         modal={false}
-                        style={{ width: 'min(96vw, 960px)' }}
-                        contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
+                        style={{ width: '980px' }}
+                        contentStyle={{ overflow: 'auto', height: '78vh', minHeight: '78vh', maxHeight: '78vh' }}
                         maximizable
                         dismissableMask
                         closeOnEscape

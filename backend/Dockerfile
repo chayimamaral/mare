@@ -21,7 +21,13 @@ COPY ./frontend_static ./frontend/out
 
 # Compila o binário estático para Linux
 # -ldflags="-w -s" remove tabelas de símbolos e debug para reduzir o tamanho
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o vecontab-backend ./cmd/api/main.go
+#RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o vecontab-backend ./cmd/api/main.go
+
+# 1. Compila o binário do SERVIDOR (Linux)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o vecx-backend ./cmd/api/main.go
+
+# 2. Compila o executável do CLIENTE (Windows .exe)
+RUN CGO_ENABLED=0 GOOS=windows go build -ldflags="-w -s" -o vecx-client.exe ./cmd/api/main.go
 
 # ==========================================
 # Estágio 2: Execução (Final)

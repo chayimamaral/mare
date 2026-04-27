@@ -25,6 +25,8 @@ import RegimeTributarioService from '../../services/cruds/RegimeTributarioServic
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
 import { isWebRuntime } from '../../constants/runtime';
 import { isValidCNPJ, isValidCPF, onlyDigits } from '../../constants/documento';
+import { parseCookies } from 'nookies';
+import { getAuthTokenFromParsedCookies } from '../../constants/authCookie';
 
 interface LazyTableState {
   totalRecords: number;
@@ -200,6 +202,12 @@ const Clientes = () => {
   const [value, setValue] = useState('');
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [logado, setLogado] = useState<boolean>(false);
+  const cookieToken = getAuthTokenFromParsedCookies(parseCookies());
+  const sessionToken =
+    typeof window !== 'undefined' ? String(window.sessionStorage.getItem('vecontab_token') ?? '').trim() : '';
+  const localToken =
+    typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '';
+  const authToken = sessionToken || cookieToken || localToken;
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
     totalRecords: totalRecords,
@@ -227,7 +235,8 @@ const Clientes = () => {
     isError: userRoleError,
     refetch: refetchUserRole,
   } = useQuery<string | null>({
-    queryKey: ['user-role'],
+    queryKey: ['user-role', authToken],
+    enabled: !!authToken,
     queryFn: async () => {
       const r = await api.get('/api/usuariorole');
       const raw = r.data?.logado?.role;
@@ -1065,6 +1074,9 @@ const Clientes = () => {
   };
 
   const actionBodyTemplate = (rowData: Vec.Empresa) => {
+    if (!authToken) {
+      return <span className="text-500 text-sm ml-1">Sem sessão ativa</span>;
+    }
     if (userRoleLoading) {
       return <ProgressSpinner style={{ width: '1.35rem', height: '1.35rem' }} />;
     }
@@ -1180,7 +1192,8 @@ const Clientes = () => {
 
           <Dialog
             visible={empresaDialog}
-            style={{ width: 'min(920px, 96vw)' }}
+            style={{ width: '686px', maxWidth: '98vw' }}
+            contentStyle={{ overflow: 'auto', height: '47vh', minHeight: '47vh', maxHeight: '47vh' }}
             header={empresa?.id ? 'Cliente (edição)' : 'Cliente (novo)'}
             modal
             className="p-fluid"
