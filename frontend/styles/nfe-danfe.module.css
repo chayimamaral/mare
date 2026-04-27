@@ -1,0 +1,104 @@
+.wrapper {
+  background: #fff;
+}
+
+.tabview :global(.p-tabview-nav) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border: none;
+  margin-bottom: 0.5rem;
+}
+
+.tabview :global(.p-tabview-nav li .p-tabview-nav-link) {
+  border: 1px solid #bfc7cf;
+  border-radius: 4px;
+  background: #f4f6f8;
+  padding: 0.4rem 0.75rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.tabview :global(.p-tabview-nav li.p-highlight .p-tabview-nav-link) {
+  background: #0b63b8;
+  border-color: #0b63b8;
+  color: #fff;
+}
+
+.tabview :global(.p-tabview-panels) {
+  padding: 0;
+  background: transparent;
+}
+
+.fieldset {
+  border: 1px solid #cfd6dd;
+  border-radius: 2px;
+  padding: 0.7rem;
+  margin: 0 0 0.75rem;
+}
+
+.fieldset > legend {
+  font-weight: 700;
+  color: #1f2937;
+  padding: 0 0.4rem;
+}
+
+.box {
+  border: 1px solid #cfd6dd;
+  border-radius: 2px;
+  padding: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.rowTop {
+  margin-top: 0.35rem;
+}
+
+.cell {
+  border: 1px solid #d6dbe1;
+  padding: 0.45rem 0.5rem;
+}
+
+.label {
+  font-size: 0.8rem;
+  color: #4b5563;
+  margin-bottom: 0.15rem;
+  font-weight: 600;
+}
+
+.w10 { width: 10%; }
+.w20 { width: 20%; }
+.w25 { width: 25%; }
+.w33 { width: 33.3333%; }
+.w35 { width: 35%; }
+.w40 { width: 40%; }
+.w45 { width: 45%; }
+.w50 { width: 50%; }
+.w70 { width: 70%; }
+.w80 { width: 80%; }
+.w100 { width: 100%; }
+
+.table {
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  border: 1px solid #d6dbe1;
+  padding: 0.4rem 0.45rem;
+}
+
+.table th {
+  background: #f5f7fa;
+}
+
+@media (max-width: 920px) {
+  .w10, .w20, .w25, .w33, .w35, .w40, .w45, .w50, .w70, .w80 {
+    width: 100%;
+  }
+}

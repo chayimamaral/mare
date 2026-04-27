@@ -1,6 +1,6 @@
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
@@ -14,13 +14,9 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 
 import api from '../../components/api/apiClient';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
-import { fetchDanfeHtmlFromRetorno, parseDanfeErrorMessage } from '../../lib/nfeDanfeClient';
+import { DanfeView } from '../../components/nfe/DanfeView';
+import { fetchDanfeHtmlFromRetorno, fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import { parseNFEApiError } from '../../lib/nfeError';
-
-const DanfeHtmlIframe = dynamic(
-    () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
-    { ssr: false },
-);
 
 type AmbienteNFe = 'trial' | 'producao';
 
@@ -58,6 +54,11 @@ type NFEValidacaoRegra = {
     descricao: string;
 };
 
+const DanfeHtmlIframe = dynamic(
+    () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
+    { ssr: false },
+);
+
 export default function NFEConsultaPage() {
     useRouteClientGuard();
     const router = useRouter();
@@ -71,9 +72,16 @@ export default function NFEConsultaPage() {
     const [retorno, setRetorno] = useState('');
     const [danfeVisible, setDanfeVisible] = useState(false);
     const [danfeLoading, setDanfeLoading] = useState(false);
-    const [danfeHtml, setDanfeHtml] = useState<string | null>(null);
-    /** Força novo iframe a cada HTML recebido (evita cache/estado estranho do documento embutido). */
-    const [danfeFrameKey, setDanfeFrameKey] = useState(0);
+    const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
+    const [danfeSaxonVisible, setDanfeSaxonVisible] = useState(false);
+    const [danfeSaxonLoading, setDanfeSaxonLoading] = useState(false);
+    const [danfeSaxonHtml, setDanfeSaxonHtml] = useState<string | null>(null);
+    const closeDanfePreview = useCallback(() => {
+        setDanfeVisible(false);
+        setDanfeData(null);
+        setDanfeLoading(false);
+    }, []);
+
 
     /** Evita reexecutar o fluxo automático ao trocar só a query (ex.: remover `visualizar`). */
     const autoDanfeRanForKey = useRef<string | null>(null);
@@ -98,45 +106,46 @@ export default function NFEConsultaPage() {
         }
     }, [router.query.chave]);
 
-    const abrirDanfeComRetorno = useCallback(
-        async (textoRetorno: string) => {
-            const texto = textoRetorno.trim();
-            if (!texto) {
-                toast.current?.show({
-                    severity: 'warn',
-                    summary: 'Retorno vazio',
-                    detail: 'Consulte a SERPRO, busque no tenant ou cole JSON/XML no quadro Retorno.',
-                    life: 5000,
-                });
-                return false;
-            }
+    const abrirDanfePorChave = useCallback(
+        async (chave: string) => {
             setDanfeVisible(true);
-            setDanfeHtml(null);
+            setDanfeData(null);
             setDanfeLoading(true);
             try {
-                const html = await fetchDanfeHtmlFromRetorno(texto);
-                setDanfeHtml(html);
-                setDanfeFrameKey((k) => k + 1);
+                const payload = await fetchDanfeJsonByChave(chave);
+                setDanfeData(payload);
                 return true;
             } catch (e: unknown) {
-                if ((e as Error)?.message === 'DANFE_VAZIO') {
-                    toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
-                } else {
-                    toast.current?.show({
-                        severity: 'error',
-                        summary: 'Erro',
-                        detail: parseDanfeErrorMessage(e),
-                        life: 9000,
-                    });
-                }
-                setDanfeVisible(false);
+                toast.current?.show({
+                    severity: 'error',
+                    summary: 'Erro',
+                    detail: parseDanfeErrorMessage(e),
+                    life: 9000,
+                });
+                closeDanfePreview();
                 return false;
             } finally {
                 setDanfeLoading(false);
             }
         },
-        [],
+        [closeDanfePreview],
     );
+
+    useEffect(() => {
+        if (!danfeVisible || !danfeLoading) {
+            return;
+        }
+        const t = window.setTimeout(() => {
+            closeDanfePreview();
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Pré-visualização encerrada',
+                detail: 'A visualização DANFE foi encerrada por tempo excedido. Tente novamente.',
+                life: 7000,
+            });
+        }, 25000);
+        return () => window.clearTimeout(t);
+    }, [danfeVisible, danfeLoading, closeDanfePreview]);
 
     useEffect(() => {
         if (!router.isReady) {
@@ -178,7 +187,7 @@ export default function NFEConsultaPage() {
                     detail: 'Gerando visualização DANFE…',
                     life: 3000,
                 });
-                const ok = await abrirDanfeComRetorno(json);
+                const ok = await abrirDanfePorChave(chave);
                 if (cancelled) {
                     return;
                 }
@@ -202,7 +211,7 @@ export default function NFEConsultaPage() {
         return () => {
             cancelled = true;
         };
-    }, [router.isReady, router.query.chave, router.query.visualizar, router.replace, abrirDanfeComRetorno]);
+    }, [router.isReady, router.query.chave, router.query.visualizar, router.replace, abrirDanfePorChave]);
 
     const consultar = async () => {
         const chave = onlyDigitsChave(chaveNFe);
@@ -287,7 +296,42 @@ export default function NFEConsultaPage() {
     };
 
     const visualizarDanfe = async () => {
-        await abrirDanfeComRetorno(retorno);
+        const chave = onlyDigitsChave(chaveNFe);
+        if (chave.length !== 44) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
+            return;
+        }
+        await abrirDanfePorChave(chave);
+    };
+
+    const visualizarDanfeSaxon = async () => {
+        const texto = retorno.trim();
+        if (!texto) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Retorno vazio',
+                detail: 'Consulte a NF-e ou busque no tenant antes de abrir a visualização Saxon.',
+                life: 5000,
+            });
+            return;
+        }
+        setDanfeSaxonVisible(true);
+        setDanfeSaxonLoading(true);
+        setDanfeSaxonHtml(null);
+        try {
+            const html = await fetchDanfeHtmlFromRetorno(texto);
+            setDanfeSaxonHtml(html);
+        } catch (e: unknown) {
+            setDanfeSaxonVisible(false);
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Erro na DANFE Saxon',
+                detail: parseDanfeErrorMessage(e),
+                life: 9000,
+            });
+        } finally {
+            setDanfeSaxonLoading(false);
+        }
     };
 
     return (
@@ -295,32 +339,78 @@ export default function NFEConsultaPage() {
             <div className="col-12">
                 <Toast ref={toast} />
                 <Dialog
-                    header="DANFE (Saxon + XSLT SVRS)"
+                    header="DANFE (visualização nativa React)"
                     visible={danfeVisible}
+                    modal={false}
                     style={{ width: 'min(96vw, 960px)' }}
                     contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
                     maximizable
-                    onHide={() => {
-                        setDanfeVisible(false);
-                        setDanfeHtml(null);
-                        setDanfeFrameKey(0);
-                    }}
+                    dismissableMask
+                    closeOnEscape
+                    footer={(
+                        <div className="flex justify-content-end">
+                            <Button
+                                type="button"
+                                label="Fechar pré-visualização"
+                                icon="pi pi-times"
+                                text
+                                onClick={closeDanfePreview}
+                            />
+                        </div>
+                    )}
+                    onHide={closeDanfePreview}
                 >
                     <p className="text-600 text-sm mt-0 mb-3">
-                        O servidor interpreta o quadro <strong>Retorno</strong>: JSON da consulta (com <code className="text-xs">payload_json</code>{' '}
-                        trial SERPRO), JSON bruto com <code className="text-xs">nfeProc</code>, ou XML com namespace SEFAZ. Geração com Saxon-HE +{' '}
-                        <a href="https://dfe-portal.svrs.rs.gov.br/Schemas/PRNFE/XSLT/" target="_blank" rel="noreferrer">
-                            XSLT SVRS
-                        </a>
-                        . Uso demonstrativo com notas de teste; documento fiscal oficial segue outro fluxo.
+                        A DANFE é renderizada em componente React com dados normalizados do XML armazenado no tenant.
                     </p>
                     {danfeLoading ? (
                         <div className="flex flex-column align-items-center gap-3 py-6">
                             <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
-                            <span className="text-600">Gerando DANFE no servidor…</span>
+                            <span className="text-600">Montando visualização DANFE…</span>
                         </div>
                     ) : null}
-                    {!danfeLoading && danfeHtml ? <DanfeHtmlIframe key={danfeFrameKey} html={danfeHtml} /> : null}
+                    {!danfeLoading && danfeData ? <DanfeView data={danfeData} /> : null}
+                </Dialog>
+                <Dialog
+                    header="DANFE (Saxon-HE legado)"
+                    visible={danfeSaxonVisible}
+                    modal={false}
+                    style={{ width: 'min(96vw, 980px)' }}
+                    contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
+                    maximizable
+                    dismissableMask
+                    closeOnEscape
+                    footer={(
+                        <div className="flex justify-content-end">
+                            <Button
+                                type="button"
+                                label="Fechar visualização Saxon"
+                                icon="pi pi-times"
+                                text
+                                onClick={() => {
+                                    setDanfeSaxonVisible(false);
+                                    setDanfeSaxonLoading(false);
+                                    setDanfeSaxonHtml(null);
+                                }}
+                            />
+                        </div>
+                    )}
+                    onHide={() => {
+                        setDanfeSaxonVisible(false);
+                        setDanfeSaxonLoading(false);
+                        setDanfeSaxonHtml(null);
+                    }}
+                >
+                    <p className="text-600 text-sm mt-0 mb-3">
+                        Visualização legada para comparação de campos com o padrão antigo (Saxon + XSLT SVRS).
+                    </p>
+                    {danfeSaxonLoading ? (
+                        <div className="flex flex-column align-items-center gap-3 py-6">
+                            <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
+                            <span className="text-600">Gerando DANFE Saxon…</span>
+                        </div>
+                    ) : null}
+                    {!danfeSaxonLoading && danfeSaxonHtml ? <DanfeHtmlIframe html={danfeSaxonHtml} /> : null}
                 </Dialog>
                 <Card title="Consulta NF-e (Tenant)">
                     <p className="text-600 mt-0 mb-4">
@@ -387,6 +477,15 @@ export default function NFEConsultaPage() {
                                 disabled={!retorno.trim() || loading || danfeLoading}
                                 loading={danfeLoading}
                                 onClick={() => void visualizarDanfe()}
+                            />
+                            <Button
+                                type="button"
+                                label="Visualizar DANFE Saxon (legado)"
+                                icon="pi pi-desktop"
+                                severity="contrast"
+                                disabled={!retorno.trim() || loading || danfeSaxonLoading}
+                                loading={danfeSaxonLoading}
+                                onClick={() => void visualizarDanfeSaxon()}
                             />
                         </div>
                         <div className="col-12">

@@ -311,6 +311,21 @@ func (h *NFESerproHandler) ExportarDanfeHTML(w http.ResponseWriter, r *http.Requ
 	_, _ = w.Write([]byte(html))
 }
 
+func (h *NFESerproHandler) GetDanfeJSON(w http.ResponseWriter, r *http.Request) {
+	chave := strings.TrimSpace(r.URL.Query().Get("chave"))
+	if len(chave) != 44 || !hasOnlyDigits(chave) {
+		h.writeNFEError(w, r, errNFEDadosInvalidos("chave_nfe deve ter 44 digitos numericos"), "area_dados")
+		return
+	}
+	schema := middleware.TenantSchema(r.Context())
+	view, err := h.svc.BuildDanfeView(r.Context(), schema, chave)
+	if err != nil {
+		h.writeNFEError(w, r, err, "regras_negocio_webservice")
+		return
+	}
+	render.WriteJSON(w, http.StatusOK, view)
+}
+
 type danfeHTMLFromBodyRequest struct {
 	XML     string `json:"xml"`
 	Retorno string `json:"retorno"`

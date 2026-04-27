@@ -398,6 +398,7 @@ func registerRoutes(
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/gestao", nfeSerproHandler.ListGestao)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento", nfeSerproHandler.GetDocumento)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento/xml", nfeSerproHandler.ExportarXML)
+	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento/danfe-json", nfeSerproHandler.GetDanfeJSON)
 	r.With(requireAuth, requireNFe).Get("/serpro/nfe/documento/danfe-html", nfeSerproHandler.ExportarDanfeHTML)
 	r.With(requireAuth, requireNFe).Post("/serpro/nfe/documento/danfe-html", nfeSerproHandler.GerarDanfeHTMLFromXMLBody)
 	r.Post("/serpro/nfe/push/notificacao", nfeSerproHandler.PushNotificacao)

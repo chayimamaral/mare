@@ -1,4 +1,3 @@
-import dynamic from 'next/dynamic';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from 'primereact/button';
 import { Column } from 'primereact/column';
@@ -14,25 +13,10 @@ import { useRouter } from 'next/router';
 import React, { useMemo, useRef, useState } from 'react';
 
 import api from '../../components/api/apiClient';
+import { DanfeView } from '../../components/nfe/DanfeView';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
-import { fetchDanfeHtmlFromRetorno, parseDanfeErrorMessage } from '../../lib/nfeDanfeClient';
+import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import { parseNFEApiError } from '../../lib/nfeError';
-
-const DanfeHtmlIframe = dynamic(
-    () => import('../../components/nfe/DanfeHtmlIframe').then((m) => m.DanfeHtmlIframe),
-    { ssr: false },
-);
-
-type NFEDocResponse = {
-    id: string;
-    chave_nfe: string;
-    payload_json: unknown;
-    payload_xml?: string;
-    evento_codigo?: string;
-    evento_descricao?: string;
-    recebido_em?: string;
-    ja_baixada?: boolean;
-};
 
 type ManifestacaoRow = {
     id: string;
@@ -150,9 +134,15 @@ export default function NFEManutencaoPage() {
     const [detalhe, setDetalhe] = useState<NFEGestaoRow | null>(null);
     const [danfeVisible, setDanfeVisible] = useState(false);
     const [danfeLoading, setDanfeLoading] = useState(false);
-    const [danfeHtml, setDanfeHtml] = useState<string | null>(null);
-    const [danfeFrameKey, setDanfeFrameKey] = useState(0);
+    const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
     const [danfeChave, setDanfeChave] = useState('');
+    const closeDanfePreview = () => {
+        setDanfeVisible(false);
+        setDanfeData(null);
+        setDanfeChave('');
+        setDanfeLoading(false);
+    };
+
 
     const [manifestTp, setManifestTp] = useState('210210');
     const [manifestAmbiente, setManifestAmbiente] = useState<'producao' | 'homologacao'>('producao');
@@ -325,20 +315,13 @@ export default function NFEManutencaoPage() {
         setDetalhe(null);
         setDanfeChave(chave);
         setDanfeVisible(true);
-        setDanfeHtml(null);
+        setDanfeData(null);
         setDanfeLoading(true);
         try {
-            const { data } = await api.get<NFEDocResponse>('/api/serpro/nfe/documento', { params: { chave } });
-            const json = JSON.stringify(data, null, 2);
-            const html = await fetchDanfeHtmlFromRetorno(json);
-            setDanfeHtml(html);
-            setDanfeFrameKey((k) => k + 1);
+            const payload = await fetchDanfeJsonByChave(chave);
+            setDanfeData(payload);
         } catch (e: unknown) {
-            setDanfeVisible(false);
-            if ((e as Error)?.message === 'DANFE_VAZIO') {
-                toast.current?.show({ severity: 'warn', summary: 'DANFE vazio', detail: 'Resposta sem HTML.', life: 5000 });
-                return;
-            }
+            closeDanfePreview();
             const parsed = parseNFEApiError(e);
             const msg = parsed.detail || parseDanfeErrorMessage(e);
             toast.current?.show({ severity: 'error', summary: 'Visualização DANFE', detail: msg, life: 9000 });
@@ -346,6 +329,22 @@ export default function NFEManutencaoPage() {
             setDanfeLoading(false);
         }
     };
+
+    React.useEffect(() => {
+        if (!danfeVisible || !danfeLoading) {
+            return;
+        }
+        const t = window.setTimeout(() => {
+            closeDanfePreview();
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'Pré-visualização encerrada',
+                detail: 'A visualização DANFE foi encerrada por tempo excedido. Tente novamente.',
+                life: 7000,
+            });
+        }, 25000);
+        return () => window.clearTimeout(t);
+    }, [danfeVisible, danfeLoading]);
 
     const enviarManifestacao = async () => {
         if (!detalhe) {
@@ -407,10 +406,7 @@ export default function NFEManutencaoPage() {
             type="button"
             aria-label="Detalhes"
             onClick={() => {
-                setDanfeVisible(false);
-                setDanfeHtml(null);
-                setDanfeFrameKey(0);
-                setDanfeChave('');
+                closeDanfePreview();
                 setDetalhe(row);
             }}
         />
@@ -424,26 +420,35 @@ export default function NFEManutencaoPage() {
                     <Dialog
                         header={`DANFE — chave ${danfeChave || '…'}`}
                         visible={danfeVisible}
+                        modal={false}
                         style={{ width: 'min(96vw, 960px)' }}
                         contentStyle={{ overflow: 'auto', maxHeight: '92vh' }}
                         maximizable
-                        onHide={() => {
-                            setDanfeVisible(false);
-                            setDanfeHtml(null);
-                            setDanfeFrameKey(0);
-                            setDanfeChave('');
-                        }}
+                        dismissableMask
+                        closeOnEscape
+                        footer={(
+                            <div className="flex justify-content-end">
+                                <Button
+                                    type="button"
+                                    label="Fechar pré-visualização"
+                                    icon="pi pi-times"
+                                    text
+                                    onClick={closeDanfePreview}
+                                />
+                            </div>
+                        )}
+                        onHide={closeDanfePreview}
                     >
                         <p className="text-600 text-sm mt-0 mb-3">
-                            Documento carregado do tenant. Geração com Saxon-HE + XSLT SVRS (mesmo fluxo da página de consulta NF-e).
+                            Documento carregado do tenant e renderizado em visualização DANFE nativa React.
                         </p>
                         {danfeLoading ? (
                             <div className="flex flex-column align-items-center gap-3 py-6">
                                 <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
-                                <span className="text-600">Gerando DANFE…</span>
+                                <span className="text-600">Montando visualização DANFE…</span>
                             </div>
                         ) : null}
-                        {!danfeLoading && danfeHtml ? <DanfeHtmlIframe key={danfeFrameKey} html={danfeHtml} /> : null}
+                        {!danfeLoading && danfeData ? <DanfeView data={danfeData} /> : null}
                     </Dialog>
                     <div className="mb-4">
                         <p className="text-600 m-0 text-sm mb-3">
