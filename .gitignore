@@ -33,3 +33,11 @@ config_privada.env
 # Artefato de deploy: cópia de ../frontend/out gerada em backend/deploy-backend.sh
 backend/frontend_static/
 backend/frontend/out/
+
+# Build/cache local (garble/go)
+/.cache/
+.cache/
+
+tools/encryptor/encryptor
+
+.env.*

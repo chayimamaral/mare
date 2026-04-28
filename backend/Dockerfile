@@ -8,6 +8,8 @@ ARG APP_VERSION=dev
 
 # Instala git e certificados (necessários para baixar dependências via HTTPS)
 RUN apk add --no-cache git ca-certificates
+#RUN go install github.com/burrowers/garble@latest
+RUN go install mvdan.cc/garble@latest
 
 WORKDIR /app
 
@@ -27,8 +29,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s -X 'main.Version=${APP_VERSION}'" \
     -o vecx-backend ./cmd/api/main.go
 
-# 2. Compila o CLIENTE (Windows .exe) injetando a mesma versão
-RUN CGO_ENABLED=0 GOOS=windows go build \
+# 2. Compila o CLIENTE (Windows .exe) com ofuscação (garble)
+RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 garble -literals -tiny build \
     -ldflags="-w -s -X 'main.Version=${APP_VERSION}'" \
     -o vecx-client.exe ./cmd/api/main.go
 # ==========================================

@@ -385,6 +385,19 @@ const AppMenu = () => {
             icon: 'pi pi-fw pi-pencil',
             to: '/pages/landing',
           },
+          {
+            label: 'Utilitários',
+            icon: 'pi pi-fw pi-wrench',
+            visible: isSuper,
+            items: [
+              {
+                label: 'Hardware Manager',
+                icon: 'pi pi-fw pi-desktop',
+                to: '/utilitarios/hardware-manager',
+                visible: isSuper,
+              },
+            ],
+          },
         ],
       },
     ];

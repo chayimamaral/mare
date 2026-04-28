@@ -4,7 +4,7 @@ stop:
 	@pkill -f "next-dev" || true
 	@pkill -f "node" || true
 
-.PHONY: stop frontend-build webview-build webview-run
+.PHONY: stop frontend-build webview-build webview-run backend-binaries-local
 
 # Mesma ideia do frontend/deploy-frontend.sh: se existir config_privada.env, injeta NEXT_PUBLIC_API_URL.
 frontend-build:
@@ -26,3 +26,20 @@ webview-build: frontend-build
 webview-run: frontend-build
 	@echo "Rodando WebView (gera out/ se necessário)..."
 	@cd frontend && go run ./main.go
+
+backend-binaries-local: frontend-build
+	@echo "Gerando binários locais em backend/bin..."
+	@mkdir -p backend/bin
+	@cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+		-ldflags="-w -s" \
+		-o ./bin/vecx-backend ./cmd/api/main.go
+	@mkdir -p backend/bin/tools
+	@mkdir -p .cache/go-mod .cache/go-build
+	@test -x backend/bin/tools/garble || { \
+		echo "garble não encontrado; instalando..."; \
+		GOPATH="$(PWD)/.cache/go" GOBIN="$(PWD)/backend/bin/tools" GOMODCACHE="$(PWD)/.cache/go-mod" GOCACHE="$(PWD)/.cache/go-build" go install mvdan.cc/garble@latest; \
+	}
+	@cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build \
+		-ldflags="-w -s" \
+		-o ./bin/vecx-client.exe ./cmd/api/main.go
+	@echo "OK: backend/bin/vecx-backend e backend/bin/vecx-client.exe"

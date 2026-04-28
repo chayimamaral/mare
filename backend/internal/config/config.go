@@ -1,6 +1,11 @@
 package config
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,6 +17,7 @@ import (
 type Config struct {
 	Runtime                        string
 	Port                           string
+	CORSAllowedOrigins             []string
 	DatabaseURL                    string
 	JWTSecret                      string
 	SSLRootCertPath                string
@@ -48,6 +54,8 @@ type Config struct {
 	NFeXSLTDir  string
 }
 
+const masterKey = "Zenaide Zoe Amaral 02031941"
+
 func Load() (Config, error) {
 	// Tenta carregar o .env do diretório atual
 	_ = godotenv.Load()
@@ -78,11 +86,37 @@ func Load() (Config, error) {
 		defaultPort = "3333"
 	}
 
+	pgURL, err := decryptSensitiveEnv("PG_URL")
+	if err != nil {
+		return Config{}, fmt.Errorf("PG_URL invalida para descriptografia: %w", err)
+	}
+	jwtSecret, err := decryptSensitiveEnv("JWT_SECRET")
+	if err != nil {
+		return Config{}, fmt.Errorf("JWT_SECRET invalida para descriptografia: %w", err)
+	}
+	certCryptoKeyHex, err := decryptSensitiveEnv("VECONTAB_CERT_CRYPTO_KEY_HEX")
+	if err != nil {
+		return Config{}, fmt.Errorf("VECONTAB_CERT_CRYPTO_KEY_HEX invalida para descriptografia: %w", err)
+	}
+	serproClientID, err := decryptSensitiveEnv("SERPRO_CLIENT_ID")
+	if err != nil {
+		return Config{}, fmt.Errorf("SERPRO_CLIENT_ID invalida para descriptografia: %w", err)
+	}
+	serproClientSecret, err := decryptSensitiveEnv("SERPRO_CLIENT_SECRET")
+	if err != nil {
+		return Config{}, fmt.Errorf("SERPRO_CLIENT_SECRET invalida para descriptografia: %w", err)
+	}
+	serproNFEBearerToken, err := decryptSensitiveEnv("SERPRO_NFE_BEARER_TOKEN")
+	if err != nil {
+		return Config{}, fmt.Errorf("SERPRO_NFE_BEARER_TOKEN invalida para descriptografia: %w", err)
+	}
+
 	cfg := Config{
 		Runtime:                        runtime,
 		Port:                           getEnv("PORT", defaultPort),
-		DatabaseURL:                    os.Getenv("PG_URL"),
-		JWTSecret:                      os.Getenv("JWT_SECRET"),
+		CORSAllowedOrigins:             parseCSVEnv("CORS_ALLOWED_ORIGINS"),
+		DatabaseURL:                    pgURL,
+		JWTSecret:                      jwtSecret,
 		SSLRootCertPath:                getEnv("PG_SSL_ROOT_CERT", "/home/camaral/.postgres/ca.crt"),
 		SSLInsecure:                    getEnv("PG_SSL_INSECURE", "true") == "true",
 		CompromissosWorkerEnabled:      getEnv("COMPROMISSOS_WORKER_ENABLED", "false") == "true",
@@ -95,13 +129,13 @@ func Load() (Config, error) {
 		NFESyncWorkerTimezone:          getEnv("NFE_SYNC_WORKER_TIMEZONE", "America/Sao_Paulo"),
 		NFESyncWorkerAmbiente:          getEnv("NFE_SYNC_WORKER_AMBIENTE", "producao"),
 		NFESyncWorkerMinIntervalSecs:   parseIntEnv("NFE_SYNC_WORKER_MIN_INTERVAL_SECS", 600),
-		CertCryptoKeyHex:               os.Getenv("VECONTAB_CERT_CRYPTO_KEY_HEX"),
+		CertCryptoKeyHex:               certCryptoKeyHex,
 		SerproOAuthTokenURL:            getEnv("SERPRO_OAUTH_TOKEN_URL", ""),
-		SerproClientID:                 os.Getenv("SERPRO_CLIENT_ID"),
-		SerproClientSecret:             os.Getenv("SERPRO_CLIENT_SECRET"),
+		SerproClientID:                 serproClientID,
+		SerproClientSecret:             serproClientSecret,
 		SerproAPIBaseURL:               getEnv("SERPRO_API_BASE_URL", ""),
 		SerproNFEAPIBaseURL:            getEnv("SERPRO_NFE_API_BASE_URL", getEnv("SERPRO_API_BASE_URL", "")),
-		SerproNFEBearerToken:           strings.TrimSpace(os.Getenv("SERPRO_NFE_BEARER_TOKEN")),
+		SerproNFEBearerToken:           strings.TrimSpace(serproNFEBearerToken),
 		NFeSaxonJAR:                    strings.TrimSpace(os.Getenv("NFE_SAXON_JAR")),
 		NFeJavaPath:                    getEnv("NFE_JAVA_PATH", "java"),
 		NFeXSLTDir:                     strings.TrimSpace(os.Getenv("NFE_XSLT_DIR")),
@@ -137,4 +171,77 @@ func parseIntEnv(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func parseCSVEnv(key string) []string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		s := strings.TrimSpace(p)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// DecryptValue descriptografa "nonce|ciphertext" (concatenados) em Base64 usando AES-256-GCM.
+// A chave AES (32 bytes) é derivada por SHA-256 da passphrase.
+func DecryptValue(encryptedBase64 string, passphrase string) (string, error) {
+	raw := strings.TrimSpace(encryptedBase64)
+	if raw == "" {
+		return "", nil
+	}
+
+	payload, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return "", err
+	}
+
+	key := sha256.Sum256([]byte(passphrase))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		return "", err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := gcm.NonceSize()
+	if len(payload) <= nonceSize {
+		return "", errors.New("payload criptografado invalido")
+	}
+
+	nonce := payload[:nonceSize]
+	ciphertext := payload[nonceSize:]
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
+}
+
+func decryptSensitiveEnv(key string) (string, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return "", nil
+	}
+
+	// Modo explicito: ENC:<base64_nonce_ciphertext>
+	if strings.HasPrefix(strings.ToUpper(raw), "ENC:") {
+		return DecryptValue(strings.TrimSpace(raw[4:]), masterKey)
+	}
+
+	// Compatibilidade: se vier puro em texto, mantem; se vier base64 criptografado, descriptografa.
+	dec, err := DecryptValue(raw, masterKey)
+	if err != nil {
+		return raw, nil
+	}
+	return dec, nil
 }

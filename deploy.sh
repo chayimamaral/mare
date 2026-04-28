@@ -6,7 +6,7 @@ LOCAL_DIR="/home/camaral/backups/vecontab"
 
 echo "Limpando a pasta local dos backups"
 
-rm -rf "$LOCAL_DIR"/*
+#rm -rf "$LOCAL_DIR"/*
 
 # No início do deploy.sh
 
@@ -21,7 +21,7 @@ if ! systemctl is-active --quiet docker; then
     exit 1
 fi
 
-./bkp_drive.sh
+#./bkp_drive.sh
 
 # Não usamos set -e aqui para podermos fazer o resumo final mesmo com falhas
 set +e

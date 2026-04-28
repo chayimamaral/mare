@@ -132,7 +132,7 @@ const LandingPage: Page = () => {
           </div>
           <div className="flex justify-content-center md:justify-content-end">
             {/* <img src="/demo/images/landing/screen-1.png" alt="Hero Image" className="w-9 md:w-auto" /> */}
-            <img src="/vecx.png" alt="VECX Logo" height="280" className="mr-0 lg:mr-2" />
+            <img src="/vecx_dashboard.png" alt="VECX Logo" height="320" className="mr-0 lg:mr-2" />
           </div>
         </div>
 
