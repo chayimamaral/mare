@@ -27,12 +27,12 @@ COPY ./frontend_static ./frontend/out
 
 # 1. Compila o SERVIDOR (Linux) injetando a versão
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-w -s -X 'main.Version=${APP_VERSION}' -X 'github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=${VECX_MASTER_KEY}'" \
+    -ldflags="-w -s -X 'main.Version=${APP_VERSION}' -X 'github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=${VECX_MASTER_KEY}'" \
     -o vecx-backend ./cmd/api/main.go
 
 # 2. Compila o CLIENTE (Windows .exe) com ofuscação (garble)
 RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 garble -literals -tiny build \
-    -ldflags="-w -s -X 'main.Version=${APP_VERSION}' -X 'github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=${VECX_MASTER_KEY}'" \
+    -ldflags="-w -s -X 'main.Version=${APP_VERSION}' -X 'github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=${VECX_MASTER_KEY}'" \
     -o vecx-client.exe ./cmd/api/main.go
 # ==========================================
 # Estágio 2: Execução (Final)
@@ -64,5 +64,5 @@ EXPOSE 8080
 
 # Execução do backend
 # O uso de strings separadas no CMD ["cmd", "arg"] é a forma recomendada (exec form)
-#CMD ["./vecontab-backend", "-port", "8080"]
+#CMD ["./vecx-backend", "-port", "8080"]
 CMD ["./vecx-backend"]

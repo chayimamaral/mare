@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
 )
 
 type CaixaPostalService struct {

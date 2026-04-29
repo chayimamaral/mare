@@ -268,3 +268,24 @@
   font-size: 0.8rem;
   color: #6b7280;
 }
+
+@media print {
+  /* Imprimir NF inteira: exibe todos os painéis da TabView, não só a aba ativa. */
+  .tabview :global(.p-tabview-nav-container) {
+    display: none !important;
+  }
+
+  .tabview :global(.p-tabview-panels) {
+    padding-top: 0 !important;
+  }
+
+  .tabview :global(.p-tabview-panel) {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .tabview :global(.p-tabview-panel-hidden) {
+    display: block !important;
+  }
+}

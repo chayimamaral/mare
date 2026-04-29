@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
-	"github.com/chayimamaral/vecontab/backend/internal/nfeprovider"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/nfeprovider"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -417,9 +417,10 @@ func defaultNFeXSLTDir() string {
 }
 
 type saxonXSLTPaths struct {
-	jar     string
-	java    string
-	xslMain string
+	jar      string
+	java     string
+	xslMain  string
+	xslPrint string
 }
 
 func (s *NFESerproService) resolveSaxonXSLT() (saxonXSLTPaths, error) {
@@ -452,6 +453,10 @@ func (s *NFESerproService) resolveSaxonXSLT() (saxonXSLTPaths, error) {
 	if _, e := os.Stat(xslMain); e != nil {
 		return out, fmt.Errorf("folha XSLT _Visualizacao_Internet.xsl nao encontrada em %s", xsltDir)
 	}
+	xslPrint := filepath.Join(xsltDir, "_ImpressaoNFe.xsl")
+	if _, e := os.Stat(xslPrint); e != nil {
+		return out, fmt.Errorf("folha XSLT _ImpressaoNFe.xsl nao encontrada em %s", xsltDir)
+	}
 	java := strings.TrimSpace(cfg.NFeJavaPath)
 	if java == "" {
 		java = "java"
@@ -459,6 +464,7 @@ func (s *NFESerproService) resolveSaxonXSLT() (saxonXSLTPaths, error) {
 	out.jar = jar
 	out.java = java
 	out.xslMain = xslMain
+	out.xslPrint = xslPrint
 	return out, nil
 }
 
@@ -527,10 +533,14 @@ func readDanfeHTMLFileRetries(htmlPath string) ([]byte, error) {
 	return nil, lastErr
 }
 
-func (s *NFESerproService) danfeHTMLWithSaxon(ctx context.Context, xmlStr string) (string, error) {
+func (s *NFESerproService) danfeHTMLWithSaxon(ctx context.Context, xmlStr string, xslPath string) (string, error) {
 	sx, err := s.resolveSaxonXSLT()
 	if err != nil {
 		return "", err
+	}
+	xsl := strings.TrimSpace(xslPath)
+	if xsl == "" {
+		xsl = sx.xslMain
 	}
 	xmlStr = strings.TrimSpace(xmlStr)
 	if xmlStr == "" || xmlStr == "<nfe/>" {
@@ -550,7 +560,7 @@ func (s *NFESerproService) danfeHTMLWithSaxon(ctx context.Context, xmlStr string
 
 	htmlPath := filepath.Join(tmpDir, "danfe.html")
 
-	javaArgs := []string{"-jar", sx.jar, "-s:" + xmlPath, "-xsl:" + sx.xslMain}
+	javaArgs := []string{"-jar", sx.jar, "-s:" + xmlPath, "-xsl:" + xsl}
 
 	// Milhares de linhas de SXWN9019 no stderr podem encher o pipe e travar o Java
 	// (stdout bloqueado). Descartamos stderr nas tentativas que buscam HTML.
@@ -611,7 +621,11 @@ func saxonTruncateRunLog(s string) string {
 
 // GerarDanfeHTMLFromXML transforma um XML de NF-e ja obtido (ex.: trial no quadro Retorno) sem consultar o banco.
 func (s *NFESerproService) GerarDanfeHTMLFromXML(ctx context.Context, xmlStr string) (string, error) {
-	return s.danfeHTMLWithSaxon(ctx, xmlStr)
+	sx, err := s.resolveSaxonXSLT()
+	if err != nil {
+		return "", err
+	}
+	return s.danfeHTMLWithSaxon(ctx, xmlStr, sx.xslPrint)
 }
 
 // ExportarDanfeHTML gera o HTML da DANFE a partir do XML persistido no tenant (chave).
@@ -624,7 +638,11 @@ func (s *NFESerproService) ExportarDanfeHTML(ctx context.Context, schemaName, ch
 	if xmlStr == "" || xmlStr == "<nfe/>" {
 		return "", fmt.Errorf("nao ha XML de NF-e para transformar; consulte ou busque a nota no tenant antes")
 	}
-	return s.danfeHTMLWithSaxon(ctx, xmlStr)
+	sx, err := s.resolveSaxonXSLT()
+	if err != nil {
+		return "", err
+	}
+	return s.danfeHTMLWithSaxon(ctx, xmlStr, sx.xslPrint)
 }
 
 func (s *NFESerproService) RegistrarPushNotificacao(ctx context.Context, rawBody []byte, headers map[string]string) error {

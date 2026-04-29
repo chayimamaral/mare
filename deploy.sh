@@ -2,7 +2,7 @@
 
 START_TIME=$(date +%s)
 START_DATE=$(date +"%H:%M:%S")
-LOCAL_DIR="/home/camaral/backups/vecontab"
+LOCAL_DIR="/home/camaral/backups/vecx"
 
 echo "Limpando a pasta local dos backups"
 

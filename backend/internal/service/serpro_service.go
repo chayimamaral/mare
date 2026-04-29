@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/config"
+	"github.com/chayimamaral/vecx/backend/internal/config"
 )
 
 // SerproService esboço para Integra Contador / Sicalc–DARF (issue #55).

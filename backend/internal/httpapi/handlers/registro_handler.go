@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
-	"github.com/chayimamaral/vecontab/backend/internal/validation"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/middleware"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecx/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/validation"
 )
 
 type RegistroHandler struct {

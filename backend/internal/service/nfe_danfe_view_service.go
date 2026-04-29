@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
 )
 
 type nfeInnerXML struct {
@@ -90,7 +90,7 @@ type nfeInfXML struct {
 		IndIEDest string `xml:"indIEDest"`
 		ISUF      string `xml:"ISUF"`
 		Email     string `xml:"email"`
-		Ender struct {
+		Ender     struct {
 			XLgr    string `xml:"xLgr"`
 			Nro     string `xml:"nro"`
 			XCpl    string `xml:"xCpl"`
@@ -139,34 +139,34 @@ type nfeInfXML struct {
 	} `xml:"det"`
 	Total struct {
 		ICMSTot struct {
-			VBC     string `xml:"vBC"`
-			VICMS   string `xml:"vICMS"`
+			VBC        string `xml:"vBC"`
+			VICMS      string `xml:"vICMS"`
 			VICMSDeson string `xml:"vICMSDeson"`
-			VBCST   string `xml:"vBCST"`
-			VST     string `xml:"vST"`
-			VII     string `xml:"vII"`
-			VIPI    string `xml:"vIPI"`
-			VPIS    string `xml:"vPIS"`
-			VCOFINS string `xml:"vCOFINS"`
-			VProd   string `xml:"vProd"`
-			VFrete  string `xml:"vFrete"`
-			VSeg    string `xml:"vSeg"`
-			VDesc   string `xml:"vDesc"`
-			VOutro  string `xml:"vOutro"`
-			VTotTrib string `xml:"vTotTrib"`
-			VNF     string `xml:"vNF"`
+			VBCST      string `xml:"vBCST"`
+			VST        string `xml:"vST"`
+			VII        string `xml:"vII"`
+			VIPI       string `xml:"vIPI"`
+			VPIS       string `xml:"vPIS"`
+			VCOFINS    string `xml:"vCOFINS"`
+			VProd      string `xml:"vProd"`
+			VFrete     string `xml:"vFrete"`
+			VSeg       string `xml:"vSeg"`
+			VDesc      string `xml:"vDesc"`
+			VOutro     string `xml:"vOutro"`
+			VTotTrib   string `xml:"vTotTrib"`
+			VNF        string `xml:"vNF"`
 		} `xml:"ICMSTot"`
 	} `xml:"total"`
 	Transp struct {
 		ModFrete   string `xml:"modFrete"`
 		Transporta struct {
-			XNome string `xml:"xNome"`
-			CNPJ  string `xml:"CNPJ"`
-			CPF   string `xml:"CPF"`
-			IE    string `xml:"IE"`
+			XNome  string `xml:"xNome"`
+			CNPJ   string `xml:"CNPJ"`
+			CPF    string `xml:"CPF"`
+			IE     string `xml:"IE"`
 			XEnder string `xml:"xEnder"`
-			XMun  string `xml:"xMun"`
-			UF    string `xml:"UF"`
+			XMun   string `xml:"xMun"`
+			UF     string `xml:"UF"`
 		} `xml:"transporta"`
 		VeicTransp struct {
 			Placa string `xml:"placa"`
@@ -174,16 +174,16 @@ type nfeInfXML struct {
 			RNTC  string `xml:"RNTC"`
 		} `xml:"veicTransp"`
 		Vol []struct {
-			QVol string `xml:"qVol"`
-			Esp  string `xml:"esp"`
+			QVol  string `xml:"qVol"`
+			Esp   string `xml:"esp"`
 			Marca string `xml:"marca"`
-			NVol string `xml:"nVol"`
+			NVol  string `xml:"nVol"`
 			PesoL string `xml:"pesoL"`
 			PesoB string `xml:"pesoB"`
 		} `xml:"vol"`
 	} `xml:"transp"`
 	InfAdic struct {
-		InfCpl    string `xml:"infCpl"`
+		InfCpl     string `xml:"infCpl"`
 		InfAdFisco string `xml:"infAdFisco"`
 	} `xml:"infAdic"`
 	Pag struct {
@@ -191,15 +191,15 @@ type nfeInfXML struct {
 	} `xml:"pag"`
 	Cobr struct {
 		Fat struct {
-			NFat string `xml:"nFat"`
+			NFat  string `xml:"nFat"`
 			VOrig string `xml:"vOrig"`
 			VDesc string `xml:"vDesc"`
-			VLiq string `xml:"vLiq"`
+			VLiq  string `xml:"vLiq"`
 		} `xml:"fat"`
 		Dup []struct {
-			NDup string `xml:"nDup"`
+			NDup  string `xml:"nDup"`
 			DVenc string `xml:"dVenc"`
-			VDup string `xml:"vDup"`
+			VDup  string `xml:"vDup"`
 		} `xml:"dup"`
 	} `xml:"cobr"`
 }
@@ -242,9 +242,9 @@ type nfeRootXML struct {
 }
 
 type nfeInfProtXML struct {
-	NProt   string `xml:"nProt"`
-	CStat   string `xml:"cStat"`
-	XMotivo string `xml:"xMotivo"`
+	NProt    string `xml:"nProt"`
+	CStat    string `xml:"cStat"`
+	XMotivo  string `xml:"xMotivo"`
 	DhRecbto string `xml:"dhRecbto"`
 }
 
@@ -253,9 +253,9 @@ type nfeDetPagXML struct {
 	XPag string `xml:"xPag"`
 	VPag string `xml:"vPag"`
 	Card struct {
-		CNPJ string `xml:"CNPJ"`
+		CNPJ  string `xml:"CNPJ"`
 		TBand string `xml:"tBand"`
-		CAut string `xml:"cAut"`
+		CAut  string `xml:"cAut"`
 	} `xml:"card"`
 }
 
@@ -344,29 +344,29 @@ func (s *NFESerproService) BuildDanfeView(ctx context.Context, schemaName, chave
 			DataInclusaoBD:    formatDataInclusaoBD(doc.RecebidoEm),
 		},
 		Emitente: domain.NFEDANFEPessoa{
-			Nome:                 strings.TrimSpace(inf.Emit.XNome),
-			NomeFantasia:         strings.TrimSpace(inf.Emit.XFant),
-			CNPJCPF:              firstNotEmpty(inf.Emit.CNPJ, inf.Emit.CPF),
-			IE:                   strings.TrimSpace(inf.Emit.IE),
-			IEST:                 strings.TrimSpace(inf.Emit.IEST),
-			IM:                   strings.TrimSpace(inf.Emit.IM),
-			CNAE:                 strings.TrimSpace(inf.Emit.CNAE),
-			CRT:                  crtCod,
-			CRTDescricao:         crtCodNome(crtCod),
-			Logradouro:           strings.TrimSpace(inf.Emit.Ender.XLgr),
-			Numero:               strings.TrimSpace(inf.Emit.Ender.Nro),
-			Bairro:               strings.TrimSpace(inf.Emit.Ender.XBairro),
-			Municipio:            strings.TrimSpace(inf.Emit.Ender.XMun),
-			MunicipioCodigo:      strings.TrimSpace(inf.Emit.Ender.CMun),
-			MunicipioCodNome:     formatCodNome(inf.Emit.Ender.CMun, inf.Emit.Ender.XMun),
-			UF:                   strings.TrimSpace(inf.Emit.Ender.UF),
-			CEP:                  strings.TrimSpace(inf.Emit.Ender.CEP),
-			PaisCodigo:           strings.TrimSpace(inf.Emit.Ender.CPais),
-			PaisNome:             strings.TrimSpace(inf.Emit.Ender.XPais),
-			PaisCodNome:          formatCodNome(inf.Emit.Ender.CPais, inf.Emit.Ender.XPais),
-			Telefone:             strings.TrimSpace(inf.Emit.Ender.Fone),
-			CodMunFatoGerador:    strings.TrimSpace(inf.Ide.CMunFG),
-			EnderecoCompleto:     joinLinhaEndereco(inf.Emit.Ender.XLgr, inf.Emit.Ender.Nro, inf.Emit.Ender.XCpl),
+			Nome:              strings.TrimSpace(inf.Emit.XNome),
+			NomeFantasia:      strings.TrimSpace(inf.Emit.XFant),
+			CNPJCPF:           firstNotEmpty(inf.Emit.CNPJ, inf.Emit.CPF),
+			IE:                strings.TrimSpace(inf.Emit.IE),
+			IEST:              strings.TrimSpace(inf.Emit.IEST),
+			IM:                strings.TrimSpace(inf.Emit.IM),
+			CNAE:              strings.TrimSpace(inf.Emit.CNAE),
+			CRT:               crtCod,
+			CRTDescricao:      crtCodNome(crtCod),
+			Logradouro:        strings.TrimSpace(inf.Emit.Ender.XLgr),
+			Numero:            strings.TrimSpace(inf.Emit.Ender.Nro),
+			Bairro:            strings.TrimSpace(inf.Emit.Ender.XBairro),
+			Municipio:         strings.TrimSpace(inf.Emit.Ender.XMun),
+			MunicipioCodigo:   strings.TrimSpace(inf.Emit.Ender.CMun),
+			MunicipioCodNome:  formatCodNome(inf.Emit.Ender.CMun, inf.Emit.Ender.XMun),
+			UF:                strings.TrimSpace(inf.Emit.Ender.UF),
+			CEP:               strings.TrimSpace(inf.Emit.Ender.CEP),
+			PaisCodigo:        strings.TrimSpace(inf.Emit.Ender.CPais),
+			PaisNome:          strings.TrimSpace(inf.Emit.Ender.XPais),
+			PaisCodNome:       formatCodNome(inf.Emit.Ender.CPais, inf.Emit.Ender.XPais),
+			Telefone:          strings.TrimSpace(inf.Emit.Ender.Fone),
+			CodMunFatoGerador: strings.TrimSpace(inf.Ide.CMunFG),
+			EnderecoCompleto:  joinLinhaEndereco(inf.Emit.Ender.XLgr, inf.Emit.Ender.Nro, inf.Emit.Ender.XCpl),
 		},
 		Destinatario: domain.NFEDANFEPessoa{
 			Nome:                 strings.TrimSpace(inf.Dest.XNome),
@@ -392,35 +392,35 @@ func (s *NFESerproService) BuildDanfeView(ctx context.Context, schemaName, chave
 			EnderecoCompleto:     joinLinhaEndereco(inf.Dest.Ender.XLgr, inf.Dest.Ender.Nro, inf.Dest.Ender.XCpl),
 		},
 		Totais: domain.NFEDANFETotais{
-			BaseICMS:   strings.TrimSpace(inf.Total.ICMSTot.VBC),
-			ValorICMS:  strings.TrimSpace(inf.Total.ICMSTot.VICMS),
+			BaseICMS:       strings.TrimSpace(inf.Total.ICMSTot.VBC),
+			ValorICMS:      strings.TrimSpace(inf.Total.ICMSTot.VICMS),
 			ValorICMSDeson: strings.TrimSpace(inf.Total.ICMSTot.VICMSDeson),
-			BaseICMSST: strings.TrimSpace(inf.Total.ICMSTot.VBCST),
-			ValorST:    strings.TrimSpace(inf.Total.ICMSTot.VST),
-			ValorII:    strings.TrimSpace(inf.Total.ICMSTot.VII),
-			ValorIPI:   strings.TrimSpace(inf.Total.ICMSTot.VIPI),
-			ValorPIS:   strings.TrimSpace(inf.Total.ICMSTot.VPIS),
-			ValorCOF:   strings.TrimSpace(inf.Total.ICMSTot.VCOFINS),
-			ValorProd:  strings.TrimSpace(inf.Total.ICMSTot.VProd),
-			ValorFrete: strings.TrimSpace(inf.Total.ICMSTot.VFrete),
-			ValorSeg:   strings.TrimSpace(inf.Total.ICMSTot.VSeg),
-			ValorDesc:  strings.TrimSpace(inf.Total.ICMSTot.VDesc),
-			ValorOutro: strings.TrimSpace(inf.Total.ICMSTot.VOutro),
-			ValorTotTrib: strings.TrimSpace(inf.Total.ICMSTot.VTotTrib),
-			ValorNF:    strings.TrimSpace(inf.Total.ICMSTot.VNF),
+			BaseICMSST:     strings.TrimSpace(inf.Total.ICMSTot.VBCST),
+			ValorST:        strings.TrimSpace(inf.Total.ICMSTot.VST),
+			ValorII:        strings.TrimSpace(inf.Total.ICMSTot.VII),
+			ValorIPI:       strings.TrimSpace(inf.Total.ICMSTot.VIPI),
+			ValorPIS:       strings.TrimSpace(inf.Total.ICMSTot.VPIS),
+			ValorCOF:       strings.TrimSpace(inf.Total.ICMSTot.VCOFINS),
+			ValorProd:      strings.TrimSpace(inf.Total.ICMSTot.VProd),
+			ValorFrete:     strings.TrimSpace(inf.Total.ICMSTot.VFrete),
+			ValorSeg:       strings.TrimSpace(inf.Total.ICMSTot.VSeg),
+			ValorDesc:      strings.TrimSpace(inf.Total.ICMSTot.VDesc),
+			ValorOutro:     strings.TrimSpace(inf.Total.ICMSTot.VOutro),
+			ValorTotTrib:   strings.TrimSpace(inf.Total.ICMSTot.VTotTrib),
+			ValorNF:        strings.TrimSpace(inf.Total.ICMSTot.VNF),
 		},
 		Transporte: domain.NFEDANFETransporte{
-			Modalidade:   modFreteLabelCompleto(strings.TrimSpace(inf.Transp.ModFrete)),
-			Transportado: strings.TrimSpace(inf.Transp.Transporta.XNome),
-			CNPJCPF:      firstNotEmpty(inf.Transp.Transporta.CNPJ, inf.Transp.Transporta.CPF),
-			IE:           strings.TrimSpace(inf.Transp.Transporta.IE),
-			Endereco:     strings.TrimSpace(inf.Transp.Transporta.XEnder),
-			Municipio:    strings.TrimSpace(inf.Transp.Transporta.XMun),
-			Placa:        strings.TrimSpace(inf.Transp.VeicTransp.Placa),
-			UF:           firstNotEmpty(inf.Transp.VeicTransp.UF, inf.Transp.Transporta.UF),
-			RNTC:         strings.TrimSpace(inf.Transp.VeicTransp.RNTC),
+			Modalidade:    modFreteLabelCompleto(strings.TrimSpace(inf.Transp.ModFrete)),
+			Transportado:  strings.TrimSpace(inf.Transp.Transporta.XNome),
+			CNPJCPF:       firstNotEmpty(inf.Transp.Transporta.CNPJ, inf.Transp.Transporta.CPF),
+			IE:            strings.TrimSpace(inf.Transp.Transporta.IE),
+			Endereco:      strings.TrimSpace(inf.Transp.Transporta.XEnder),
+			Municipio:     strings.TrimSpace(inf.Transp.Transporta.XMun),
+			Placa:         strings.TrimSpace(inf.Transp.VeicTransp.Placa),
+			UF:            firstNotEmpty(inf.Transp.VeicTransp.UF, inf.Transp.Transporta.UF),
+			RNTC:          strings.TrimSpace(inf.Transp.VeicTransp.RNTC),
 			QuantidadeVol: sumVolumes(inf.Transp.Vol),
-			Volumes:      []domain.NFEDANFEVolume{},
+			Volumes:       []domain.NFEDANFEVolume{},
 		},
 		Cobranca: domain.NFEDANFECobranca{
 			NumeroFatura:  strings.TrimSpace(inf.Cobr.Fat.NFat),
@@ -431,7 +431,7 @@ func (s *NFESerproService) BuildDanfeView(ctx context.Context, schemaName, chave
 			Pagamentos:    []domain.NFEDANFEPagamento{},
 		},
 		Adicionais: domain.NFEDANFEAdicionais{
-			TpImp:                    tpImpLabel(strings.TrimSpace(inf.Ide.TpImp)),
+			TpImp:                     tpImpLabel(strings.TrimSpace(inf.Ide.TpImp)),
 			InformacoesComplementares: strings.TrimSpace(inf.InfAdic.InfCpl),
 			InformacoesFisco:          strings.TrimSpace(inf.InfAdic.InfAdFisco),
 		},
@@ -454,12 +454,12 @@ func (s *NFESerproService) BuildDanfeView(ctx context.Context, schemaName, chave
 	}
 	for _, v := range inf.Transp.Vol {
 		view.Transporte.Volumes = append(view.Transporte.Volumes, domain.NFEDANFEVolume{
-			Quantidade: strings.TrimSpace(v.QVol),
-			Especie:    strings.TrimSpace(v.Esp),
-			Marca:      strings.TrimSpace(v.Marca),
-			Numero:     strings.TrimSpace(v.NVol),
+			Quantidade:  strings.TrimSpace(v.QVol),
+			Especie:     strings.TrimSpace(v.Esp),
+			Marca:       strings.TrimSpace(v.Marca),
+			Numero:      strings.TrimSpace(v.NVol),
 			PesoLiquido: strings.TrimSpace(v.PesoL),
-			PesoBruto:  strings.TrimSpace(v.PesoB),
+			PesoBruto:   strings.TrimSpace(v.PesoB),
 		})
 	}
 	view.Itens = make([]domain.NFEDANFEItem, 0, len(inf.Det))

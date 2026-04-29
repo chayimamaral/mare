@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/middleware"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/service"
 )
 
 type NFESerproHandler struct {
@@ -75,7 +75,9 @@ func (h *NFESerproHandler) Consultar(w http.ResponseWriter, r *http.Request) {
 	}
 	schema := middleware.TenantSchema(r.Context())
 	tenantID := middleware.TenantID(r.Context())
-	if h.certificadoSvc != nil {
+	// Certificado de transmissao so e obrigatorio quando a chamada pede assinatura explicita.
+	// Em cenarios de consulta trial/exemplo (assinar=false), nao bloqueia.
+	if h.certificadoSvc != nil && req.Assinar {
 		if _, err := h.certificadoSvc.ResumoPorTenant(r.Context(), tenantID); err != nil {
 			h.writeNFEError(w, r, err, "certificado_transmissao")
 			return

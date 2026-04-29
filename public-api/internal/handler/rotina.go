@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/public-api/internal/repository"
+	"github.com/chayimamaral/vecx/public-api/internal/repository"
 	"github.com/gin-gonic/gin"
 )
 

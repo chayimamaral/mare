@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
-	"github.com/chayimamaral/vecontab/backend/internal/nfeprovider"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/nfeprovider"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
 )
 
 func nfeTpAmbSefaz(ambiente string) int {

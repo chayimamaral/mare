@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/config"
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/config"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/robfig/cron/v3"
 )

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/service"
 )
 
 var errSentinelDB = errors.New("erro simulado do repositório")

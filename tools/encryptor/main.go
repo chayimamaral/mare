@@ -14,11 +14,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/pkg/masterkey"
+	"github.com/chayimamaral/vecx/backend/pkg/masterkey"
 	"github.com/joho/godotenv"
 )
 
 // Compilacao: cd tools/encryptor && go build -o encryptor .
+
+// encryptor <nome do arquivo .env.<cliente>
 
 func main() {
 	_ = godotenv.Load()

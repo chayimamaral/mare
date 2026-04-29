@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { TabPanel, TabView } from 'primereact/tabview';
 
-import type { NFEDanfeView } from '../../lib/nfeDanfeClient';
+import { fetchDanfeHtmlByChave, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import styles from '../../styles/nfe-danfe.module.css';
 
 type Props = {
@@ -40,6 +40,7 @@ export function DanfeView({ data }: Props) {
   const itens = data.itens.slice(0, 200);
   const itensLimitados = data.itens.length > itens.length;
   const [expIdx, setExpIdx] = useState<Record<number, boolean>>({});
+  const [printing, setPrinting] = useState(false);
 
   const toggleExp = useCallback((i: number) => {
     setExpIdx((p) => ({ ...p, [i]: !p[i] }));
@@ -50,6 +51,46 @@ export function DanfeView({ data }: Props) {
   const de = data.destinatario;
   const tot = data.totais;
   const tr = data.transporte;
+  const chave = String(id.chave ?? '').replace(/\D/g, '');
+
+  const imprimirDanfe = useCallback(async () => {
+    if (printing) return;
+    if (chave.length !== 44) {
+      window.print();
+      return;
+    }
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    if (!w) {
+      // Popup bloqueado: mantém fallback local.
+      window.print();
+      return;
+    }
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>DANFE</title></head><body>Gerando DANFE...</body></html>');
+    w.document.close();
+
+    setPrinting(true);
+    try {
+      const html = await fetchDanfeHtmlByChave(chave);
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      // Pequeno atraso para garantir layout completo antes do print.
+      window.setTimeout(() => {
+        w.print();
+      }, 120);
+    } catch {
+      try {
+        w.close();
+      } catch {
+        // ignore
+      }
+      window.print();
+    } finally {
+      setPrinting(false);
+    }
+  }, [chave, printing]);
 
   return (
     <div className={`${styles.wrapper} surface-0 border-round border-1 surface-border p-3`}>
@@ -58,9 +99,9 @@ export function DanfeView({ data }: Props) {
           <h3 className="m-0">Consulta da NF-e</h3>
           <small className="text-600">Visualização conforme DANFE (abas)</small>
         </div>
-        <button type="button" className="p-button p-component p-button-sm" onClick={() => window.print()}>
+        <button type="button" className="p-button p-component p-button-sm" onClick={imprimirDanfe} disabled={printing}>
           <span className="p-button-icon p-c pi pi-print" />
-          <span className="p-button-label">Imprimir</span>
+          <span className="p-button-label">{printing ? 'Preparando...' : 'Imprimir'}</span>
         </button>
       </div>
 

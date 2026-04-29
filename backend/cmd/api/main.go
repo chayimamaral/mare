@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/frontend"
-	"github.com/chayimamaral/vecontab/backend/internal/config"
-	"github.com/chayimamaral/vecontab/backend/internal/db"
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi"
-	apiMiddleware "github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
-	"github.com/chayimamaral/vecontab/backend/internal/worker"
+	"github.com/chayimamaral/vecx/backend/frontend"
+	"github.com/chayimamaral/vecx/backend/internal/config"
+	"github.com/chayimamaral/vecx/backend/internal/db"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi"
+	apiMiddleware "github.com/chayimamaral/vecx/backend/internal/httpapi/middleware"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/worker"
 )
 
 func main() {

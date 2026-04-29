@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/middleware"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecx/backend/internal/service"
 )
 
 type HardwareHandler struct {
@@ -39,4 +39,3 @@ func (h *HardwareHandler) ScanLocalDevices(w http.ResponseWriter, r *http.Reques
 		"items": devs,
 	})
 }
-

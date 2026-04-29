@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/repository"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecx/backend/internal/repository"
 )
 
 type GlobalMonitorHandler struct {

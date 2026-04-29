@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/chayimamaral/vecontab/backend/internal/domain"
+import "github.com/chayimamaral/vecx/backend/internal/domain"
 
 func TenantClaimsFromDomain(t domain.Tenant) TenantClaims {
 	return TenantClaims{

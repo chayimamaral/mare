@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/auth"
-	"github.com/chayimamaral/vecontab/backend/internal/db"
+	"github.com/chayimamaral/vecx/backend/internal/auth"
+	"github.com/chayimamaral/vecx/backend/internal/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

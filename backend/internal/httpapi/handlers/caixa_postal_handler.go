@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/middleware"
-	"github.com/chayimamaral/vecontab/backend/internal/httpapi/render"
-	"github.com/chayimamaral/vecontab/backend/internal/service"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/middleware"
+	"github.com/chayimamaral/vecx/backend/internal/httpapi/render"
+	"github.com/chayimamaral/vecx/backend/internal/service"
 	"github.com/go-chi/chi/v5"
 )
 

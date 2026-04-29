@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/pkg/masterkey"
+	"github.com/chayimamaral/vecx/backend/pkg/masterkey"
 	"github.com/joho/godotenv"
 )
 

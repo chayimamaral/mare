@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
 )
 
 type NFEGestaoListParams struct {

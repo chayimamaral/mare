@@ -20,7 +20,7 @@ var (
 )
 
 // EmbeddedMasterKey pode ser injetada em build com:
-// -ldflags "-X 'github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=...'"
+// -ldflags "-X 'github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=...'"
 var EmbeddedMasterKey string
 
 // Passphrase retorna a senha mestre para criptografia de .env (mesma ordem de precedencia em todo o projeto).

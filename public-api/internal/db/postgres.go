@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/chayimamaral/vecontab/public-api/internal/config"
+	"github.com/chayimamaral/vecx/public-api/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

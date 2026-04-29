@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/chayimamaral/vecontab/backend/internal/db"
+	"github.com/chayimamaral/vecx/backend/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"

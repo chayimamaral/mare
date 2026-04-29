@@ -23,7 +23,7 @@ frontend-build:
 #make webview-build
 webview-build: frontend-build
 	@echo "Compilando WebView (frontend/main.go)..."
-	@cd frontend && go build -o vecontab-desktop ./main.go
+	@cd frontend && go build -o vecx-desktop ./main.go
 
 #make webview-run
 webview-run: frontend-build
@@ -42,7 +42,7 @@ backend-binaries-local: frontend-build
 	  set -a; . "./$$KEY_FILE"; set +a; \
 	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
 	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
-	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
+	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
 	  cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$$LDFLAGS" -o ./bin/vecx-backend ./cmd/api/main.go; \
 	'
 	@mkdir -p backend/bin/tools
@@ -59,18 +59,19 @@ backend-binaries-local: frontend-build
 	  set -a; . "./$$KEY_FILE"; set +a; \
 	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
 	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
-	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
+	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
 	  cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build -ldflags="$$LDFLAGS" -o ./bin/vecx-client.exe ./cmd/api/main.go; \
 	'
 	@echo "OK: backend/bin/vecx-backend e backend/bin/vecx-client.exe"
 
 
-#make encrypt-env ENV_FILE=backend/bin/.env.cliente
+#make encrypt-env ENV_FILE=backend/bin/.env.<cliente>
 encrypt-env:
 	@bash -c 'set -e; \
 	  FILE="$${ENV_FILE:-}"; \
 	  if [ -z "$$FILE" ]; then \
-	    echo "Uso: make encrypt-env ENV_FILE=backend/bin/.env.cliente"; \
+	    echo "Uso: make encrypt-env ENV_FILE=<caminho/.env.<cliente>>"; \
+	    echo "Ex.: make encrypt-env ENV_FILE=backend/bin/.env.acme"; \
 	    exit 1; \
 	  fi; \
 	  test -f "$$FILE" || { echo "Arquivo nao encontrado: $$FILE"; exit 1; }; \

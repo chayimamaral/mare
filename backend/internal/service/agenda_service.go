@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/chayimamaral/vecontab/backend/internal/domain"
+	"github.com/chayimamaral/vecx/backend/internal/domain"
 )
 
 // AgendaRepository descreve o acesso a dados da agenda (calendário de rotinas).

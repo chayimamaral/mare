@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chayimamaral/vecontab/public-api/internal/config"
-	"github.com/chayimamaral/vecontab/public-api/internal/db"
-	"github.com/chayimamaral/vecontab/public-api/internal/handler"
-	"github.com/chayimamaral/vecontab/public-api/internal/middleware"
-	"github.com/chayimamaral/vecontab/public-api/internal/repository"
+	"github.com/chayimamaral/vecx/public-api/internal/config"
+	"github.com/chayimamaral/vecx/public-api/internal/db"
+	"github.com/chayimamaral/vecx/public-api/internal/handler"
+	"github.com/chayimamaral/vecx/public-api/internal/middleware"
+	"github.com/chayimamaral/vecx/public-api/internal/repository"
 	"github.com/gin-gonic/gin"
 )
 

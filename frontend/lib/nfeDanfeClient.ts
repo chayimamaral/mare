@@ -221,3 +221,16 @@ export async function fetchDanfeJsonByChave(chave: string): Promise<NFEDanfeView
     });
     return data;
 }
+
+export async function fetchDanfeHtmlByChave(chave: string): Promise<string> {
+    const { data } = await api.get<string>('/api/serpro/nfe/documento/danfe-html', {
+        params: { chave },
+        responseType: 'text' as any,
+        timeout: 20000,
+    });
+    const html = String(data ?? '').trim();
+    if (!html) {
+        throw new Error('DANFE_VAZIO');
+    }
+    return html;
+}

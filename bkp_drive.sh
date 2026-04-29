@@ -4,19 +4,19 @@ START_TIME=$(date +%s)
 START_DATE=$(date +"%H:%M:%S")
 
 # Configuração de destino (centralizado para evitar erro de digitação)
-REMOTE_DEST="bkp_drive:/bkp_vecontab"
-LOCAL_DIR="/home/camaral/backups/vecontab"
+REMOTE_DEST="bkp_drive:/bkp_vecx"
+LOCAL_DIR="/home/camaral/backups/vecx"
 
 echo ""
 echo "--- Faxina no Google Drive: Mantendo apenas os últimos 7 ---"
 # O 2>/dev/null evita o erro caso a pasta esteja vazia ou não exista
 # --- Limpeza dos Backups de Banco de Dados (.sql) ---
 echo "Limpando backups antigos do Banco..."
-rclone lsf "$REMOTE_DEST" --format "p" 2>/dev/null | grep "bkp_vecontab_db_" | sort | head -n -7 | xargs -I {} rclone delete "$REMOTE_DEST/{}"
+rclone lsf "$REMOTE_DEST" --format "p" 2>/dev/null | grep "bkp_vecx_db_" | sort | head -n -7 | xargs -I {} rclone delete "$REMOTE_DEST/{}"
 
 # --- Limpeza dos Backups de Fontes (.tar.gz) ---
 echo "Limpando backups antigos dos Fontes..."
-rclone lsf "$REMOTE_DEST" --format "p" 2>/dev/null | grep "vecontab_source_" | sort | head -n -7 | xargs -I {} rclone delete "$REMOTE_DEST/{}"
+rclone lsf "$REMOTE_DEST" --format "p" 2>/dev/null | grep "vecx_source_" | sort | head -n -7 | xargs -I {} rclone delete "$REMOTE_DEST/{}"
 echo ""
 echo "--- Iniciando cópia para o Google Drive ---"
 rclone copy "$LOCAL_DIR" "$REMOTE_DEST"
