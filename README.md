@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="frontend/public/vecx.svg" alt="VECX Logo" width="400">
+  <img src="frontend/public/vecx_logo.svg" alt="VECX Logo" width="400">
 </p>
 
 <h1 align="center">VECX - Hub Contabil</h1>
 
-Vecontab é uma aplicação Full Stack para gestão de empresas e contabilidade, construída com um backend robusto em Go e um frontend moderno em Next.js/React.
+VECX é uma aplicação Full Stack para gestão contábil de empresas, construída com um backend robusto em Go e um frontend moderno em Next.js/React.
 
 ## 🏗️ Arquitetura
 
 O projeto está dividido em dois componentes principais:
 
 ```
-vecontab/
+vecx/
 ├── backend/          # API REST em Go
 ├── frontend/         # Interface em Next.js + React
 └── README.md         # Este arquivo
@@ -22,7 +22,7 @@ vecontab/
 ### Backend
 
 - **Linguagem:** Go 1.26.2
-- **Banco de Dados:** PostgreSQL
+- **Banco de Dados:** PostgreSQL 18.3
 - **Servidor HTTP:** integrado em Go
 - **Reverse Proxy:** Nginx (nginx.conf)
 - **Autenticação:** JWT
@@ -146,7 +146,7 @@ A aplicação utiliza JWT (JSON Web Token) para autenticação:
 
 ```bash
 cd backend
-go build -o vecontab ./cmd/api/main.go
+go build -o vecx ./cmd/api/main.go
 ```
 
 ### Frontend
