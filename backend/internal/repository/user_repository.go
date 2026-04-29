@@ -71,6 +71,23 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 	return &user, nil
 }
 
+// LoadTenantDadosForAudit retorna CNPJ e telefone do escritorio (schema do tenant) para gravacao no VECX_AUDIT.
+// Falhas de schema ou consulta resultam em strings vazias (nao bloqueia login).
+func (r *UserRepository) LoadTenantDadosForAudit(ctx context.Context, tenantID string) (cnpj string, telefone string) {
+	err := withTenantSchemaContext(ctx, r.pool, tenantID, func(inner context.Context) error {
+		return dbQueryRow(inner, r.pool, `
+			SELECT COALESCE(MAX(cnpj::text), ''), COALESCE(MAX(telefone::text), '')
+			FROM tenant_dados
+			WHERE tenantid = $1::uuid`,
+			tenantID,
+		).Scan(&cnpj, &telefone)
+	})
+	if err != nil {
+		return "", ""
+	}
+	return cnpj, telefone
+}
+
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	const query = `
 		SELECT

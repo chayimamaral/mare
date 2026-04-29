@@ -133,6 +133,7 @@ export default function TenantsPage() {
   const [usuarioTenantId, setUsuarioTenantId] = useState('');
 
   const [expandedKeysLista, setExpandedKeysLista] = useState<Record<string, boolean>>({});
+  const [vecxBlockVisible, setVecxBlockVisible] = useState(false);
   const [filtroTenant, setFiltroTenant] = useState('');
   const [filtroPlano, setFiltroPlano] = useState<string>('');
 
@@ -433,6 +434,11 @@ export default function TenantsPage() {
       toast.current?.show({ severity: 'success', summary: 'Escritório ativo', detail: 'Redirecionando…', life: 2000 });
       await Router.push('/');
     } catch (e) {
+      const ax = e as AxiosError<{ code?: string }>;
+      if (ax.response?.data?.code === 'TENANT_INACTIVE_VECX') {
+        setVecxBlockVisible(true);
+        return;
+      }
       toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(e), life: 5000 });
     }
   };
@@ -620,6 +626,25 @@ export default function TenantsPage() {
       <div className="col-12">
         <div className="card">
           <Toast ref={toast} />
+          <Dialog
+            header="Utilização não autorizada"
+            visible={vecxBlockVisible}
+            onHide={() => setVecxBlockVisible(false)}
+            modal
+            dismissableMask
+            style={{ width: 'min(32rem, 95vw)' }}
+            headerStyle={{
+              background: '#b71c1c',
+              color: '#fff',
+              borderRadius: '6px 6px 0 0',
+            }}
+            contentStyle={{ padding: '1.25rem' }}
+          >
+            <p className="m-0 line-height-3 text-900">
+              Esta utilização não está autorizada. Todos os dados estão salvos. Entre em contato diretamente com a VECX
+              para regularizar a situação.
+            </p>
+          </Dialog>
           {!isRepresentante ? (
             <Toolbar
               className="mb-4"

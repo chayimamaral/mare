@@ -39,6 +39,7 @@ const AUTH_REQUIRED_ROUTES = new Set<string>([
     '/matriz-conformidade-fiscal',
     '/monitor',
     '/utilitarios/hardware-manager',
+    '/utilitarios/monitoramento-global',
     '/nfe/consulta',
     '/nfe/manutencao',
     '/nfe/sincronizacao',
@@ -68,6 +69,7 @@ const ROLE_RESTRICTED_ROUTES: Partial<Record<string, UserRole[]>> = {
     '/tenants': ['SUPER', 'REPRESENTANTE'],
     '/usuarios': ['SUPER', 'ADMIN'],
     '/utilitarios/hardware-manager': ['SUPER'],
+    '/utilitarios/monitoramento-global': ['SUPER'],
 };
 
 type GuardSession = {

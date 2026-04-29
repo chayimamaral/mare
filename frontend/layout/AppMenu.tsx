@@ -396,6 +396,12 @@ const AppMenu = () => {
                 to: '/utilitarios/hardware-manager',
                 visible: isSuper,
               },
+              {
+                label: 'Monitoramento global',
+                icon: 'pi pi-fw pi-globe',
+                to: '/utilitarios/monitoramento-global',
+                visible: isSuper,
+              },
             ],
           },
         ],

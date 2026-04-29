@@ -4,9 +4,10 @@ stop:
 	@pkill -f "next-dev" || true
 	@pkill -f "node" || true
 
-.PHONY: stop frontend-build webview-build webview-run backend-binaries-local
+.PHONY: stop frontend-build webview-build webview-run backend-binaries-local encrypt-env
 
 # Mesma ideia do frontend/deploy-frontend.sh: se existir config_privada.env, injeta NEXT_PUBLIC_API_URL.
+#make frontend-build
 frontend-build:
 	@echo "Buildando frontend (export estático em frontend/out)..."
 	@bash -c 'set -e; \
@@ -19,27 +20,62 @@ frontend-build:
 	@echo "Sincronizando out/ → backend/frontend/out (embed Go)..."
 	@rm -rf backend/frontend/out && mkdir -p backend/frontend/out && cp -a frontend/out/. backend/frontend/out/
 
+#make webview-build
 webview-build: frontend-build
 	@echo "Compilando WebView (frontend/main.go)..."
 	@cd frontend && go build -o vecontab-desktop ./main.go
 
+#make webview-run
 webview-run: frontend-build
 	@echo "Rodando WebView (gera out/ se necessário)..."
 	@cd frontend && go run ./main.go
 
+#make backend-binaries-local
 backend-binaries-local: frontend-build
 	@echo "Gerando binários locais em backend/bin..."
 	@mkdir -p backend/bin
-	@cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-		-ldflags="-w -s" \
-		-o ./bin/vecx-backend ./cmd/api/main.go
+	@bash -c 'set -e; \
+	  KEY_FILE=""; \
+	  if [ -f .env.senha_compilacao ]; then KEY_FILE=".env.senha_compilacao"; \
+	  elif [ -f backend/.env.senha_compilacao ]; then KEY_FILE="backend/.env.senha_compilacao"; \
+	  else echo "Arquivo de senha nao encontrado (.env.senha_compilacao ou backend/.env.senha_compilacao)"; exit 1; fi; \
+	  set -a; . "./$$KEY_FILE"; set +a; \
+	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
+	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
+	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
+	  cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$$LDFLAGS" -o ./bin/vecx-backend ./cmd/api/main.go; \
+	'
 	@mkdir -p backend/bin/tools
 	@mkdir -p .cache/go-mod .cache/go-build
 	@test -x backend/bin/tools/garble || { \
 		echo "garble não encontrado; instalando..."; \
 		GOPATH="$(PWD)/.cache/go" GOBIN="$(PWD)/backend/bin/tools" GOMODCACHE="$(PWD)/.cache/go-mod" GOCACHE="$(PWD)/.cache/go-build" go install mvdan.cc/garble@latest; \
 	}
-	@cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build \
-		-ldflags="-w -s" \
-		-o ./bin/vecx-client.exe ./cmd/api/main.go
+	@bash -c 'set -e; \
+	  KEY_FILE=""; \
+	  if [ -f .env.senha_compilacao ]; then KEY_FILE=".env.senha_compilacao"; \
+	  elif [ -f backend/.env.senha_compilacao ]; then KEY_FILE="backend/.env.senha_compilacao"; \
+	  else echo "Arquivo de senha nao encontrado (.env.senha_compilacao ou backend/.env.senha_compilacao)"; exit 1; fi; \
+	  set -a; . "./$$KEY_FILE"; set +a; \
+	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
+	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
+	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecontab/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
+	  cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build -ldflags="$$LDFLAGS" -o ./bin/vecx-client.exe ./cmd/api/main.go; \
+	'
 	@echo "OK: backend/bin/vecx-backend e backend/bin/vecx-client.exe"
+
+
+#make encrypt-env ENV_FILE=backend/bin/.env.cliente
+encrypt-env:
+	@bash -c 'set -e; \
+	  FILE="$${ENV_FILE:-}"; \
+	  if [ -z "$$FILE" ]; then \
+	    echo "Uso: make encrypt-env ENV_FILE=backend/bin/.env.cliente"; \
+	    exit 1; \
+	  fi; \
+	  test -f "$$FILE" || { echo "Arquivo nao encontrado: $$FILE"; exit 1; }; \
+	  if [ -f .env.senha_compilacao ]; then :; \
+	  elif [ -f backend/.env.senha_compilacao ]; then :; \
+	  else echo "Arquivo de senha nao encontrado (.env.senha_compilacao ou backend/.env.senha_compilacao)"; exit 1; fi; \
+	  cd tools/encryptor && printf "%s\n" "$(realpath "$$FILE")" | go run .; \
+	'

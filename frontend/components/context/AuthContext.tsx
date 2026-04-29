@@ -5,6 +5,7 @@ import { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 
 import api from '../api/apiClient';
+import { AuthError } from '../../lib/authErrors';
 import {
   AUTH_TOKEN_COOKIE,
   clearAuthTokenCookies,
@@ -165,13 +166,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 
     } catch (err) {
-      const axiosErr = err as AxiosError<{ error?: string; message?: string }>;
+      const axiosErr = err as AxiosError<{ error?: string; message?: string; code?: string }>;
       const message =
         axiosErr.response?.data?.error ||
         axiosErr.response?.data?.message ||
         axiosErr.message ||
         'Erro ao autenticar';
-      throw new Error(message)
+      const code =
+        typeof axiosErr.response?.data?.code === 'string'
+          ? axiosErr.response.data.code.trim()
+          : undefined;
+      throw new AuthError(message, code);
 
     }
   }
@@ -200,6 +205,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function logoutUser() {
     try {
+      try {
+        await api.post('/api/session/end');
+      } catch {
+        // segue com logout local mesmo se auditoria estiver indisponivel
+      }
       queryClient.clear();
       setUser(undefined);
       api.defaults.headers.common['Authorization'] = '';

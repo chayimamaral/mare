@@ -37,6 +37,13 @@ const MODULOS: ModuloCard[] = [
     tooltip: 'Menu Home → Manutenção de Empresas → Manutenção de NFe.',
   },
   {
+    titulo: 'Manutenção de Empresas',
+    descricao: 'Gestão de Empresas: Compromissos fiscais e tributários.',
+    href: '/empresas',
+    icon: 'pi pi-file',
+    tooltip: 'Menu Home → Manutenção de Empresas → Manutenção de NFe.',
+  },
+  {
     titulo: 'Manutenção de Cliente PF (IRPF)',
     descricao: 'Gestão de clientes PF para processos de IRPF, com foco em fluxo operacional e compromissos.',
     href: '/cliente-pf',

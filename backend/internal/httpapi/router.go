@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/chayimamaral/vecontab/backend/internal/auth"
 	"github.com/chayimamaral/vecontab/backend/internal/config"
@@ -16,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handler {
+func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, staticFS fs.FS) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -25,9 +27,11 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	apiMiddleware.SetCORSAllowedOrigins(cfg.CORSAllowedOrigins)
 	r.Use(apiMiddleware.CORS)
 
+	auditRepo := repository.NewVecxAuditRepository(auditPool)
+
 	tokenService := auth.NewTokenService(cfg.JWTSecret)
 	featureMatrixRepo := repository.NewFeatureMatrixRepository(pool)
-	authService := service.NewAuthService(repository.NewUserRepository(pool), featureMatrixRepo, tokenService)
+	authService := service.NewAuthService(repository.NewUserRepository(pool), featureMatrixRepo, tokenService, auditRepo)
 	userService := service.NewUserService(repository.NewUserRepository(pool))
 	estadoService := service.NewEstadoService(repository.NewEstadoRepository(pool))
 	cidadeService := service.NewCidadeService(repository.NewCidadeRepository(pool))
@@ -81,7 +85,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	nfeSerproService := service.NewNFESerproService(nfeSerproRepo, service.NewSerproService(cfg, certificadoService), certificadoService)
 	nfeValidacaoCatalogoService := service.NewNFEValidacaoCatalogoService(nfeValidacaoCatalogoRepo)
 
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, auditRepo)
+	globalMonitorHandler := handlers.NewGlobalMonitorHandler(auditRepo)
 	userHandler := handlers.NewUserHandler(userService)
 	estadoHandler := handlers.NewEstadoHandler(estadoService)
 	cidadeHandler := handlers.NewCidadeHandler(cidadeService)
@@ -131,12 +136,22 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 	requireNFe := apiMiddleware.RequireFeature(auth.FeatureNFe)
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := pool.Ping(ctx); err != nil {
+			render.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "pg down"})
+			return
+		}
+		if err := auditPool.Ping(ctx); err != nil {
+			render.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "audit down"})
+			return
+		}
 		render.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, hardwareHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
+		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, hardwareHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -156,6 +171,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, staticFS fs.FS) http.Handl
 func registerRoutes(
 	r chi.Router,
 	authHandler *handlers.AuthHandler,
+	globalMonitorHandler *handlers.GlobalMonitorHandler,
 	userHandler *handlers.UserHandler,
 	estadoHandler *handlers.EstadoHandler,
 	cidadeHandler *handlers.CidadeHandler,
@@ -224,7 +240,9 @@ func registerRoutes(
 
 	r.Post("/session", authHandler.Login)
 	r.With(requireAuth).Post("/session/context-tenant", authHandler.AssumeTenant)
+	r.With(requireAuth).Post("/session/end", authHandler.SessionEnd)
 	r.With(requireAuth).Get("/me", userHandler.Me)
+	r.With(requireAuth, requireSuper).Get("/monitoramento-global/sessoes", globalMonitorHandler.ListActiveSessions)
 	r.With(requireAuth, requireAdmin).Get("/usuarios", userHandler.List)
 	r.With(requireAuth).Get("/usuariorole", userHandler.UserRole)
 	r.With(requireAuth).Get("/usuariotenant", userHandler.TenantID)

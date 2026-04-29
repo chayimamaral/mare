@@ -12,24 +12,19 @@ import (
 )
 
 func NewPostgresPool(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
-	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	return newPostgresPoolFromURL(ctx, cfg.DatabaseURL, cfg)
+}
+
+// NewAuditPostgresPool abre o pool do banco global de auditoria (VECX_AUDIT, EF-929).
+func NewAuditPostgresPool(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
+	return newPostgresPoolFromURL(ctx, cfg.AuditDatabaseURL, cfg)
+}
+
+func newPostgresPoolFromURL(ctx context.Context, databaseURL string, cfg config.Config) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse pg config: %w", err)
 	}
-
-	// if cfg.SSLRootCertPath != "" {
-	// 	certBytes, certErr := os.ReadFile(cfg.SSLRootCertPath)
-	// 	if certErr == nil {
-	// 		rootCAs := x509.NewCertPool()
-	// 		rootCAs.AppendCertsFromPEM(certBytes)
-
-	// 		poolConfig.ConnConfig.TLSConfig = &tls.Config{
-	// 			MinVersion:         tls.VersionTLS12,
-	// 			RootCAs:            rootCAs,
-	// 			InsecureSkipVerify: cfg.SSLInsecure,
-	// 		}
-	// 	}
-	// }
 
 	// Só entra aqui se houver um caminho E se NÃO for para ser inseguro/desabilitado
 	if cfg.SSLRootCertPath != "" && !cfg.SSLInsecure {

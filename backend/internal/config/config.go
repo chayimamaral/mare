@@ -11,14 +11,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chayimamaral/vecontab/backend/pkg/masterkey"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Runtime                        string
-	Port                           string
-	CORSAllowedOrigins             []string
-	DatabaseURL                    string
+	Runtime            string
+	Port               string
+	CORSAllowedOrigins []string
+	DatabaseURL        string
+	// AuditDatabaseURL: banco global VECX_AUDIT (EF-929). Obrigatório; mesma stack TLS que PG_URL.
+	AuditDatabaseURL               string
 	JWTSecret                      string
 	SSLRootCertPath                string
 	SSLInsecure                    bool
@@ -54,11 +57,13 @@ type Config struct {
 	NFeXSLTDir  string
 }
 
-const masterKey = "Zenaide Zoe Amaral 02031941"
-
 func Load() (Config, error) {
 	// Tenta carregar o .env do diretório atual
 	_ = godotenv.Load()
+	// Senha mestre para ENC: (nao versionar — ver env.senha_compilacao.example)
+	_ = godotenv.Load(".env.senha_compilacao")
+	_ = godotenv.Load("../.env.senha_compilacao")
+	_ = godotenv.Load("backend/.env.senha_compilacao")
 	// if err != nil {
 	// 	fmt.Println("Aviso: .env não encontrado no diretório atual, tentando caminho relativo...")
 	// }
@@ -90,6 +95,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("PG_URL invalida para descriptografia: %w", err)
 	}
+	auditURL, err := decryptSensitiveEnv("VECX_AUDIT")
+	if err != nil {
+		return Config{}, fmt.Errorf("VECX_AUDIT invalida para descriptografia: %w", err)
+	}
 	jwtSecret, err := decryptSensitiveEnv("JWT_SECRET")
 	if err != nil {
 		return Config{}, fmt.Errorf("JWT_SECRET invalida para descriptografia: %w", err)
@@ -116,6 +125,7 @@ func Load() (Config, error) {
 		Port:                           getEnv("PORT", defaultPort),
 		CORSAllowedOrigins:             parseCSVEnv("CORS_ALLOWED_ORIGINS"),
 		DatabaseURL:                    pgURL,
+		AuditDatabaseURL:               auditURL,
 		JWTSecret:                      jwtSecret,
 		SSLRootCertPath:                getEnv("PG_SSL_ROOT_CERT", "/home/camaral/.postgres/ca.crt"),
 		SSLInsecure:                    getEnv("PG_SSL_INSECURE", "true") == "true",
@@ -143,6 +153,9 @@ func Load() (Config, error) {
 
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("PG_URL is required")
+	}
+	if cfg.AuditDatabaseURL == "" {
+		return Config{}, fmt.Errorf("VECX_AUDIT is required")
 	}
 
 	if cfg.JWTSecret == "" {
@@ -233,13 +246,27 @@ func decryptSensitiveEnv(key string) (string, error) {
 		return "", nil
 	}
 
+	mk, err := masterkey.Passphrase()
+	if err != nil {
+		return "", fmt.Errorf("senha mestre para %s: %w", key, err)
+	}
+
 	// Modo explicito: ENC:<base64_nonce_ciphertext>
 	if strings.HasPrefix(strings.ToUpper(raw), "ENC:") {
-		return DecryptValue(strings.TrimSpace(raw[4:]), masterKey)
+		if mk == "" {
+			return "", fmt.Errorf(
+				"%s usa ENC: defina VECX_MASTER_KEY (ou VECONTAB_MASTER_KEY/SENHA_COMPILACAO) em .env.senha_compilacao",
+				key,
+			)
+		}
+		return DecryptValue(strings.TrimSpace(raw[4:]), mk)
 	}
 
 	// Compatibilidade: se vier puro em texto, mantem; se vier base64 criptografado, descriptografa.
-	dec, err := DecryptValue(raw, masterKey)
+	if mk == "" {
+		return raw, nil
+	}
+	dec, err := DecryptValue(raw, mk)
 	if err != nil {
 		return raw, nil
 	}

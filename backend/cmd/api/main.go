@@ -36,6 +36,17 @@ func main() {
 	}
 	defer pool.Close()
 
+	auditPool, err := db.NewAuditPostgresPool(ctx, cfg)
+	if err != nil {
+		log.Fatalf("connect vecx audit postgres: %v", err)
+	}
+	defer auditPool.Close()
+
+	auditRepo := repository.NewVecxAuditRepository(auditPool)
+	if err := auditRepo.EnsureSchema(ctx); err != nil {
+		log.Fatalf("vecx audit schema: %v", err)
+	}
+
 	// Compatibilidade com tokens antigos sem tenant.schema_name.
 	apiMiddleware.SetTenantSchemaResolver(func(ctx context.Context, tenantID string) (string, error) {
 		return db.ResolveTenantSchema(ctx, pool, tenantID)
@@ -49,7 +60,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(cfg, pool, staticRoot),
+		Handler:           httpapi.NewRouter(cfg, pool, auditPool, staticRoot),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

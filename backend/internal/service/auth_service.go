@@ -12,6 +12,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ErrTenantNaoAutorizadoVecX: tenant inativo no cadastro; login bloqueado com aviso VECX (EF-929).
+var ErrTenantNaoAutorizadoVecX = errors.New("tenant_vecx_nao_autorizado")
+
+// MsgTenantVecxNaoAutorizado mensagem exibida ao usuario (dialog vermelho).
+const MsgTenantVecxNaoAutorizado = "Esta utilizacao nao esta autorizada. Todos os dados estao salvos. Entre em contato diretamente com a VECX para regularizar a situacao."
+
+// ErrAuditoriaGlobalIndisponivel: falha ao gravar sessao no VECX_AUDIT; login nao pode concluir (EF-929).
+var ErrAuditoriaGlobalIndisponivel = errors.New("auditoria_global_indisponivel")
+
 type LoginInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -22,6 +31,7 @@ type AuthService struct {
 	users    *repository.UserRepository
 	features *repository.FeatureMatrixRepository
 	tokens   *auth.TokenService
+	audit    *repository.VecxAuditRepository
 }
 
 type LoginResponse struct {
@@ -35,8 +45,29 @@ type LoginResponse struct {
 	FeatureSlugs []string      `json:"feature_slugs,omitempty"`
 }
 
-func NewAuthService(users *repository.UserRepository, features *repository.FeatureMatrixRepository, tokens *auth.TokenService) *AuthService {
-	return &AuthService{users: users, features: features, tokens: tokens}
+func NewAuthService(users *repository.UserRepository, features *repository.FeatureMatrixRepository, tokens *auth.TokenService, audit *repository.VecxAuditRepository) *AuthService {
+	return &AuthService{users: users, features: features, tokens: tokens, audit: audit}
+}
+
+func contactoEscritorioAudit(tenantContato, telDados string) string {
+	t := strings.TrimSpace(telDados)
+	c := strings.TrimSpace(tenantContato)
+	if t != "" && c != "" && t != c {
+		return t + " | " + c
+	}
+	if t != "" {
+		return t
+	}
+	return c
+}
+
+func (s *AuthService) syncAuditSession(ctx context.Context, userID, userEmail string, tenant domain.Tenant, clientIP string) error {
+	cnpj, tel := s.users.LoadTenantDadosForAudit(ctx, tenant.ID)
+	cont := contactoEscritorioAudit(tenant.Contato, tel)
+	if err := s.audit.UpsertActiveSession(ctx, userID, userEmail, tenant.ID, tenant.Nome, cnpj, cont, clientIP); err != nil {
+		return fmt.Errorf("%w: %v", ErrAuditoriaGlobalIndisponivel, err)
+	}
+	return nil
 }
 
 func jwtFeatureSlugs(slugs []string) []string {
@@ -46,7 +77,7 @@ func jwtFeatureSlugs(slugs []string) []string {
 	return slugs
 }
 
-func (s *AuthService) Login(ctx context.Context, input LoginInput) (LoginResponse, error) {
+func (s *AuthService) Login(ctx context.Context, input LoginInput, clientIP string) (LoginResponse, error) {
 	input.Email = strings.TrimSpace(input.Email)
 	user, err := s.users.FindByEmail(ctx, input.Email)
 	if err != nil {
@@ -76,7 +107,7 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (LoginRespons
 	}
 
 	if !user.Tenant.Active {
-		return LoginResponse{}, errors.New("Empresa nao esta ativa...consulte seu Administrador")
+		return LoginResponse{}, fmt.Errorf("%w: %s", ErrTenantNaoAutorizadoVecX, MsgTenantVecxNaoAutorizado)
 	}
 
 	roleUpper := strings.ToUpper(strings.TrimSpace(user.Role))
@@ -97,6 +128,10 @@ func (s *AuthService) Login(ctx context.Context, input LoginInput) (LoginRespons
 
 	featureSlugs, err := s.features.ResolveForUser(ctx, roleUpper, user.TenantID, user.RepresentanteID)
 	if err != nil {
+		return LoginResponse{}, err
+	}
+
+	if err := s.syncAuditSession(ctx, user.ID, user.Email, user.Tenant, clientIP); err != nil {
 		return LoginResponse{}, err
 	}
 
@@ -137,7 +172,7 @@ type AssumeTenantResponse struct {
 	FeatureSlugs []string      `json:"feature_slugs,omitempty"`
 }
 
-func (s *AuthService) AssumeTenant(ctx context.Context, userID, role, currentTenantID, repID string, input AssumeTenantInput) (AssumeTenantResponse, error) {
+func (s *AuthService) AssumeTenant(ctx context.Context, userID, role, currentTenantID, repID, clientIP string, input AssumeTenantInput) (AssumeTenantResponse, error) {
 	target := strings.TrimSpace(input.TenantID)
 	if target == "" {
 		return AssumeTenantResponse{}, errors.New("tenant_id obrigatorio")
@@ -157,10 +192,13 @@ func (s *AuthService) AssumeTenant(ctx context.Context, userID, role, currentTen
 			return AssumeTenantResponse{}, err
 		}
 		if !t.Active {
-			return AssumeTenantResponse{}, errors.New("Tenant inativo")
+			return AssumeTenantResponse{}, fmt.Errorf("%w: %s", ErrTenantNaoAutorizadoVecX, MsgTenantVecxNaoAutorizado)
 		}
 		slugs, err := s.features.ResolveForUser(ctx, roleUpper, t.ID, "")
 		if err != nil {
+			return AssumeTenantResponse{}, err
+		}
+		if err := s.syncAuditSession(ctx, user.ID, user.Email, t, clientIP); err != nil {
 			return AssumeTenantResponse{}, err
 		}
 		token, err := s.tokens.Generate(auth.Claims{
@@ -193,10 +231,13 @@ func (s *AuthService) AssumeTenant(ctx context.Context, userID, role, currentTen
 			return AssumeTenantResponse{}, err
 		}
 		if !t.Active {
-			return AssumeTenantResponse{}, errors.New("Tenant inativo")
+			return AssumeTenantResponse{}, fmt.Errorf("%w: %s", ErrTenantNaoAutorizadoVecX, MsgTenantVecxNaoAutorizado)
 		}
 		slugs, err := s.features.ResolveForUser(ctx, roleUpper, t.ID, rid)
 		if err != nil {
+			return AssumeTenantResponse{}, err
+		}
+		if err := s.syncAuditSession(ctx, user.ID, user.Email, t, clientIP); err != nil {
 			return AssumeTenantResponse{}, err
 		}
 		token, err := s.tokens.Generate(auth.Claims{
@@ -223,6 +264,9 @@ func (s *AuthService) AssumeTenant(ctx context.Context, userID, role, currentTen
 		}
 		slugs, err := s.features.ResolveForUser(ctx, roleUpper, t.ID, user.RepresentanteID)
 		if err != nil {
+			return AssumeTenantResponse{}, err
+		}
+		if err := s.syncAuditSession(ctx, user.ID, user.Email, t, clientIP); err != nil {
 			return AssumeTenantResponse{}, err
 		}
 		token, err := s.tokens.Generate(auth.Claims{

@@ -13,12 +13,31 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/chayimamaral/vecontab/backend/pkg/masterkey"
+	"github.com/joho/godotenv"
 )
 
-//compilação:go build -o encryptor main.go
+// Compilacao: cd tools/encryptor && go build -o encryptor .
 
 func main() {
-	envPath, passphrase, err := promptInputs()
+	_ = godotenv.Load()
+	// Raiz do repo (quando o comando roda em tools/encryptor); depois cwd.
+	_ = godotenv.Overload(filepath.Join("..", "..", ".env.senha_compilacao"))
+	_ = godotenv.Overload(filepath.Join("..", "..", "backend", ".env.senha_compilacao"))
+	_ = godotenv.Overload(".env.senha_compilacao")
+
+	mk, err := masterkey.Passphrase()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "senha mestre: %v\n", err)
+		os.Exit(2)
+	}
+	if strings.TrimSpace(mk) == "" {
+		fmt.Fprintln(os.Stderr, "defina VECX_MASTER_KEY (ou VECONTAB_MASTER_KEY/SENHA_COMPILACAO) em .env.senha_compilacao")
+		os.Exit(2)
+	}
+
+	envPath, err := promptEnvPath()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "erro de leitura da entrada: %v\n", err)
 		os.Exit(2)
@@ -27,12 +46,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "nome do arquivo .env nao informado")
 		os.Exit(2)
 	}
-	if strings.TrimSpace(passphrase) == "" {
-		fmt.Fprintln(os.Stderr, "senha nao informada")
-		os.Exit(2)
-	}
 	outputPath := strings.TrimSpace(envPath) + ".dist"
-	if err := processEnvFile(envPath, outputPath, passphrase, false); err != nil {
+	if err := processEnvFile(envPath, outputPath, mk, false); err != nil {
 		fmt.Fprintf(os.Stderr, "erro ao processar .env: %v\n", err)
 		os.Exit(1)
 	}
@@ -174,19 +189,14 @@ func processEnvFile(envPath, outputPath, passphrase string, inplace bool) error 
 	return nil
 }
 
-func promptInputs() (string, string, error) {
+func promptEnvPath() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Arquivo de ambiente (.env, .env.globalbusiness, env.jpncontabilidade, etc): ")
 	envPath, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
-		return "", "", err
+		return "", err
 	}
-	fmt.Print("Senha/passphrase: ")
-	passphrase, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return "", "", err
-	}
-	return strings.TrimSpace(envPath), strings.TrimSpace(passphrase), nil
+	return strings.TrimSpace(envPath), nil
 }
 
 func unwrapQuoted(s string) string {
@@ -197,4 +207,3 @@ func unwrapQuoted(s string) string {
 	}
 	return s
 }
-
