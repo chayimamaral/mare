@@ -41,3 +41,4 @@ backend/frontend/out/
 tools/encryptor/encryptor
 
 .env.*
+env.senha_compilacao
