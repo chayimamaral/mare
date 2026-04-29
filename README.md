@@ -1,4 +1,10 @@
-# Vecontab - Sistema de Gestão de Contabilidade
+<p align="center">
+  <img src="frontend/public/vecx.svg" alt="VECX Logo" width="200">
+</p>
+
+<h1 align="center">VECX - Hub Contabil</h1>
+
+# VECX - Hub Contabil
 
 Vecontab é uma aplicação Full Stack para gestão de empresas e contabilidade, construída com um backend robusto em Go e um frontend moderno em Next.js/React.
 
