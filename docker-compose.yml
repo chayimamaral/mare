@@ -1,6 +1,6 @@
 services:
   # O Backend em Go
-  vecontab-backend:
+  vecx-backend:
     build: 
       context: ./backend # Ajuste para o caminho da sua pasta go
       dockerfile: Dockerfile
@@ -12,7 +12,7 @@ services:
       - db
 
   # O Frontend Next.js que acabamos de buildar
-  vecontab-frontend:
+  vecx-frontend:
     image: vecontab-frontend:v1
     build:
       context: ./frontend

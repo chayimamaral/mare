@@ -1,3 +1,10 @@
+<p align="center">
+  <img src="../frontend/public/vecx_logo.svg" alt="VECX Logo" width="400">
+</p>
+
+<h1 align="center">Hub Contabil</h1>
+
+
 # Vecontab Backend - API REST em Go
 
 API REST robusta para o sistema Vecontab de gestão de contabilidade. Backend construído em Go com PostgreSQL, autenticação JWT e suporte multi-tenant.

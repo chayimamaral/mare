@@ -1,4 +1,13 @@
+<p align="center">
+  <img src="public/vecx_logo.svg" alt="VECX Logo" width="400">
+</p>
+
+<h1 align="center">Hub Contabil</h1>
+
+
 # Vecontab Frontend - Interface em Next.js + React
+
+
 
 Interface moderna e responsiva para o sistema Vecontab de gestão de contabilidade. Construída com Next.js 16, React 18 e PrimeReact 10.
 
@@ -13,16 +22,16 @@ Interface moderna e responsiva para o sistema Vecontab de gestão de contabilida
 
 ## 💻 Stack Tecnológico
 
-| Tecnologia | Versão | Propósito |
-|------------|--------|----------|
-| **Next.js** | 16.2.1 | Framework React Full Stack |
-| **React** | 18.3.1 | Biblioteca UI |
-| **TypeScript** | 5.1.3 | Type-safe development |
-| **PrimeReact** | 10.9.7 | Componentes UI premium |
-| **FullCalendar** | 6.1.20 | Calendário avançado |
-| **Axios** | 1.4.0 | Cliente HTTP |
-| **Node.js** | 22.12.0+ | Runtime JavaScript |
-| **npm** | 11.11.0+ | Gerenciador de pacotes |
+| Tecnologia       | Versão   | Propósito                  |
+| ---------------- | -------- | -------------------------- |
+| **Next.js**      | 16.2.1   | Framework React Full Stack |
+| **React**        | 18.3.1   | Biblioteca UI              |
+| **TypeScript**   | 5.1.3    | Type-safe development      |
+| **PrimeReact**   | 10.9.7   | Componentes UI premium     |
+| **FullCalendar** | 6.1.20   | Calendário avançado        |
+| **Axios**        | 1.4.0    | Cliente HTTP               |
+| **Node.js**      | 22.12.0+ | Runtime JavaScript         |
+| **npm**          | 11.11.0+ | Gerenciador de pacotes     |
 
 ## 📁 Estrutura do Projeto
 
