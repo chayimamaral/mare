@@ -8,11 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chayimamaral/vecx/backend/pkg/masterkey"
 	"github.com/joho/godotenv"
+
+	_ "time/tzdata"
 )
 
 type Config struct {
@@ -52,14 +56,34 @@ type Config struct {
 
 	// DANFE HTML (XSLT 2.0 SVRS): Saxon-HE + pasta com os .xsl (ex.: frontend/public/svrs-nfe-xslt).
 	// https://www.saxonica.com/download/java
-	NFeSaxonJAR string
-	NFeJavaPath string
-	NFeXSLTDir  string
+	NFeSaxonJAR            string
+	NFeJavaPath            string
+	NFeXSLTDir             string
+	LocalAgentBaseURL      string
+	LocalAgentTimeout      time.Duration
+	LocalAgentSharedSecret string
+}
+
+func loadEnvBesideExecutable() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	dir := filepath.Dir(exe)
+	// Prioridade: .env ao lado do binário (deploy / vecx-desktop). godotenv não sobrescreve o que já veio do ambiente.
+	_ = godotenv.Load(filepath.Join(dir, ".env"))
+	_ = godotenv.Load(filepath.Join(dir, ".env.senha_compilacao"))
 }
 
 func Load() (Config, error) {
-	// Tenta carregar o .env do diretório atual
+	loadEnvBesideExecutable()
+	// Dev / monorepo: cwd e caminhos relativos (só preenchem chaves ainda não definidas).
 	_ = godotenv.Load()
+	_ = godotenv.Load("backend/.env")
+	_ = godotenv.Load("../.env")
 	// Senha mestre para ENC: (nao versionar — ver env.senha_compilacao.example)
 	_ = godotenv.Load(".env.senha_compilacao")
 	_ = godotenv.Load("../.env.senha_compilacao")
@@ -149,6 +173,9 @@ func Load() (Config, error) {
 		NFeSaxonJAR:                    strings.TrimSpace(os.Getenv("NFE_SAXON_JAR")),
 		NFeJavaPath:                    getEnv("NFE_JAVA_PATH", "java"),
 		NFeXSLTDir:                     strings.TrimSpace(os.Getenv("NFE_XSLT_DIR")),
+		LocalAgentBaseURL:              getEnv("LOCAL_AGENT_BASE_URL", "http://127.0.0.1:9999"),
+		LocalAgentTimeout:              time.Duration(parseIntEnv("LOCAL_AGENT_TIMEOUT_SECS", 8)) * time.Second,
+		LocalAgentSharedSecret:         strings.TrimSpace(os.Getenv("LOCAL_AGENT_SHARED_SECRET")),
 	}
 
 	if cfg.DatabaseURL == "" {

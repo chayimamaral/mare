@@ -4,7 +4,7 @@ stop:
 	@pkill -f "next-dev" || true
 	@pkill -f "node" || true
 
-.PHONY: stop frontend-build webview-build webview-run backend-binaries-local encrypt-env
+.PHONY: stop frontend-build webview-build webview-run backend-binaries-local local-agent-binaries-local encrypt-env
 
 # Mesma ideia do frontend/deploy-frontend.sh: se existir config_privada.env, injeta NEXT_PUBLIC_API_URL.
 #make frontend-build
@@ -23,7 +23,8 @@ frontend-build:
 #make webview-build
 webview-build: frontend-build
 	@echo "Compilando WebView (frontend/main.go)..."
-	@cd frontend && go build -o vecx-desktop ./main.go
+	@mkdir -p backend/bin
+	@cd frontend && go build -o ../backend/bin/vecx-desktop ./main.go
 
 #make webview-run
 webview-run: frontend-build
@@ -43,7 +44,7 @@ backend-binaries-local: frontend-build
 	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
 	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
 	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
-	  cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$$LDFLAGS" -o ./bin/vecx-backend ./cmd/api/main.go; \
+	  cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="$$LDFLAGS" -o ./bin/vecx ./cmd/api/main.go; \
 	'
 	@mkdir -p backend/bin/tools
 	@mkdir -p .cache/go-mod .cache/go-build
@@ -60,9 +61,24 @@ backend-binaries-local: frontend-build
 	  KEY="$${VECX_MASTER_KEY:-$${VECONTAB_MASTER_KEY:-$${SENHA_COMPILACAO:-}}}"; \
 	  test -n "$$KEY" || { echo "VECX_MASTER_KEY ausente em $$KEY_FILE"; exit 1; }; \
 	  LDFLAGS="-w -s -X '\''github.com/chayimamaral/vecx/backend/pkg/masterkey.EmbeddedMasterKey=$$KEY'\''"; \
-	  cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build -ldflags="$$LDFLAGS" -o ./bin/vecx-client.exe ./cmd/api/main.go; \
+	  cd backend && GARBLE_CACHE="$(PWD)/.cache/garble" CGO_ENABLED=0 GOOS=windows GOARCH=amd64 ../backend/bin/tools/garble -literals -tiny build -ldflags="$$LDFLAGS" -o ./bin/vecx.exe ./cmd/api/main.go; \
 	'
-	@echo "OK: backend/bin/vecx-backend e backend/bin/vecx-client.exe"
+	@echo "OK: backend/bin/vecx e backend/bin/vecx.exe"
+	@$(MAKE) local-agent-binaries-local
+
+#make local-agent-binaries-local
+local-agent-binaries-local:
+	@echo "Gerando binários do agente local em backend/bin..."
+	@mkdir -p backend/bin
+	@bash -c 'set -e; \
+	  cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o ../backend/bin/vecx-agent ./cmd/agent/main.go; \
+	  command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
+	    echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent.exe"; \
+	    exit 1; \
+	  }; \
+	  CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../backend/bin/vecx-agent.exe ./cmd/agent/main.go; \
+	'
+	@echo "OK: backend/bin/vecx-agent e backend/bin/vecx-agent.exe"
 
 
 #make encrypt-env ENV_FILE=backend/bin/.env.<cliente>

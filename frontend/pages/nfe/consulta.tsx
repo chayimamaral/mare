@@ -53,6 +53,15 @@ type NFEValidacaoRegra = {
     descricao: string;
 };
 
+type LocalAgentCert = {
+    id: string;
+    label: string;
+    subject: string;
+    serial_hex: string;
+    slot_id: number;
+    token_label: string;
+};
+
 export default function NFEConsultaPage() {
     useRouteClientGuard();
     const router = useRouter();
@@ -67,6 +76,9 @@ export default function NFEConsultaPage() {
     const [danfeVisible, setDanfeVisible] = useState(false);
     const [danfeLoading, setDanfeLoading] = useState(false);
     const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
+    const [localPin, setLocalPin] = useState('');
+    const [selectedLocalCert, setSelectedLocalCert] = useState('');
+    const [localSigning, setLocalSigning] = useState(false);
     const closeDanfePreview = useCallback(() => {
         setDanfeVisible(false);
         setDanfeData(null);
@@ -84,6 +96,15 @@ export default function NFEConsultaPage() {
             return data.items ?? [];
         },
     });
+    const { data: localCertsData, refetch: refetchLocalCerts, isFetching: localCertsLoading } = useQuery({
+        queryKey: ['nfe-local-agent-certs'],
+        enabled: false,
+        queryFn: async () => {
+            const { data } = await api.get<{ items: LocalAgentCert[] }>('/api/local-agent/certificates');
+            return data.items ?? [];
+        },
+    });
+    const localCerts = localCertsData ?? [];
 
     useEffect(() => {
         const raw = router.query.chave;
@@ -286,6 +307,29 @@ export default function NFEConsultaPage() {
         }
     };
 
+    const assinarHashNoAgente = async () => {
+        const chave = onlyDigitsChave(chaveNFe);
+        if (chave.length !== 44) {
+            toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
+            return;
+        }
+        setLocalSigning(true);
+        try {
+            const { data } = await api.post('/api/local-agent/sign-hash', {
+                raw_text: chave,
+                certificate_id: selectedLocalCert || undefined,
+                pin: localPin || undefined,
+            });
+            setRetorno(JSON.stringify(data, null, 2));
+            toast.current?.show({ severity: 'success', summary: 'Agente local', detail: 'Hash assinado com sucesso.', life: 3500 });
+        } catch (e: unknown) {
+            const parsed = parseNFEApiError(e);
+            toast.current?.show({ severity: 'error', summary: 'Agente local', detail: parsed.detail, life: 9000 });
+        } finally {
+            setLocalSigning(false);
+        }
+    };
+
     const visualizarDanfe = async () => {
         const chave = onlyDigitsChave(chaveNFe);
         if (chave.length !== 44) {
@@ -411,6 +455,45 @@ export default function NFEConsultaPage() {
                                 ) : (
                                     <span className="text-600 text-sm">Nenhuma regra cadastrada.</span>
                                 )}
+                            </div>
+                        </div>
+                        <div className="col-12">
+                            <div className="surface-50 border-1 surface-border border-round p-3">
+                                <div className="font-medium mb-2">Agente local A3 (EF-930)</div>
+                                <p className="text-600 text-sm mt-0 mb-3">
+                                    Usa o agente local para listar certificados do token/smartcard e assinar o hash SHA-256 da chave da NF-e.
+                                </p>
+                                <div className="flex gap-2 flex-wrap mb-3">
+                                    <Button
+                                        type="button"
+                                        label="Listar certificados locais"
+                                        icon="pi pi-refresh"
+                                        severity="secondary"
+                                        loading={localCertsLoading}
+                                        onClick={() => void refetchLocalCerts()}
+                                    />
+                                    <Dropdown
+                                        value={selectedLocalCert}
+                                        options={localCerts.map((c) => ({ label: `${c.label} (${c.token_label})`, value: c.id }))}
+                                        onChange={(e) => setSelectedLocalCert(String(e.value ?? ''))}
+                                        placeholder="Selecione um certificado (opcional)"
+                                        className="min-w-20rem"
+                                    />
+                                    <InputText
+                                        type="password"
+                                        value={localPin}
+                                        onChange={(e) => setLocalPin(e.target.value)}
+                                        placeholder="PIN do token (opcional)"
+                                        className="min-w-14rem"
+                                    />
+                                    <Button
+                                        type="button"
+                                        label="Assinar hash no agente"
+                                        icon="pi pi-lock"
+                                        loading={localSigning}
+                                        onClick={() => void assinarHashNoAgente()}
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="col-12">

@@ -41,7 +41,6 @@ export const PATH_REQUIRES_FEATURE_SLUG: Record<string, string> = {
   '/nfe/consulta': FEATURE.nfe,
   '/nfe/manutencao': FEATURE.nfe,
   '/nfe/sincronizacao': FEATURE.nfe,
-  '/caixa-postal': FEATURE.caixa_postal,
   '/monitor': FEATURE.monitor,
   '/configuracoes/geracao-guias': FEATURE.integra_contador,
   '/configuracoes/certificado-digital': FEATURE.integra_contador,
