@@ -14,6 +14,7 @@ import React, { useMemo, useRef, useState } from 'react';
 
 import api from '../../components/api/apiClient';
 import { DanfeView } from '../../components/nfe/DanfeView';
+import { useAuthScopeKey } from '../../components/hooks/useAuthScopeKey';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import { parseNFEApiError } from '../../lib/nfeError';
@@ -113,6 +114,7 @@ const onlyDigitsChave = (v: string) => String(v ?? '').replace(/\D/g, '');
 
 export default function NFEManutencaoPage() {
     useRouteClientGuard();
+    const authScope = useAuthScopeKey();
     const router = useRouter();
     const toast = useRef<Toast>(null);
 
@@ -168,7 +170,7 @@ export default function NFEManutencaoPage() {
     );
 
     const { data, isFetching, refetch } = useQuery({
-        queryKey: ['nfe-gestao', queryKey],
+        queryKey: ['nfe-gestao', authScope, queryKey],
         queryFn: async () => {
             const { data: res } = await api.get<{ items: NFEGestaoRow[]; totalRecords: number }>('/api/serpro/nfe/gestao', {
                 params: {
@@ -191,7 +193,7 @@ export default function NFEManutencaoPage() {
     const chaveDetalhe = detalhe?.chave_nfe ?? '';
 
     const { data: manifestData, refetch: refetchManifest } = useQuery({
-        queryKey: ['nfe-manifestacao', chaveDetalhe],
+        queryKey: ['nfe-manifestacao', authScope, chaveDetalhe],
         enabled: chaveDetalhe.length === 44,
         queryFn: async () => {
             const { data: res } = await api.get<{ items: ManifestacaoRow[]; totalRecords: number }>('/api/serpro/nfe/manifestacao', {
@@ -201,7 +203,7 @@ export default function NFEManutencaoPage() {
         },
     });
     const { data: validacoesData } = useQuery({
-        queryKey: ['nfe-validacoes-manutencao'],
+        queryKey: ['nfe-validacoes-manutencao', authScope],
         queryFn: async () => {
             const { data } = await api.get<{ items: NFEValidacaoRegra[] }>('/api/serpro/nfe/validacoes');
             return data.items ?? [];

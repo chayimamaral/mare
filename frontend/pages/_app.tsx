@@ -8,7 +8,7 @@ import 'primereact/resources/primereact.css';
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import '../styles/layout/layout.scss';
-import { AuthProvider } from '../components/context/AuthContext';
+import { AUTH_SESSION_CHANGED_EVENT, AuthProvider } from '../components/context/AuthContext';
 import { CaixaPostalProvider } from '../components/context/CaixaPostalContext';
 import { useRouteClientGuard } from '../components/hooks/useClientGuards';
 import { useIdleLogout } from '../components/hooks/useIdleLogout';
@@ -37,6 +37,7 @@ function AppContent({ Component, pageProps }: Props) {
 }
 
 export default function App({ Component, pageProps }: Props) {
+    const [authSessionStamp, setAuthSessionStamp] = React.useState('boot');
     const [queryClient] = React.useState(
         () =>
             new QueryClient({
@@ -84,11 +85,30 @@ export default function App({ Component, pageProps }: Props) {
     //   localStorage.setItem('layoutConfig', JSON.stringify(layoutConfig));
     // }, [layoutConfig]);
 
+    React.useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const readTokenFingerprint = () => {
+            const token = String(window.sessionStorage.getItem('vecontab_token') ?? window.localStorage.getItem('vecontab_token') ?? '').trim();
+            return token ? `tk:${token.slice(0, 16)}` : 'anon';
+        };
+        const handleAuthSessionChanged = () => {
+            queryClient.clear();
+            setAuthSessionStamp(`s:${readTokenFingerprint()}:${Date.now()}`);
+        };
+        setAuthSessionStamp(`s:${readTokenFingerprint()}:${Date.now()}`);
+        window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handleAuthSessionChanged);
+        return () => {
+            window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleAuthSessionChanged);
+        };
+    }, [queryClient]);
+
     return (
         <QueryClientProvider client={queryClient}>
             <AuthProvider>
                 <CaixaPostalProvider>
-                    <AppContent Component={Component} pageProps={pageProps} />
+                    <AppContent key={authSessionStamp} Component={Component} pageProps={pageProps} />
                 </CaixaPostalProvider>
             </AuthProvider>
         </QueryClientProvider>

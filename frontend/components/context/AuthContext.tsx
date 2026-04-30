@@ -67,6 +67,8 @@ interface SignUpResult {
   active: boolean;
 }
 
+export const AUTH_SESSION_CHANGED_EVENT = 'vecx:auth-session-changed';
+
 const AuthContext = createContext({} as AuthContextData)
 
 export function signOut() {
@@ -76,6 +78,7 @@ export function signOut() {
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem('vecontab_token');
       window.localStorage.removeItem('vecontab_token');
+      window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
     }
     Router.push('/auth/login');
 
@@ -120,6 +123,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     //async function signIn({ email, password }: SignInProps) {
     try {
+      // Evita qualquer reaproveitamento de cache entre sessões/tenants diferentes.
+      queryClient.clear();
+
       const response = await api.post("/api/session", {
         email,
         password,
@@ -137,6 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         window.sessionStorage.setItem('vecontab_token', token);
         window.localStorage.setItem('vecontab_token', token);
+        window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
       } catch {
         // ignore
       }
@@ -217,6 +224,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (typeof window !== 'undefined') {
         window.sessionStorage.removeItem('vecontab_token');
         window.localStorage.removeItem('vecontab_token');
+        window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
       }
       Router.push('/auth/login');
     } catch (err) {

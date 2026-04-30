@@ -8,6 +8,7 @@ import { Toast } from 'primereact/toast';
 import React, { useMemo, useRef, useState } from 'react';
 
 import api from '../../components/api/apiClient';
+import { useAuthScopeKey } from '../../components/hooks/useAuthScopeKey';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 
 type SyncEstadoRow = {
@@ -70,6 +71,7 @@ function formatCNPJCPF(v: string): string {
 
 export default function NFESincronizacaoPage() {
     useRouteClientGuard();
+    const authScope = useAuthScopeKey();
     const toast = useRef<Toast>(null);
 
     const [provider, setProvider] = useState('SC');
@@ -94,7 +96,7 @@ export default function NFESincronizacaoPage() {
     );
 
     const { data, isFetching, refetch } = useQuery({
-        queryKey: ['nfe-sync-estado', queryKey],
+        queryKey: ['nfe-sync-estado', authScope, queryKey],
         queryFn: async () => {
             const { data: res } = await api.get<{ items: SyncEstadoRow[]; totalRecords: number }>('/api/serpro/nfe/sync-estado', {
                 params: {

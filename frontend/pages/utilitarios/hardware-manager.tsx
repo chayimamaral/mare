@@ -15,13 +15,30 @@ type HardwareDevice = {
   status: string;
 };
 
-type ScanResponse = {
-  items: HardwareDevice[];
+type LocalAgentCert = {
+  id: string;
+  label?: string;
+  subject?: string;
+  serial_hex?: string;
+  slot_id?: number;
+  token_label?: string;
+};
+
+type LocalAgentCertResponse = {
+  items: LocalAgentCert[];
 };
 
 type WailsRuntimeLike = {
   EventsOn?: (eventName: string, cb: (...args: any[]) => void) => void | (() => void) | Promise<(() => void) | void>;
 };
+
+function getLocalAgentBaseURL(): string {
+  const raw = String(process.env.NEXT_PUBLIC_LOCAL_AGENT_BASE_URL ?? '').trim();
+  if (!raw) {
+    return 'http://127.0.0.1:9999';
+  }
+  return raw.replace(/\/+$/, '');
+}
 
 export default function HardwareManagerPage() {
   useRouteClientGuard();
@@ -50,44 +67,43 @@ export default function HardwareManagerPage() {
   const scanDevices = useCallback(async () => {
     setScanning(true);
     try {
-      const endpointCandidates = [
-        '/api/hardware/dispositivos-locais',
-        '/hardware/dispositivos-locais',
-      ];
-      let data: ScanResponse | null = null;
-      let lastError: unknown = null;
-      for (const ep of endpointCandidates) {
-        try {
-          const resp = await api.get<ScanResponse>(ep);
-          data = resp.data;
-          break;
-        } catch (e: unknown) {
-          const ax = e as { response?: { status?: number } };
-          lastError = e;
-          // Se nao for 404, nao adianta tentar o proximo endpoint.
-          if (ax?.response?.status !== 404) {
-            throw e;
-          }
-        }
+      const baseURL = getLocalAgentBaseURL();
+      const resp = await fetch(`${baseURL}/certificates`, {
+        method: 'GET',
+        credentials: 'omit',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => '');
+        throw new Error(body || `vecx-agent respondeu HTTP ${resp.status}`);
       }
-      if (!data) {
-        throw lastError ?? new Error('rota de hardware indisponivel');
-      }
+      const data = (await resp.json()) as LocalAgentCertResponse;
 
-      setItems(Array.isArray(data?.items) ? data.items : []);
+      const mapped = Array.isArray(data?.items)
+        ? data.items.map((c) => ({
+            device_id: String(c.id ?? '—'),
+            path: [c.label, c.token_label, c.subject].filter(Boolean).join(' | ') || 'Certificado local',
+            status: c.serial_hex ? `serial ${c.serial_hex}` : 'disponível',
+          }))
+        : [];
+      const detectedCount = mapped.length;
+      setItems(mapped);
+
       toast.current?.show({
         severity: 'success',
         summary: 'Escaneamento concluído',
-        detail: Array.isArray(data?.items) && data.items.length > 0
-          ? `Dispositivos detectados: ${data.items.length}.`
-          : 'Nenhum dispositivo USB local detectado nesta varredura.',
+        detail: detectedCount > 0
+          ? `Dispositivos detectados: ${detectedCount}.`
+          : 'Nenhum dispositivo detectado nesta varredura.',
         life: 2500,
       });
     } catch (e: unknown) {
-      const err = e as { response?: { status?: number; data?: { error?: string } } };
-      const detail = err?.response?.status === 404
-        ? 'Endpoint de hardware nao encontrado no backend em execucao. Recompile e reinicie o vecx-backend.'
-        : (err?.response?.data?.error ?? 'Falha ao listar dispositivos locais.');
+      const msg = e instanceof Error ? e.message : '';
+      const detail = msg
+        ? `agente local indisponivel: ${msg}`
+        : 'agente local indisponivel: verifique vecx-agent em 127.0.0.1:9999 e CORS (AGENT_ALLOWED_ORIGINS).';
       toast.current?.show({
         severity: 'error',
         summary: 'Erro no escaneamento',
@@ -132,11 +148,11 @@ export default function HardwareManagerPage() {
     <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center gap-2">
       <div>
         <h5 className="m-0">Hardware Manager</h5>
-        <small className="text-600">Detecção local de dispositivos (modo desktop/binário).</small>
+        <small className="text-600">Consulta direta no vecx-agent local (127.0.0.1:9999).</small>
       </div>
       <Button
         type="button"
-        label="Escanear Dispositivos Locais"
+        label="Escanear vecx-agent"
         icon="pi pi-refresh"
         onClick={() => void scanDevices()}
         loading={scanning}

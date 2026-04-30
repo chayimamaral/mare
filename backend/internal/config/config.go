@@ -111,8 +111,21 @@ func Load() (Config, error) {
 	}
 
 	defaultPort := "8080"
+
 	if runtime == "binary" || runtime == "desktop" {
 		defaultPort = "3333"
+	}
+
+	// 	if port == "" {
+	//     // Se estiver vazio, estamos rodando localmente no Fedora ou Desktop
+	//     port = "8080" // Padrão web local
+	//     if runtime == "binary" || runtime == "desktop" {
+	//         port = "3333" // Padrão binário/desktop
+	//     }
+	// }
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
 	}
 
 	pgURL, err := decryptSensitiveEnv("PG_URL")
@@ -146,7 +159,7 @@ func Load() (Config, error) {
 
 	cfg := Config{
 		Runtime:                        runtime,
-		Port:                           getEnv("PORT", defaultPort),
+		Port:                           port,
 		CORSAllowedOrigins:             parseCSVEnv("CORS_ALLOWED_ORIGINS"),
 		DatabaseURL:                    pgURL,
 		AuditDatabaseURL:               auditURL,

@@ -12,6 +12,7 @@ import { Dialog } from 'primereact/dialog';
 import { ProgressSpinner } from 'primereact/progressspinner';
 
 import api from '../../components/api/apiClient';
+import { useAuthScopeKey } from '../../components/hooks/useAuthScopeKey';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { DanfeView } from '../../components/nfe/DanfeView';
 import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
@@ -64,6 +65,7 @@ type LocalAgentCert = {
 
 export default function NFEConsultaPage() {
     useRouteClientGuard();
+    const authScope = useAuthScopeKey();
     const router = useRouter();
 
     const toast = useRef<Toast>(null);
@@ -90,14 +92,14 @@ export default function NFEConsultaPage() {
     const autoDanfeRanForKey = useRef<string | null>(null);
 
     const { data: validacoes } = useQuery({
-        queryKey: ['nfe-validacoes-consulta'],
+        queryKey: ['nfe-validacoes-consulta', authScope],
         queryFn: async () => {
             const { data } = await api.get<{ items: NFEValidacaoRegra[] }>('/api/serpro/nfe/validacoes');
             return data.items ?? [];
         },
     });
     const { data: localCertsData, refetch: refetchLocalCerts, isFetching: localCertsLoading } = useQuery({
-        queryKey: ['nfe-local-agent-certs'],
+        queryKey: ['nfe-local-agent-certs', authScope],
         enabled: false,
         queryFn: async () => {
             const { data } = await api.get<{ items: LocalAgentCert[] }>('/api/local-agent/certificates');

@@ -16,7 +16,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		HTTPAddr:            envOrDefault("AGENT_HTTP_ADDR", "127.0.0.1:9999"),
-		AllowedOrigins:      parseCSV(envOrDefault("AGENT_ALLOWED_ORIGINS", "https://vcontab.com.br")),
+		AllowedOrigins:      parseCSV(strings.TrimSpace(os.Getenv("AGENT_ALLOWED_ORIGINS"))),
 		PKCS11LibraryLinux:  envOrDefault("PKCS11_LIBRARY_LINUX", "/usr/lib64/libeToken.so"),
 		PKCS11LibraryWindow: envOrDefault("PKCS11_LIBRARY_WINDOWS", `C:\Windows\System32\eTPKCS11.dll`),
 		SharedSecret:        strings.TrimSpace(os.Getenv("AGENT_SHARED_SECRET")),

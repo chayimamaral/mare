@@ -22,7 +22,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(apiMiddleware.RequestLoggerFiltered)
 	r.Use(middleware.Recoverer)
 	apiMiddleware.SetCORSAllowedOrigins(cfg.CORSAllowedOrigins)
 	r.Use(apiMiddleware.CORS)
@@ -65,7 +65,6 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	clienteService := service.NewClienteService(repository.NewClienteRepository(pool))
 	monitorOperacaoRepo := repository.NewMonitorOperacaoRepository(pool)
 	monitorOperacaoService := service.NewMonitorOperacaoService(monitorOperacaoRepo)
-	hardwareService := service.NewHardwareService()
 	rotinaPFService := service.NewRotinaPFService(repository.NewRotinaPFRepository(pool))
 	configuracaoIntegracaoRepo := repository.NewConfiguracaoIntegracaoRepository(pool)
 	configuracaoIntegracaoService := service.NewConfiguracaoIntegracaoService(configuracaoIntegracaoRepo)
@@ -108,7 +107,6 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	empresaAgendaHandler := handlers.NewEmpresaAgendaHandler(empresaAgendaService, monitorOperacaoService)
 	empresaCompromissoHandler := handlers.NewEmpresaCompromissoHandler(empresaCompromissoService, monitorOperacaoService)
 	monitorOperacaoHandler := handlers.NewMonitorOperacaoHandler(monitorOperacaoService)
-	hardwareHandler := handlers.NewHardwareHandler(hardwareService)
 	empresaDadosHandler := handlers.NewEmpresaDadosHandler(empresaDadosService)
 	clienteHandler := handlers.NewClienteHandler(clienteService)
 	rotinaPFHandler := handlers.NewRotinaPFHandler(rotinaPFService)
@@ -153,7 +151,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, hardwareHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
+		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -197,7 +195,6 @@ func registerRoutes(
 	empresaCompromissoHandler *handlers.EmpresaCompromissoHandler,
 	clienteHandler *handlers.ClienteHandler,
 	monitorOperacaoHandler *handlers.MonitorOperacaoHandler,
-	hardwareHandler *handlers.HardwareHandler,
 	configuracaoIntegracaoHandler *handlers.ConfiguracaoIntegracaoHandler,
 	certificadoClienteHandler *handlers.CertificadoClienteHandler,
 	catalogoServicoHandler *handlers.CatalogoServicoHandler,
@@ -378,7 +375,6 @@ func registerRoutes(
 	r.With(requireAuth, requireCompromissos, requireAdmin).Post("/empresacompromissos/gerar", empresaCompromissoHandler.Gerar)
 	r.With(requireAuth, requireSuper).Post("/empresacompromissos/gerar-geral", empresaCompromissoHandler.GerarGeralTodosTenants)
 	r.With(requireAuth, requireMonitorMod, requireAdmin).Get("/monitor/operacoes", monitorOperacaoHandler.List)
-	r.With(requireAuth, requireSuper).Get("/hardware/dispositivos-locais", hardwareHandler.ScanLocalDevices)
 	r.With(requireAuth, requireCompromissos).Post("/empresacompromissos/manual", empresaCompromissoHandler.CreateManual)
 	r.With(requireAuth, requireCompromissos).Put("/empresacompromissos/status", empresaCompromissoHandler.UpdateStatus)
 	r.With(requireAuth, requireCompromissos).Put("/empresacompromissos/item", empresaCompromissoHandler.UpdateItem)
