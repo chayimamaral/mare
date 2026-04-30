@@ -43,4 +43,4 @@ tools/encryptor/encryptor
 
 .env.*
 env.senha_compilacao
-bin/*
+bin/

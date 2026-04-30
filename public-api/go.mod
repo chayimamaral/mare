@@ -1,4 +1,4 @@
-module github.com/chayimamaral/vecontab/public-api
+module github.com/chayimamaral/vecx/public-api
 
 go 1.26.0
 
