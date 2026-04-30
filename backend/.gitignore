@@ -7,3 +7,4 @@ main
 .cache/garble/build/
 .env*
 .env.senha_compilacao
+backend/bin/*
