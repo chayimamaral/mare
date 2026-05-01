@@ -2,7 +2,7 @@
   <img src="frontend/public/vecx_logo.svg" alt="VECX Logo" width="400">
 </p>
 
-<h1 align="center">Hub Contabil</h1>
+<h1 align="center">Hub Contábil</h1>
 
 VECX é uma aplicação Full Stack para gestão contábil de empresas, construída com um backend robusto em Go e um frontend moderno em Next.js/React.
 
