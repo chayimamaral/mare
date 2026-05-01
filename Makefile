@@ -7,7 +7,7 @@ stop:
 	@pkill -f "next-dev" || true
 	@pkill -f "node" || true
 
-.PHONY: stop frontend-build webview-build webview-run backend-binaries-local local-agent-binaries-local encrypt-env
+.PHONY: stop frontend-build webview-build webview-run backend-binaries-local local-agent-binaries-local local-agent-gui-binaries-local encrypt-env
 
 # make frontend-build
 frontend-build:
@@ -66,18 +66,43 @@ backend-binaries-local: frontend-build
 	'
 	@echo "OK: $(BIN_DIR)/vecx e $(BIN_DIR)/vecx.exe"
 	@$(MAKE) local-agent-binaries-local
+	@$(MAKE) local-agent-gui-binaries-local || echo "AVISO: GUI do agente nao gerada neste ambiente (dependencias graficas ausentes)."
 
 # make local-agent-binaries-local
 local-agent-binaries-local:
 	@echo "Gerando binários do agente local em $(BIN_DIR)..."
 	@mkdir -p $(BIN_DIR)
 	@bash -c 'set -e; \
-		cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent ./cmd/agent/main.go; \
+		cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli ./cmd/agent/main.go; \
+		command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
+			echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent-cli.exe"; \
+			exit 1; \
+		}; \
+		CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli.exe ./cmd/agent/main.go; \
+	'
+	@echo "OK: $(BIN_DIR)/vecx-agent-cli e $(BIN_DIR)/vecx-agent-cli.exe"
+
+# make local-agent-gui-binaries-local
+local-agent-gui-binaries-local:
+	@echo "Gerando binários GUI do agente local em $(BIN_DIR)..."
+	@mkdir -p $(BIN_DIR)
+	@bash -c 'set -e; \
+		if [ "$$(uname -s)" = "Linux" ]; then \
+			pkg-config --exists egl wayland-egl wayland-client wayland-cursor x11 xkbcommon xkbcommon-x11 x11-xcb xcursor xfixes || { \
+				echo "Dependencias GUI ausentes no Linux (pkg-config: xkbcommon-x11/x11/etc)."; \
+				echo "vecx-agent sera o mesmo binario que vecx-agent-cli (somente terminal)."; \
+				echo "Instale no Fedora (headers + pkg-config para Gio/CGO):"; \
+				echo "sudo dnf install mesa-libEGL-devel wayland-devel libX11-devel libxcb-devel libxkbcommon-devel libxkbcommon-x11-devel libXcursor-devel libXfixes-devel"; \
+				cp -f ./$(BIN_DIR)/vecx-agent-cli ./$(BIN_DIR)/vecx-agent; \
+				exit 0; \
+			}; \
+		fi; \
+		cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent ./cmd/agent-gui/main.go; \
 		command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
 			echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent.exe"; \
 			exit 1; \
 		}; \
-		CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent.exe ./cmd/agent/main.go; \
+		CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent.exe ./cmd/agent-gui/main.go; \
 	'
 	@echo "OK: $(BIN_DIR)/vecx-agent e $(BIN_DIR)/vecx-agent.exe"
 

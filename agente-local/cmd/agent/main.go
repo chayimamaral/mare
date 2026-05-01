@@ -20,7 +20,7 @@ func main() {
 
 	provider := pkcs11.NewProvider(cfg.PKCS11LibraryLinux, cfg.PKCS11LibraryWindow)
 	signUC := usecase.NewSignUseCase(provider)
-	handler := httpserver.NewHandler(signUC)
+	handler := httpserver.NewHandler(signUC, nil)
 	server := httpserver.NewServer(cfg.HTTPAddr, cfg.AllowedOrigins, cfg.SharedSecret, handler)
 
 	log.Printf("agente local iniciado em http://%s", cfg.HTTPAddr)

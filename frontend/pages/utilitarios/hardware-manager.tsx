@@ -40,6 +40,25 @@ function getLocalAgentBaseURL(): string {
   return raw.replace(/\/+$/, '');
 }
 
+/** Deve coincidir com AGENT_SHARED_SECRET do vecx-agent (se estiver definido lá). */
+function getLocalAgentSharedSecret(): string {
+  return String(process.env.NEXT_PUBLIC_LOCAL_AGENT_SECRET ?? '').trim();
+}
+
+function describeFetchFailure(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  if (lower.includes('failed to fetch') || lower === 'networkerror when attempting to fetch resource.') {
+    return (
+      'O navegador não conseguiu completar o pedido (Failed to fetch). ' +
+      'Causas frequentes: (1) vecx-agent parado ou porta errada; (2) CORS — confira AGENT_ALLOWED_ORIGINS no agente; ' +
+      '(3) se o agente usa AGENT_SHARED_SECRET, o pedido precisa do cabeçalho X-Local-Agent-Secret e o CORS do agente deve permitir esse cabeçalho; ' +
+      '(4) páginas HTTP remotas: o Chrome pode bloquear chamadas a 127.0.0.1 (rede privada); use HTTPS no site ou teste em localhost.'
+    );
+  }
+  return msg;
+}
+
 export default function HardwareManagerPage() {
   useRouteClientGuard();
   const toast = useRef<Toast>(null);
@@ -68,15 +87,36 @@ export default function HardwareManagerPage() {
     setScanning(true);
     try {
       const baseURL = getLocalAgentBaseURL();
+      const secret = getLocalAgentSharedSecret();
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (secret !== '') {
+        headers['X-Local-Agent-Secret'] = secret;
+      }
       const resp = await fetch(`${baseURL}/certificates`, {
         method: 'GET',
         credentials: 'omit',
-        headers: {
-          Accept: 'application/json',
-        },
+        headers,
       });
       if (!resp.ok) {
-        const body = await resp.text().catch(() => '');
+        if (resp.status === 401) {
+          throw new Error(
+            'vecx-agent recusou o segredo local (HTTP 401). ' +
+              'Defina NEXT_PUBLIC_LOCAL_AGENT_SECRET no build do frontend com o mesmo valor de AGENT_SHARED_SECRET do agente, ' +
+              'ou deixe AGENT_SHARED_SECRET vazio no agente para desativar esta exigência.',
+          );
+        }
+        let body = await resp.text().catch(() => '');
+        try {
+          const j = JSON.parse(body) as { error?: string };
+          if (j?.error === 'unauthorized') {
+            body =
+              'não autorizado no vecx-agent — verifique NEXT_PUBLIC_LOCAL_AGENT_SECRET / AGENT_SHARED_SECRET.';
+          }
+        } catch {
+          /* manter body */
+        }
         throw new Error(body || `vecx-agent respondeu HTTP ${resp.status}`);
       }
       const data = (await resp.json()) as LocalAgentCertResponse;
@@ -100,15 +140,16 @@ export default function HardwareManagerPage() {
         life: 2500,
       });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '';
-      const detail = msg
-        ? `agente local indisponivel: ${msg}`
-        : 'agente local indisponivel: verifique vecx-agent em 127.0.0.1:9999 e CORS (AGENT_ALLOWED_ORIGINS).';
+      const msg = e instanceof Error ? e.message : String(e);
+      const detail =
+        msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')
+          ? describeFetchFailure(e)
+          : msg || describeFetchFailure(e);
       toast.current?.show({
         severity: 'error',
         summary: 'Erro no escaneamento',
         detail,
-        life: 5000,
+        life: 8000,
       });
     } finally {
       setScanning(false);
