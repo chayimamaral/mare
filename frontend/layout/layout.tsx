@@ -9,6 +9,7 @@ import AppFooter from './AppFooter';
 import AppSidebar from './AppSidebar';
 import AppTopbar from './AppTopbar';
 import AppConfig from './AppConfig';
+import VirtualAssistantChat from '../components/ai/VirtualAssistantChat';
 import { LayoutContext } from './context/layoutcontext';
 import PrimeReact from 'primereact/api';
 import { ChildContainerProps, LayoutState, AppTopbarRef } from '../types/types';
@@ -138,6 +139,7 @@ const Layout = ({ children }: ChildContainerProps) => {
           <AppFooter />
         </div>
         <AppConfig />
+        <VirtualAssistantChat />
         <div className="layout-mask"></div>
       </div>
     </React.Fragment>

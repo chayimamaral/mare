@@ -2,14 +2,19 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { parseCookies } from 'nookies';
 import { useQuery } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import api from '../api/apiClient';
-import { getAuthTokenFromParsedCookies } from '../../constants/authCookie';
+import {
+    clearAuthTokenCookies,
+    getAuthTokenFromParsedCookies,
+} from '../../constants/authCookie';
 import {
     FEATURE,
     PATH_REQUIRES_CORE,
     PATH_REQUIRES_FEATURE_SLUG,
     sessionAllowsFeature,
 } from '../../constants/featureAccess';
+import { AUTH_SESSION_CHANGED_EVENT } from '../context/AuthContext';
 
 type UserRole = 'SUPER' | 'ADMIN' | 'USER' | 'REPRESENTANTE';
 
@@ -77,6 +82,11 @@ type GuardSession = {
     featureSlugs: string[] | undefined;
 };
 
+type GuestSessionValidation = {
+    valid: boolean;
+    unauthorized: boolean;
+};
+
 export function useRouteClientGuard(): void {
     const router = useRouter();
     const pathname = router.pathname;
@@ -109,6 +119,29 @@ export function useRouteClientGuard(): void {
         },
     });
 
+    const {
+        data: guestSessionValidation,
+        isFetching: guestSessionValidationLoading,
+        isFetched: guestSessionValidationFetched,
+    } = useQuery({
+        queryKey: ['guest-session-validation', pathname, token],
+        enabled: isGuestOnly && !!token,
+        retry: false,
+        queryFn: async (): Promise<GuestSessionValidation> => {
+            try {
+                await api.get('/api/me');
+                return { valid: true, unauthorized: false };
+            } catch (error) {
+                const axiosErr = error as AxiosError;
+                const status = axiosErr?.response?.status;
+                if (status === 401 || status === 403) {
+                    return { valid: false, unauthorized: true };
+                }
+                throw error;
+            }
+        },
+    });
+
     useEffect(() => {
         const cookies = parseCookies();
         const cookieToken = getAuthTokenFromParsedCookies(cookies);
@@ -116,8 +149,26 @@ export function useRouteClientGuard(): void {
             cookieToken ||
             (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
 
-        if (isGuestOnly && token) {
-            void router.replace('/');
+        if (isGuestOnly) {
+            if (!token) {
+                return;
+            }
+            if (guestSessionValidationLoading) {
+                return;
+            }
+            if (guestSessionValidation?.valid) {
+                void router.replace('/');
+                return;
+            }
+            if (guestSessionValidationFetched && guestSessionValidation?.unauthorized) {
+                // Token invalido no /auth/login nao pode redirecionar para dashboard nem piscar layout autenticado.
+                clearAuthTokenCookies(null);
+                if (typeof window !== 'undefined') {
+                    window.sessionStorage.removeItem('vecontab_token');
+                    window.localStorage.removeItem('vecontab_token');
+                    window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+                }
+            }
             return;
         }
 
@@ -153,6 +204,9 @@ export function useRouteClientGuard(): void {
         needsFeatureCheck,
         featureSlugForPath,
         needsCore,
+        guestSessionValidation,
+        guestSessionValidationLoading,
+        guestSessionValidationFetched,
         router,
     ]);
 }

@@ -35,6 +35,13 @@ func (rw *responseLogger) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush repassa ao writer interno quando existir, para SSE/streaming (ex.: /api/ai/chat).
+func (rw *responseLogger) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func shouldSkipRequestLog(path string) bool {
 	p := strings.ToLower(strings.TrimSpace(path))
 	if p == "" {

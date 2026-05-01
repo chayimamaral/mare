@@ -17,8 +17,10 @@ type TenantSchemaResolver func(ctx context.Context, tenantID string) (string, er
 const (
 	userIDKey            contextKey = "userID"
 	userNameKey          contextKey = "userName"
+	userEmailKey         contextKey = "userEmail"
 	roleKey              contextKey = "role"
 	tenantIDKey          contextKey = "tenantID"
+	tenantNomeKey        contextKey = "tenantNome"
 	tenantSchemaKey      contextKey = "tenantSchema"
 	representativeIDKey  contextKey = "representativeID"
 	featureSlugsKey      contextKey = "featureSlugs"
@@ -66,8 +68,10 @@ func RequireAuth(tokens *auth.TokenService) func(http.Handler) http.Handler {
 
 			ctx := context.WithValue(r.Context(), userIDKey, claims.Subject)
 			ctx = context.WithValue(ctx, userNameKey, claims.Nome)
+			ctx = context.WithValue(ctx, userEmailKey, strings.TrimSpace(claims.Email))
 			ctx = context.WithValue(ctx, roleKey, claims.Role)
 			ctx = context.WithValue(ctx, tenantIDKey, claims.Tenant.ID)
+			ctx = context.WithValue(ctx, tenantNomeKey, strings.TrimSpace(claims.Tenant.Nome))
 			ctx = context.WithValue(ctx, representativeIDKey, strings.TrimSpace(claims.RepresentativeID))
 			ctx = context.WithValue(ctx, featureSlugsKey, claims.FeatureSlugs)
 			ctx = context.WithValue(ctx, tenantIsVecMasterKey, claims.Tenant.IsVecMaster)
@@ -138,6 +142,11 @@ func UserName(ctx context.Context) string {
 	return value
 }
 
+func UserEmail(ctx context.Context) string {
+	value, _ := ctx.Value(userEmailKey).(string)
+	return value
+}
+
 func Role(ctx context.Context) string {
 	value, _ := ctx.Value(roleKey).(string)
 	return value
@@ -145,6 +154,11 @@ func Role(ctx context.Context) string {
 
 func TenantID(ctx context.Context) string {
 	value, _ := ctx.Value(tenantIDKey).(string)
+	return value
+}
+
+func TenantNome(ctx context.Context) string {
+	value, _ := ctx.Value(tenantNomeKey).(string)
 	return value
 }
 

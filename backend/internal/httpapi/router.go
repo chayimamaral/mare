@@ -126,6 +126,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	caixaPostalRepo := repository.NewCaixaPostalRepository(pool)
 	caixaPostalService := service.NewCaixaPostalService(caixaPostalRepo)
 	caixaPostalHandler := handlers.NewCaixaPostalHandler(caixaPostalService)
+	aiHandler := handlers.NewAIHandler(cfg, pool)
 
 	requireAuth := apiMiddleware.RequireAuth(tokenService)
 	requireAdmin := apiMiddleware.RequireAnyRole("ADMIN", "SUPER")
@@ -151,7 +152,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
+		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, aiHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -205,6 +206,7 @@ func registerRoutes(
 	caixaPostalHandler *handlers.CaixaPostalHandler,
 	nfeSerproHandler *handlers.NFESerproHandler,
 	localAgentHandler *handlers.LocalAgentHandler,
+	aiHandler *handlers.AIHandler,
 	representanteHandler *handlers.RepresentanteHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
@@ -237,7 +239,11 @@ func registerRoutes(
 	r.With(requireAuth, requireSuper, requireVecMaster).Get("/matriz-acesso", representanteHandler.GetMatriz)
 	r.With(requireAuth, requireSuper, requireVecMaster).Put("/matriz-acesso", representanteHandler.PutMatriz)
 
+	r.Get("/public/ia", aiHandler.PublicStatus)
+
 	r.Post("/session", authHandler.Login)
+	r.With(requireAuth).Post("/ai/chat", aiHandler.ChatStream)
+
 	r.With(requireAuth).Post("/session/context-tenant", authHandler.AssumeTenant)
 	r.With(requireAuth).Post("/session/end", authHandler.SessionEnd)
 	r.With(requireAuth).Get("/me", userHandler.Me)

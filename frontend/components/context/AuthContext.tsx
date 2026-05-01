@@ -80,7 +80,7 @@ export function signOut() {
       window.localStorage.removeItem('vecontab_token');
       window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
     }
-    Router.push('/auth/login');
+    Router.replace('/auth/login');
 
   } catch (err) {
 
@@ -212,11 +212,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function logoutUser() {
     try {
-      try {
-        await api.post('/api/session/end');
-      } catch {
-        // segue com logout local mesmo se auditoria estiver indisponivel
-      }
       queryClient.clear();
       setUser(undefined);
       api.defaults.headers.common['Authorization'] = '';
@@ -226,7 +221,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         window.localStorage.removeItem('vecontab_token');
         window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
       }
-      Router.push('/auth/login');
+      // Navega imediatamente para evitar qualquer frame da área autenticada.
+      await Router.replace('/auth/login');
+      // Auditoria de encerramento de sessão não pode bloquear o logout visual.
+      void api.post('/api/session/end').catch(() => {
+        // segue mesmo com auditoria indisponivel
+      });
     } catch (err) {
       //console.log("Erro ao Sair", err)
       const message = err instanceof Error ? err.message : 'Erro ao sair';

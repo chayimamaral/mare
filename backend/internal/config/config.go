@@ -62,6 +62,11 @@ type Config struct {
 	LocalAgentBaseURL      string
 	LocalAgentTimeout      time.Duration
 	LocalAgentSharedSecret string
+
+	// IAEnabled: quando true, expõe /api/public/ia e /api/ai/chat (streaming para Ollama local).
+	IAEnabled         bool
+	OllamaGenerateURL string
+	OllamaModel       string
 }
 
 func loadEnvBesideExecutable() {
@@ -157,6 +162,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SERPRO_NFE_BEARER_TOKEN invalida para descriptografia: %w", err)
 	}
 
+	ollamaModel := strings.TrimSpace(getEnv("OLLAMA_MODEL", "llama3"))
+	if ollamaModel == "" {
+		ollamaModel = "llama3"
+	}
+
 	cfg := Config{
 		Runtime:                        runtime,
 		Port:                           port,
@@ -189,6 +199,11 @@ func Load() (Config, error) {
 		LocalAgentBaseURL:              getEnv("LOCAL_AGENT_BASE_URL", "http://127.0.0.1:9999"),
 		LocalAgentTimeout:              time.Duration(parseIntEnv("LOCAL_AGENT_TIMEOUT_SECS", 8)) * time.Second,
 		LocalAgentSharedSecret:         strings.TrimSpace(os.Getenv("LOCAL_AGENT_SHARED_SECRET")),
+		IAEnabled:                      strings.EqualFold(strings.TrimSpace(getEnv("IA_ENABLED", "false")), "true"),
+		// Padrão 127.0.0.1: em vários Linux, "localhost" resolve primeiro para ::1 e o Ollama costuma escutar só em IPv4 — conexão recusada → 502 no chat.
+		OllamaGenerateURL:              strings.TrimRight(strings.TrimSpace(getEnv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")), "/") + "/api/generate",
+		// Padrão llama3: costuma existir após instalação típica do Ollama. Para o modelo customizado: ollama create vecx-ai -f VECX_AI.Modelfile e defina OLLAMA_MODEL=vecx-ai.
+		OllamaModel: ollamaModel,
 	}
 
 	if cfg.DatabaseURL == "" {
