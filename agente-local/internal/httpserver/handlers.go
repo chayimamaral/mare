@@ -37,7 +37,7 @@ func (h *Handler) ListCertificates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.emit("Consulta de certificados concluida")
-	writeJSON(w, http.StatusOK, certs)
+	writeJSON(w, http.StatusOK, map[string]any{"items": certs})
 }
 
 func (h *Handler) Sign(w http.ResponseWriter, r *http.Request) {

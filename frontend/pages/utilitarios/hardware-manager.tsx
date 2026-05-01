@@ -45,18 +45,28 @@ function getLocalAgentSharedSecret(): string {
   return String(process.env.NEXT_PUBLIC_LOCAL_AGENT_SECRET ?? '').trim();
 }
 
+/** Mensagem legível quando o fetch do browser falha (CORS, PNA, rede, etc.). */
 function describeFetchFailure(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   const lower = msg.toLowerCase();
-  if (lower.includes('failed to fetch') || lower === 'networkerror when attempting to fetch resource.') {
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
     return (
-      'O navegador não conseguiu completar o pedido (Failed to fetch). ' +
-      'Causas frequentes: (1) vecx-agent parado ou porta errada; (2) CORS — confira AGENT_ALLOWED_ORIGINS no agente; ' +
-      '(3) se o agente usa AGENT_SHARED_SECRET, o pedido precisa do cabeçalho X-Local-Agent-Secret e o CORS do agente deve permitir esse cabeçalho; ' +
-      '(4) páginas HTTP remotas: o Chrome pode bloquear chamadas a 127.0.0.1 (rede privada); use HTTPS no site ou teste em localhost.'
+      'O navegador não concluiu o pedido ao vecx-agent (Failed to fetch). ' +
+      'Isto não significa necessariamente que o agente esteja parado: se o log do vecx-agent mostrou o pedido, ' +
+      'o bloqueio costuma ser do próprio navegador (CORS, rede privada a partir de página HTTP, ou leitura da resposta). ' +
+      'Verifique AGENT_ALLOWED_ORIGINS, cabeçalho X-Local-Agent-Secret + CORS, e HTTPS na origem se usar IP remoto.'
     );
   }
   return msg;
+}
+
+/** Remove prefixo antigo do backend e clarifica. */
+function humanizeScanErrorMessage(msg: string): string {
+  const t = msg.trim();
+  if (t.toLowerCase().includes('agente local indisponivel')) {
+    return t.replace(/agente local indisponivel:\s*/i, 'Falha de rede ou bloqueio ao vecx-agent: ');
+  }
+  return t;
 }
 
 export default function HardwareManagerPage() {
@@ -99,6 +109,7 @@ export default function HardwareManagerPage() {
         credentials: 'omit',
         headers,
       });
+      const bodyText = await resp.text().catch(() => '');
       if (!resp.ok) {
         if (resp.status === 401) {
           throw new Error(
@@ -107,19 +118,37 @@ export default function HardwareManagerPage() {
               'ou deixe AGENT_SHARED_SECRET vazio no agente para desativar esta exigência.',
           );
         }
-        let body = await resp.text().catch(() => '');
+        let detail = bodyText.trim();
         try {
-          const j = JSON.parse(body) as { error?: string };
+          const j = JSON.parse(bodyText) as { error?: string };
           if (j?.error === 'unauthorized') {
-            body =
-              'não autorizado no vecx-agent — verifique NEXT_PUBLIC_LOCAL_AGENT_SECRET / AGENT_SHARED_SECRET.';
+            detail =
+              'Não autorizado no vecx-agent — verifique NEXT_PUBLIC_LOCAL_AGENT_SECRET / AGENT_SHARED_SECRET.';
+          } else if (typeof j?.error === 'string' && j.error !== '') {
+            detail = j.error;
           }
         } catch {
-          /* manter body */
+          /* manter detail */
         }
-        throw new Error(body || `vecx-agent respondeu HTTP ${resp.status}`);
+        throw new Error(
+          detail ||
+            `vecx-agent respondeu HTTP ${resp.status} (corpo vazio ou não JSON).`,
+        );
       }
-      const data = (await resp.json()) as LocalAgentCertResponse;
+
+      let data: LocalAgentCertResponse;
+      try {
+        const parsed = JSON.parse(bodyText) as LocalAgentCert[] | LocalAgentCertResponse | null;
+        if (Array.isArray(parsed)) {
+          data = { items: parsed };
+        } else if (parsed && Array.isArray(parsed.items)) {
+          data = { items: parsed.items };
+        } else {
+          data = { items: [] };
+        }
+      } catch {
+        throw new Error('Resposta inválida do vecx-agent (JSON esperado com items ou array de certificados).');
+      }
 
       const mapped = Array.isArray(data?.items)
         ? data.items.map((c) => ({
@@ -140,7 +169,8 @@ export default function HardwareManagerPage() {
         life: 2500,
       });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const rawMsg = e instanceof Error ? e.message : String(e);
+      const msg = humanizeScanErrorMessage(rawMsg);
       const detail =
         msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')
           ? describeFetchFailure(e)

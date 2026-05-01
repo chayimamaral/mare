@@ -86,14 +86,6 @@ func (s *guiState) snapshot() (statusState, string) {
 	return s.status, strings.Join(s.logs, "\n")
 }
 
-func (s *guiState) snapshotLines() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]string, len(s.logs))
-	copy(out, s.logs)
-	return out
-}
-
 func rasterizeSVG(svg string, w, h int) image.Image {
 	icon, err := oksvg.ReadIconStream(strings.NewReader(svg))
 	if err != nil {
@@ -169,10 +161,9 @@ func main() {
 		th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
 
 		var ops op.Ops
-		var logList widget.List
-		logList.Axis = layout.Vertical
-		logList.ScrollToEnd = true
+		logEditor := widget.Editor{ReadOnly: true, SingleLine: false}
 		logo := paint.NewImageOp(rasterizeSVG(images.VecxLogoSVG, 180, 64))
+		var lastLogText string
 
 		for {
 			e := w.Event()
@@ -206,8 +197,12 @@ func main() {
 					}()
 				}
 
-				st, _ := state.snapshot()
-				lines := state.snapshotLines()
+				st, logs := state.snapshot()
+				if logs != lastLogText {
+					logEditor.SetText(logs)
+					logEditor.SetCaret(logEditor.Len(), logEditor.Len())
+					lastLogText = logs
+				}
 
 				layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceStart}.Layout(gtx,
@@ -237,16 +232,14 @@ func main() {
 							)
 						}),
 						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-						layout.Rigid(material.Body2(th, "Mensagens (lista com rolagem; novas linhas seguem para o fim)").Layout),
+						layout.Rigid(material.Body2(th, "Log: selecione texto e Ctrl+C para copiar; roda do mouse para rolar").Layout),
 						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							gtx.Constraints = gtx.Constraints.AddMin(image.Pt(0, gtx.Dp(unit.Dp(260))))
 							border := widget.Border{Color: color.NRGBA{R: 180, G: 180, B: 190, A: 255}, CornerRadius: unit.Dp(4), Width: unit.Dp(1)}
 							return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return material.List(th, &logList).Layout(gtx, len(lines), func(gtx layout.Context, i int) layout.Dimensions {
-										return layout.UniformInset(unit.Dp(2)).Layout(gtx, material.Body2(th, lines[i]).Layout)
-									})
+									return material.Editor(th, &logEditor, "").Layout(gtx)
 								})
 							})
 						}),

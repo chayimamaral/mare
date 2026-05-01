@@ -62,12 +62,28 @@ func (c *LocalAgentClient) ListCertificates(ctx context.Context) ([]LocalAgentCe
 	c.applySecret(req)
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("agente local indisponivel: %w", err)
+		return nil, fmt.Errorf("nao foi possivel contactar o vecx-agent em %s: %w", c.baseURL, err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("agente local retornou status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		msg := strings.TrimSpace(string(body))
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, fmt.Errorf("vecx-agent recusou o segredo (HTTP 401); confira LOCAL_AGENT_SHARED_SECRET no backend e AGENT_SHARED_SECRET no agente")
+		}
+		var errPayload struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(body, &errPayload) == nil && errPayload.Error != "" {
+			msg = errPayload.Error
+		}
+		return nil, fmt.Errorf("vecx-agent respondeu HTTP %d: %s", resp.StatusCode, msg)
+	}
+	var wrapped struct {
+		Items []LocalAgentCertificate `json:"items"`
+	}
+	if err := json.Unmarshal(body, &wrapped); err == nil && bytes.Contains(body, []byte(`"items"`)) {
+		return wrapped.Items, nil
 	}
 	var out []LocalAgentCertificate
 	if err := json.Unmarshal(body, &out); err != nil {
@@ -89,7 +105,7 @@ func (c *LocalAgentClient) SignHash(ctx context.Context, in LocalAgentSignReques
 	c.applySecret(req)
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return LocalAgentSignResponse{}, fmt.Errorf("agente local indisponivel: %w", err)
+		return LocalAgentSignResponse{}, fmt.Errorf("nao foi possivel contactar o vecx-agent em %s: %w", c.baseURL, err)
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
