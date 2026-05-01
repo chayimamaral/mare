@@ -41,6 +41,10 @@ backend/frontend/out/
 
 tools/encryptor/encryptor
 
+# Recurso PE gerado no build do vecx-agent.exe (akavel/rsrc)
+agente-local/cmd/agent-gui/rsrc.syso
+agente-local/cmd/agent-gui/rsrc_windows_*.syso
+
 .env.*
 env.senha_compilacao
 bin/

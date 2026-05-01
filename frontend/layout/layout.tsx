@@ -125,7 +125,7 @@ const Layout = ({ children }: ChildContainerProps) => {
         <meta charSet="UTF-8" />
         <meta name="viewport" content="initial-scale=1, width=device-width" />
         <meta property="og:type" content="website"></meta>
-        <link rel="icon" href={'../public/vecontab.ico'} type="image/x-icon"></link>
+        <link rel="icon" href={'../public/x.ico'} type="image/x-icon"></link>
       </Head>
 
       <div className={containerClass}>

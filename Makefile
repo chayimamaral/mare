@@ -9,6 +9,9 @@ stop:
 
 .PHONY: stop frontend-build webview-build webview-run backend-binaries-local local-agent-binaries-local local-agent-gui-binaries-local encrypt-env
 
+# Agente local (CGO): binarios macOS so saem quando este Makefile roda em macOS.
+# A partir do Linux (Fedora), nao ha cross-compile para darwin aqui (PKCS#11 + Gio precisam do SDK Apple ou osxcross).
+
 # make frontend-build
 frontend-build:
 	@echo "Buildando frontend (export estático em frontend/out)..."
@@ -73,21 +76,36 @@ local-agent-binaries-local:
 	@echo "Gerando binários do agente local em $(BIN_DIR)..."
 	@mkdir -p $(BIN_DIR)
 	@bash -c 'set -e; \
-		cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli ./cmd/agent/main.go; \
-		command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
-			echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent-cli.exe"; \
+		HOST=$$(uname -s); \
+		if [ "$$HOST" = "Linux" ]; then \
+			cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli ./cmd/agent/main.go; \
+			command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
+				echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent-cli.exe"; \
+				exit 1; \
+			}; \
+			CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli.exe ./cmd/agent/main.go; \
+		elif [ "$$HOST" = "Darwin" ]; then \
+			DAR_ARCH=amd64; [ "$$(uname -m)" = "arm64" ] && DAR_ARCH=arm64; \
+			cd agente-local && CGO_ENABLED=1 GOOS=darwin GOARCH=$$DAR_ARCH go build -o ../$(BIN_DIR)/vecx-agent-cli-darwin-$$DAR_ARCH ./cmd/agent/main.go; \
+			if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+				CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli.exe ./cmd/agent/main.go; \
+			else \
+				echo "AVISO: MinGW ausente; vecx-agent-cli.exe nao gerado (opcional no Mac)."; \
+			fi; \
+		else \
+			echo "local-agent-binaries-local: use Linux ou macOS (host atual: $$HOST)."; \
 			exit 1; \
-		}; \
-		CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -o ../$(BIN_DIR)/vecx-agent-cli.exe ./cmd/agent/main.go; \
+		fi; \
 	'
-	@echo "OK: $(BIN_DIR)/vecx-agent-cli e $(BIN_DIR)/vecx-agent-cli.exe"
+	@echo "OK: agente CLI em $(BIN_DIR) (linux/windows ou darwin[+exe opcional])"
 
 # make local-agent-gui-binaries-local
 local-agent-gui-binaries-local:
 	@echo "Gerando binários GUI do agente local em $(BIN_DIR)..."
 	@mkdir -p $(BIN_DIR)
 	@bash -c 'set -e; \
-		if [ "$$(uname -s)" = "Linux" ]; then \
+		HOST=$$(uname -s); \
+		if [ "$$HOST" = "Linux" ]; then \
 			pkg-config --exists egl wayland-egl wayland-client wayland-cursor x11 xkbcommon xkbcommon-x11 x11-xcb xcursor xfixes || { \
 				echo "Dependencias GUI ausentes no Linux (pkg-config: xkbcommon-x11/x11/etc)."; \
 				echo "vecx-agent sera o mesmo binario que vecx-agent-cli (somente terminal)."; \
@@ -96,15 +114,36 @@ local-agent-gui-binaries-local:
 				cp -f ./$(BIN_DIR)/vecx-agent-cli ./$(BIN_DIR)/vecx-agent; \
 				exit 0; \
 			}; \
-		fi; \
-		cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent ./cmd/agent-gui/main.go; \
-		command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
-			echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent.exe"; \
+			cd agente-local && CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent ./cmd/agent-gui/main.go; \
+			command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1 || { \
+				echo "Compilador MinGW nao encontrado: instale mingw64-gcc para gerar vecx-agent.exe"; \
+				exit 1; \
+			}; \
+			test -f internal/images/x.ico || { echo "agente-local/internal/images/x.ico ausente (icone da janela no Windows)"; exit 1; }; \
+			ICO_SY=cmd/agent-gui/rsrc.syso; \
+			go run github.com/akavel/rsrc@v0.10.2 -ico internal/images/x.ico -o $$ICO_SY; \
+			( CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent.exe ./cmd/agent-gui/main.go ) \
+				|| { st=$$?; rm -f $$ICO_SY; exit $$st; }; \
+			rm -f $$ICO_SY; \
+		elif [ "$$HOST" = "Darwin" ]; then \
+			DAR_ARCH=amd64; [ "$$(uname -m)" = "arm64" ] && DAR_ARCH=arm64; \
+			cd agente-local && CGO_ENABLED=1 GOOS=darwin GOARCH=$$DAR_ARCH go build -tags gui -o ../$(BIN_DIR)/vecx-agent-darwin-$$DAR_ARCH ./cmd/agent-gui/main.go; \
+			if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+				test -f internal/images/x.ico || { echo "agente-local/internal/images/x.ico ausente (icone da janela no Windows)"; exit 1; }; \
+				ICO_SY=cmd/agent-gui/rsrc.syso; \
+				go run github.com/akavel/rsrc@v0.10.2 -ico internal/images/x.ico -o $$ICO_SY; \
+				( CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent.exe ./cmd/agent-gui/main.go ) \
+					|| { st=$$?; rm -f $$ICO_SY; exit $$st; }; \
+				rm -f $$ICO_SY; \
+			else \
+				echo "AVISO: MinGW ausente; vecx-agent.exe nao gerado (opcional no Mac)."; \
+			fi; \
+		else \
+			echo "local-agent-gui-binaries-local: use Linux ou macOS (host atual: $$HOST)."; \
 			exit 1; \
-		}; \
-		CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -tags gui -o ../$(BIN_DIR)/vecx-agent.exe ./cmd/agent-gui/main.go; \
+		fi; \
 	'
-	@echo "OK: $(BIN_DIR)/vecx-agent e $(BIN_DIR)/vecx-agent.exe"
+	@echo "OK: binarios GUI do agente em $(BIN_DIR)"
 
 # make encrypt-env ENV_FILE=bin/.env.<cliente>
 encrypt-env:
