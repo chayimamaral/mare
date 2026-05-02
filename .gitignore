@@ -11,6 +11,10 @@ bkp_drive.sh
 deploy.sh
 deploy-backend.sh
 deploy-frontend.sh
+Dockerfile
+antigo_deploy.sh
+code-quality.yml
+docker-compose.yml
 
 
 *.EF.md
