@@ -9,6 +9,8 @@ import AuthContext from '../components/context/AuthContext';
 import { Tooltip } from 'primereact/tooltip';
 import { useCaixaPostal } from '../components/context/CaixaPostalContext';
 
+const VECX_AGENT_DOWNLOAD_URL = 'https://vecx.com.br/downloads/vecx-agent.exe';
+
 const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
   const { layoutState, onMenuToggle, showProfileSidebar } = useContext(LayoutContext);
   const menubuttonRef = useRef(null);
@@ -90,6 +92,16 @@ const AppTopbar = forwardRef<AppTopbarRef>((props, ref) => {
           <i className="pi pi-user"></i>
           <span>{loggedUserName}</span>
         </button>
+        <Tooltip target=".btn-vecx-agent-download" position="bottom" />
+        <a
+          href={VECX_AGENT_DOWNLOAD_URL}
+          download="vecx-agent.exe"
+          className="btn-vecx-agent-download p-link layout-topbar-button"
+          data-pr-tooltip="Baixar vecx-agent (Windows)"
+        >
+          <i className="pi pi-download" aria-hidden />
+          <span>vecx-agent</span>
+        </a>
       </div>
     </div>
   );

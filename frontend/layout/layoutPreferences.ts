@@ -39,8 +39,8 @@ export function mergeStoredLayout(parsed: unknown): Partial<LayoutConfig> | null
   if (typeof o.theme === 'string' && o.theme.trim() !== '') {
     out.theme = o.theme.trim();
   }
-  if (typeof o.scale === 'number' && Number.isFinite(o.scale) && o.scale >= 12 && o.scale <= 16) {
-    out.scale = o.scale;
+  if (typeof o.scale === 'number' && Number.isFinite(o.scale)) {
+    out.scale = Math.min(14, Math.max(10, Math.round(o.scale)));
   }
 
   return Object.keys(out).length > 0 ? out : null;
