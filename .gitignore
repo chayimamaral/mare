@@ -63,3 +63,4 @@ Makefile copy
 
 tools/encryptor/.env*
 agente-local/agent
+public-api/

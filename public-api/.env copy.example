@@ -1,7 +1,0 @@
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/vecontab?sslmode=disable
-PUBLIC_API_KEY=ChaveSecretaParaPublicAPI
-# Opcional (padrão :8081):
-# SERVER_ADDR=:8081
-# TLS do Postgres (mesmo padrão do backend principal, se precisar):
-# PG_SSL_ROOT_CERT=/home/camaral/.postgres/ca.crt
-# PG_SSL_INSECURE=true
