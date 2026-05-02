@@ -144,7 +144,7 @@ nginx -c ./nginx.conf
 | Método | Rota                 | Descrição                    |
 | ------ | -------------------- | ---------------------------- |
 | POST   | `/api/session`       | Login com email/senha        |
-| GET    | `/me`                | Dados do usuário logado      |
+| GET    | `/me`                | Perfil do usuário logado (JSON plano: id, nome, email, tenant, role, etc.) |
 | GET    | `/api/usuariorole`   | Role do usuário (ADMIN/USER) |
 | GET    | `/api/usuariotenant` | Tenant do usuário            |
 

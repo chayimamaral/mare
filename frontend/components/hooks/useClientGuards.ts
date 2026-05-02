@@ -233,8 +233,8 @@ export function useTenantIdQuery() {
 
             const { data } = await api.get('/api/me');
             const tenantFallback =
-                data?.usuarios?.[0]?.resultado?.tenant?.id ??
                 data?.tenant?.id ??
+                data?.tenantId ??
                 data?.tenantid ??
                 '';
             return String(tenantFallback).trim();

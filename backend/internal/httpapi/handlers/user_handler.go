@@ -36,7 +36,14 @@ func (h *UserHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	render.WriteJSON(w, http.StatusOK, response)
+	if len(response.Usuarios) == 0 {
+		render.WriteError(w, http.StatusInternalServerError, "usuario nao encontrado")
+		return
+	}
+
+	// Resposta mastigada para o cliente: um único objeto (antes: { "usuarios": [{ "resultado": ... }] }).
+	me := response.Usuarios[0].Resultado
+	render.WriteJSON(w, http.StatusOK, me)
 }
 
 func (h *UserHandler) UserRole(w http.ResponseWriter, r *http.Request) {

@@ -104,9 +104,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       api.get('/api/me').then(response => {
-
-        //const { id, nome, email, empresa, tenant } = response.data
-        const { id, nome, email, empresa, tenant } = response.data?.usuarios?.[0]?.resultado ?? response.data
+        const { id, nome, email, tenant } = response.data ?? {}
         setUser({ id, nome, email, tenant })
 
       })
@@ -156,7 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         // Enriquece com dados completos (tenant) passando o token explicitamente
         const me = await api.get('/api/me', { headers: { Authorization: `Bearer ${token}` } });
-        const meData = me.data?.usuarios?.[0]?.resultado ?? me.data;
+        const meData = me.data ?? {};
         const tenant = meData?.tenant ?? undefined;
         setUser({
           id: meData?.id ?? id,
