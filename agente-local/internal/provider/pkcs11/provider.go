@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chayimamaral/vecx/agente-local/internal/certtax"
 	"github.com/chayimamaral/vecx/agente-local/internal/domain"
 	miekgpkcs11 "github.com/miekg/pkcs11"
 )
@@ -79,6 +80,7 @@ func (p *Provider) ListCertificates(ctx context.Context) ([]domain.Certificate, 
 			der := attributeValue(attrs, miekgpkcs11.CKA_VALUE)
 			subject := ""
 			serialHex := ""
+			taxIDs := []string(nil)
 			if len(der) > 0 {
 				if parsed, err := x509.ParseCertificate(der); err == nil {
 					subject = parsed.Subject.String()
@@ -86,6 +88,7 @@ func (p *Provider) ListCertificates(ctx context.Context) ([]domain.Certificate, 
 					if label == "" {
 						label = parsed.Subject.CommonName
 					}
+					taxIDs = certtax.TaxIDsFromCertificate(parsed)
 				}
 			}
 			if label == "" {
@@ -98,6 +101,7 @@ func (p *Provider) ListCertificates(ctx context.Context) ([]domain.Certificate, 
 				SerialHex:  serialHex,
 				SlotID:     slotID,
 				TokenLabel: tokenLabel,
+				TaxIDs:     taxIDs,
 			})
 		}
 		_ = mod.CloseSession(session)

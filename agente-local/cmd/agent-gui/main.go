@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -30,7 +31,9 @@ import (
 	"github.com/chayimamaral/vecx/agente-local/internal/httpserver"
 	"github.com/chayimamaral/vecx/agente-local/internal/images"
 	"github.com/chayimamaral/vecx/agente-local/internal/provider/pkcs11"
+	"github.com/chayimamaral/vecx/agente-local/internal/settings"
 	"github.com/chayimamaral/vecx/agente-local/internal/usecase"
+	"github.com/ncruces/zenity"
 	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
 )
@@ -44,11 +47,12 @@ const (
 )
 
 type guiState struct {
-	mu         sync.Mutex
-	invalidate func()
-	logs       []string
-	status     statusState
-	detectBt   widget.Clickable
+	mu                sync.Mutex
+	invalidate        func()
+	logs              []string
+	status            statusState
+	detectBt          widget.Clickable
+	pendingCertRoot   string
 }
 
 // Mesmo estilo visual do pacote log do Go (LstdFlags: data, hora, mensagem).
@@ -86,6 +90,24 @@ func (s *guiState) snapshot() (statusState, string) {
 	return s.status, strings.Join(s.logs, "\n")
 }
 
+func (s *guiState) setPendingCertRoot(p string) {
+	s.mu.Lock()
+	s.pendingCertRoot = p
+	inv := s.invalidate
+	s.mu.Unlock()
+	if inv != nil {
+		inv()
+	}
+}
+
+func (s *guiState) takePendingCertRoot() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p := s.pendingCertRoot
+	s.pendingCertRoot = ""
+	return p
+}
+
 func rasterizeSVG(svg string, w, h int) image.Image {
 	icon, err := oksvg.ReadIconStream(strings.NewReader(svg))
 	if err != nil {
@@ -116,7 +138,11 @@ func drawStatusDot(gtx layout.Context, st statusState) layout.Dimensions {
 func main() {
 	cfg := config.Load()
 	provider := pkcs11.NewProvider(cfg.PKCS11LibraryLinux, cfg.PKCS11LibraryWindow)
-	signUC := usecase.NewSignUseCase(provider)
+	store, errStore := settings.DefaultStore()
+	if errStore != nil {
+		log.Printf("configuracao local EF-937: %v", errStore)
+	}
+	signUC := usecase.NewSignUseCase(provider, store)
 	state := &guiState{status: statusIdle}
 
 	handler := httpserver.NewHandler(signUC, state.appendLog)
@@ -162,6 +188,15 @@ func main() {
 
 		var ops op.Ops
 		logEditor := widget.Editor{ReadOnly: true, SingleLine: false}
+		rootPathEditor := widget.Editor{SingleLine: true}
+		preferA3 := widget.Bool{}
+		saveCfgBt := widget.Clickable{}
+		browseBt := widget.Clickable{}
+		if store != nil {
+			st := store.Load()
+			rootPathEditor.SetText(st.CertRootDir)
+			preferA3.Value = st.PreferA3
+		}
 		logo := paint.NewImageOp(rasterizeSVG(images.VecxLogoSVG, 180, 64))
 		var lastLogText string
 
@@ -177,6 +212,44 @@ func main() {
 			case app.FrameEvent:
 				ops.Reset()
 				gtx := app.NewContext(&ops, e)
+
+				if p := state.takePendingCertRoot(); p != "" {
+					rootPathEditor.SetText(p)
+				}
+
+				for browseBt.Clicked(gtx) {
+					go func() {
+						path, err := zenity.SelectFile(
+							zenity.Title("Pasta raiz de certificados (EF-937)"),
+							zenity.Directory(),
+						)
+						if err != nil {
+							if !errors.Is(err, zenity.ErrCanceled) {
+								state.appendLog("Seletor de pasta: " + err.Error())
+							}
+							return
+						}
+						if path != "" {
+							state.setPendingCertRoot(path)
+						}
+					}()
+				}
+
+				for saveCfgBt.Clicked(gtx) {
+					if store == nil {
+						state.appendLog("Configuracao local indisponivel (EF-937)")
+					} else {
+						st := settings.AgentSettings{
+							CertRootDir: strings.TrimSpace(rootPathEditor.Text()),
+							PreferA3:    preferA3.Value,
+						}
+						if err := store.Save(st); err != nil {
+							state.appendLog("Falha ao salvar configuracao: " + err.Error())
+						} else {
+							state.appendLog("Configuracao EF-937 salva (pasta raiz / preferir A3)")
+						}
+					}
+				}
 
 				for state.detectBt.Clicked(gtx) {
 					go func() {
@@ -218,6 +291,22 @@ func main() {
 							)
 						}),
 						layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
+						layout.Rigid(material.Body2(th, "Certificados A1 em disco (EF-937): subpastas cert_clientes/ e cert_contador/; arquivos {CNPJ|CPF}.pfx").Layout),
+						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Alignment: layout.Start}.Layout(gtx,
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return material.Editor(th, &rootPathEditor, "Pasta raiz (ex.: /home/user/certs-vecx)").Layout(gtx)
+								}),
+								layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+								layout.Rigid(material.Button(th, &browseBt, "Procurar...").Layout),
+								layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
+								layout.Rigid(material.Button(th, &saveCfgBt, "Salvar").Layout),
+							)
+						}),
+						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
+						layout.Rigid(material.CheckBox(th, &preferA3, "Preferir A3 (ignorar .pfx locais e usar token)").Layout),
+						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {

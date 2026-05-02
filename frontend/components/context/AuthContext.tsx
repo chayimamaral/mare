@@ -16,6 +16,8 @@ import {
 interface AuthContextData {
   user?: UserProps | undefined;
   isAuthenticated: boolean;
+  /** true após decidir sessão inicial (/api/me ou ausência de token). Usado para não pintar o dashboard antes da validação. */
+  authBootstrapped: boolean;
   signIn: (credentials: SignInProps) => Promise<void>;
   signUp: (credentials: SignUpProps) => Promise<SignUpResult>;
   logoutUser: () => Promise<void>;
@@ -69,7 +71,7 @@ interface SignUpResult {
 
 export const AUTH_SESSION_CHANGED_EVENT = 'vecx:auth-session-changed';
 
-const AuthContext = createContext({} as AuthContextData)
+const AuthContext = createContext({} as AuthContextData);
 
 export function signOut() {
 
@@ -89,6 +91,7 @@ export function signOut() {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserProps>()
+  const [authBootstrapped, setAuthBootstrapped] = useState(false);
   const isAuthenticated = !!user;
   const queryClient = useQueryClient();
 
@@ -101,20 +104,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       cookieToken ||
       (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
 
-    if (token) {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      api.get('/api/me').then(response => {
-        const { id, nome, email, tenant } = response.data ?? {}
-        setUser({ id, nome, email, tenant })
-
-      })
-        .catch((err) => {
-          const axiosErr = err as AxiosError;
-          if (axiosErr?.response?.status === 401) {
-            signOut();
-          }
-        })
+    if (!token) {
+      setAuthBootstrapped(true);
+      return;
     }
+
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    api.get('/api/me').then(response => {
+      const { id, nome, email, tenant } = response.data ?? {}
+      setUser({ id, nome, email, tenant })
+
+    })
+      .catch((err) => {
+        const axiosErr = err as AxiosError;
+        if (axiosErr?.response?.status === 401) {
+          signOut();
+        }
+      })
+      .finally(() => {
+        setAuthBootstrapped(true);
+      });
   }, [])
 
   const signIn = async ({ email, password }: SignInProps) => {
@@ -238,6 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       value={{
         user,
         isAuthenticated,
+        authBootstrapped,
         signIn,
         signUp,
         logoutUser,

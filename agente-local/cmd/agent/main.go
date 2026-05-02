@@ -12,6 +12,7 @@ import (
 	"github.com/chayimamaral/vecx/agente-local/internal/config"
 	"github.com/chayimamaral/vecx/agente-local/internal/httpserver"
 	"github.com/chayimamaral/vecx/agente-local/internal/provider/pkcs11"
+	"github.com/chayimamaral/vecx/agente-local/internal/settings"
 	"github.com/chayimamaral/vecx/agente-local/internal/usecase"
 )
 
@@ -19,7 +20,11 @@ func main() {
 	cfg := config.Load()
 
 	provider := pkcs11.NewProvider(cfg.PKCS11LibraryLinux, cfg.PKCS11LibraryWindow)
-	signUC := usecase.NewSignUseCase(provider)
+	store, err := settings.DefaultStore()
+	if err != nil {
+		log.Printf("aviso: configuracao local EF-937 indisponivel (%v); apenas A3 legado", err)
+	}
+	signUC := usecase.NewSignUseCase(provider, store)
 	handler := httpserver.NewHandler(signUC, nil)
 	server := httpserver.NewServer(cfg.HTTPAddr, cfg.AllowedOrigins, cfg.SharedSecret, handler)
 

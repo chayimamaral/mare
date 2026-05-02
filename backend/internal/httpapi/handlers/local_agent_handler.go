@@ -36,6 +36,10 @@ func (h *LocalAgentHandler) SignHash(w http.ResponseWriter, r *http.Request) {
 		RawText       string `json:"raw_text"`
 		CertificateID string `json:"certificate_id"`
 		PIN           string `json:"pin"`
+		DocumentID    string `json:"document_id"`
+		TaxID         string `json:"tax_id"`
+		Procuracao    bool   `json:"procuracao"`
+		SignerTaxID   string `json:"signer_tax_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		render.WriteError(w, http.StatusBadRequest, "JSON invalido")
@@ -52,6 +56,10 @@ func (h *LocalAgentHandler) SignHash(w http.ResponseWriter, r *http.Request) {
 		HashSHA256Base64: hashB64,
 		CertificateID:    strings.TrimSpace(req.CertificateID),
 		PIN:              req.PIN,
+		DocumentID:       strings.TrimSpace(req.DocumentID),
+		TaxID:            strings.TrimSpace(req.TaxID),
+		Procuracao:       req.Procuracao,
+		SignerTaxID:      strings.TrimSpace(req.SignerTaxID),
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadGateway, err.Error())

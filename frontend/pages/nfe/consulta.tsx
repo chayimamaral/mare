@@ -61,6 +61,7 @@ type LocalAgentCert = {
     serial_hex: string;
     slot_id: number;
     token_label: string;
+    tax_ids?: string[];
 };
 
 export default function NFEConsultaPage() {
@@ -81,6 +82,13 @@ export default function NFEConsultaPage() {
     const [localPin, setLocalPin] = useState('');
     const [selectedLocalCert, setSelectedLocalCert] = useState('');
     const [localSigning, setLocalSigning] = useState(false);
+    /** EF-937: CNPJ/CPF do cliente (somente dígitos) para resolver cert_clientes/{id}.pfx ou titular A3 */
+    const [taxIdLocalSign, setTaxIdLocalSign] = useState('');
+    const [procuracaoLocal, setProcuracaoLocal] = useState(false);
+    /** CNPJ/CPF do contador quando procuracao + A3 com vários certificados no token */
+    const [signerTaxIdLocal, setSignerTaxIdLocal] = useState('');
+    /** Aviso quando o usuário tenta assinar sem PIN/senha (A3 quase sempre exige PIN no token). */
+    const [pinAgenteDialogOpen, setPinAgenteDialogOpen] = useState(false);
     const closeDanfePreview = useCallback(() => {
         setDanfeVisible(false);
         setDanfeData(null);
@@ -309,18 +317,37 @@ export default function NFEConsultaPage() {
         }
     };
 
-    const assinarHashNoAgente = async () => {
+    const runAssinarHashNoAgente = async (confirmouSemPin: boolean) => {
         const chave = onlyDigitsChave(chaveNFe);
         if (chave.length !== 44) {
             toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'Informe uma chave de NF-e com 44 dígitos.', life: 3500 });
             return;
         }
+        const taxDigits = onlyDigitsChave(taxIdLocalSign);
+        if (procuracaoLocal && (taxDigits.length !== 11 && taxDigits.length !== 14)) {
+            toast.current?.show({
+                severity: 'warn',
+                summary: 'EF-937',
+                detail: 'Com procuração, informe o CNPJ ou CPF do cliente (11 ou 14 dígitos).',
+                life: 5000,
+            });
+            return;
+        }
+        if (!confirmouSemPin && !localPin.trim()) {
+            setPinAgenteDialogOpen(true);
+            return;
+        }
         setLocalSigning(true);
         try {
+            const signerDigits = onlyDigitsChave(signerTaxIdLocal);
             const { data } = await api.post('/api/local-agent/sign-hash', {
                 raw_text: chave,
+                document_id: chave,
+                tax_id: taxDigits || undefined,
+                procuracao: procuracaoLocal,
+                signer_tax_id: signerDigits || undefined,
                 certificate_id: selectedLocalCert || undefined,
-                pin: localPin || undefined,
+                pin: localPin.trim() || undefined,
             });
             setRetorno(JSON.stringify(data, null, 2));
             toast.current?.show({ severity: 'success', summary: 'Agente local', detail: 'Hash assinado com sucesso.', life: 3500 });
@@ -331,6 +358,8 @@ export default function NFEConsultaPage() {
             setLocalSigning(false);
         }
     };
+
+    const assinarHashNoAgente = () => void runAssinarHashNoAgente(false);
 
     const visualizarDanfe = async () => {
         const chave = onlyDigitsChave(chaveNFe);
@@ -345,6 +374,38 @@ export default function NFEConsultaPage() {
         <div className="grid">
             <div className="col-12">
                 <Toast ref={toast} />
+                <Dialog
+                    header="PIN do token ou senha do .pfx"
+                    visible={pinAgenteDialogOpen}
+                    modal
+                    dismissableMask
+                    style={{ width: 'min(32rem, 94vw)' }}
+                    onHide={() => setPinAgenteDialogOpen(false)}
+                    footer={(
+                        <div className="flex justify-content-end gap-2 flex-wrap">
+                            <Button type="button" label="Voltar e preencher" severity="secondary" onClick={() => setPinAgenteDialogOpen(false)} />
+                            <Button
+                                type="button"
+                                label="Continuar sem PIN/senha"
+                                onClick={() => {
+                                    setPinAgenteDialogOpen(false);
+                                    void runAssinarHashNoAgente(true);
+                                }}
+                            />
+                        </div>
+                    )}
+                >
+                    <p className="text-600 mt-0 mb-2">
+                        O campo ao lado de <strong>Assinar hash no agente</strong> envia o valor ao vecx-agent como <code className="text-sm">pin</code>:
+                    </p>
+                    <ul className="m-0 pl-3 text-sm text-600">
+                        <li><strong>A3 (token/cartão):</strong> na prática é obrigatório informar o PIN do dispositivo para a biblioteca PKCS#11 autenticar a chave privada (salvo sessão já desbloqueada no driver).</li>
+                        <li><strong>A1 (.pfx em disco, EF-937):</strong> use a <strong>senha do arquivo PKCS#12</strong> nesse mesmo campo.</li>
+                    </ul>
+                    <p className="text-600 text-sm mb-0">
+                        O agente desktop <strong>não</strong> abre um diálogo próprio para PIN: a coleta fica nesta tela (ou em qualquer cliente que chame a API). Só continue sem preencher se souber que o token já está desbloqueado.
+                    </p>
+                </Dialog>
                 <Dialog
                     header="DANFE (visualização nativa React)"
                     visible={danfeVisible}
@@ -461,10 +522,47 @@ export default function NFEConsultaPage() {
                         </div>
                         <div className="col-12">
                             <div className="surface-50 border-1 surface-border border-round p-3">
-                                <div className="font-medium mb-2">Agente local A3 (EF-930)</div>
+                                <div className="font-medium mb-2">Agente local (EF-930 / EF-937)</div>
                                 <p className="text-600 text-sm mt-0 mb-3">
-                                    Usa o agente local para listar certificados do token/smartcard e assinar o hash SHA-256 da chave da NF-e.
+                                    Lista certificados A3 no token ou resolve A1 em disco conforme pasta raiz configurada no agente
+                                    (<code className="text-sm">cert_clientes</code> / <code className="text-sm">cert_contador</code>).
+                                    Com <strong>CNPJ/CPF do cliente</strong> e opcional <strong>procuração</strong>, o backend envia os metadados para o agente escolher o .pfx ou o certificado A3 pelo titular.
                                 </p>
+                                <div className="grid mb-3">
+                                    <div className="col-12 md:col-4">
+                                        <label htmlFor="tax-local-sign" className="block mb-2 font-medium">CNPJ/CPF cliente (EF-937)</label>
+                                        <InputText
+                                            id="tax-local-sign"
+                                            className="w-full"
+                                            value={taxIdLocalSign}
+                                            onChange={(e) => setTaxIdLocalSign(onlyDigitsChave(e.target.value))}
+                                            placeholder="Opcional — obrigatório se procuração"
+                                            maxLength={14}
+                                        />
+                                    </div>
+                                    <div className="col-12 md:col-4">
+                                        <label htmlFor="signer-tax-local" className="block mb-2 font-medium">CNPJ/CPF contador (A3 + procuração)</label>
+                                        <InputText
+                                            id="signer-tax-local"
+                                            className="w-full"
+                                            value={signerTaxIdLocal}
+                                            onChange={(e) => setSignerTaxIdLocal(onlyDigitsChave(e.target.value))}
+                                            placeholder="Opcional"
+                                            maxLength={14}
+                                        />
+                                    </div>
+                                    <div className="col-12 md:col-4 flex align-items-end">
+                                        <div className="field-checkbox m-0">
+                                            <input
+                                                type="checkbox"
+                                                id="procuracao-local"
+                                                checked={procuracaoLocal}
+                                                onChange={(e) => setProcuracaoLocal(e.target.checked)}
+                                            />
+                                            <label htmlFor="procuracao-local" className="ml-2">Procuração (certificado do contador)</label>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="flex gap-2 flex-wrap mb-3">
                                     <Button
                                         type="button"
@@ -481,13 +579,23 @@ export default function NFEConsultaPage() {
                                         placeholder="Selecione um certificado (opcional)"
                                         className="min-w-20rem"
                                     />
+                                </div>
+                                <div className="mb-3">
+                                    <label htmlFor="local-agent-pin" className="block mb-1 font-medium">PIN (A3) ou senha do .pfx (A1)</label>
                                     <InputText
+                                        id="local-agent-pin"
                                         type="password"
                                         value={localPin}
                                         onChange={(e) => setLocalPin(e.target.value)}
-                                        placeholder="PIN do token (opcional)"
+                                        placeholder="Obrigatório na maioria dos tokens A3"
                                         className="min-w-14rem"
+                                        autoComplete="off"
                                     />
+                                    <small className="text-600 block mt-1">
+                                        Mesmo valor é enviado ao agente como <code className="text-sm">pin</code> (login PKCS#11 ou senha do PKCS#12).
+                                    </small>
+                                </div>
+                                <div className="flex gap-2 flex-wrap mb-3">
                                     <Button
                                         type="button"
                                         label="Assinar hash no agente"

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useRouter } from 'next/router';
 import { parseCookies } from 'nookies';
 import { useQuery } from '@tanstack/react-query';
@@ -14,68 +14,11 @@ import {
     PATH_REQUIRES_FEATURE_SLUG,
     sessionAllowsFeature,
 } from '../../constants/featureAccess';
+import { AUTH_REQUIRED_ROUTES, ROLE_RESTRICTED_ROUTES } from '../../constants/routeAuth';
+import type { UserRole } from '../../constants/routeAuthTypes';
 import { AUTH_SESSION_CHANGED_EVENT } from '../context/AuthContext';
 
-type UserRole = 'SUPER' | 'ADMIN' | 'USER' | 'REPRESENTANTE';
-
 const GUEST_ONLY_ROUTES = new Set<string>(['/auth/login', '/auth/register']);
-
-const AUTH_REQUIRED_ROUTES = new Set<string>([
-    '/agenda',
-    '/agenda-arvore',
-    '/catalogo-servicos',
-    '/cliente-pf',
-    '/clientes',
-    '/cnae',
-    '/caixa-postal',
-    '/compromissos',
-    '/compromissos-empresas',
-    '/compromissos-por-natureza',
-    '/compromissos-visao',
-    '/configuracoes/api-integra-contador',
-    '/configuracoes/certificado-digital',
-    '/configuracoes/geracao-guias',
-    '/configuracoes/integra-contador-servicos',
-    '/configuracoes/integra-contador-tabela-consumo',
-    '/empresas',
-    '/estados',
-    '/feriados',
-    '/grupopassos',
-    '/matriz-conformidade-fiscal',
-    '/monitor',
-    '/utilitarios/hardware-manager',
-    '/utilitarios/monitoramento-global',
-    '/nfe/consulta',
-    '/nfe/manutencao',
-    '/nfe/sincronizacao',
-    '/municipios',
-    '/obrigacoes',
-    '/passos',
-    '/regimes-tributarios',
-    '/registro',
-    '/representantes',
-    '/rotinas',
-    '/rotinas-pf',
-    '/salario-minimo',
-    '/tenants',
-    '/tipoempresa',
-    '/usuarios',
-]);
-
-const ROLE_RESTRICTED_ROUTES: Partial<Record<string, UserRole[]>> = {
-    '/admin/broadcast': ['SUPER'],
-    '/catalogo-servicos': ['SUPER'],
-    '/configuracoes/api-integra-contador': ['SUPER'],
-    '/configuracoes/integra-contador-servicos': ['SUPER'],
-    '/configuracoes/integra-contador-tabela-consumo': ['SUPER'],
-    '/matriz-conformidade-fiscal': ['SUPER'],
-    '/representantes': ['SUPER'],
-    '/monitor': ['SUPER', 'ADMIN'],
-    '/tenants': ['SUPER', 'REPRESENTANTE'],
-    '/usuarios': ['SUPER', 'ADMIN'],
-    '/utilitarios/hardware-manager': ['SUPER'],
-    '/utilitarios/monitoramento-global': ['SUPER'],
-};
 
 type GuardSession = {
     role: string;
@@ -142,12 +85,29 @@ export function useRouteClientGuard(): void {
         },
     });
 
+    // Redirecionar sem token o mais cedo possível (antes da pintura) para evitar flash do dashboard.
+    useLayoutEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        const cookies = parseCookies();
+        const cookieToken = getAuthTokenFromParsedCookies(cookies);
+        const sessionToken = String(window.sessionStorage.getItem('vecontab_token') ?? '').trim();
+        const localToken = String(window.localStorage.getItem('vecontab_token') ?? '').trim();
+        const token = sessionToken || cookieToken || localToken;
+        if (!isGuestOnly && needsAuth && !token) {
+            void router.replace('/auth/login');
+        }
+    }, [isGuestOnly, needsAuth, router]);
+
     useEffect(() => {
         const cookies = parseCookies();
         const cookieToken = getAuthTokenFromParsedCookies(cookies);
-        const token =
-            cookieToken ||
-            (typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '');
+        const sessionTok =
+            typeof window !== 'undefined' ? String(window.sessionStorage.getItem('vecontab_token') ?? '').trim() : '';
+        const localTok =
+            typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '';
+        const token = sessionTok || cookieToken || localTok;
 
         if (isGuestOnly) {
             if (!token) {
@@ -173,7 +133,6 @@ export function useRouteClientGuard(): void {
         }
 
         if (needsAuth && !token) {
-            void router.replace('/auth/login');
             return;
         }
 

@@ -3,6 +3,7 @@ package httpserver
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/chayimamaral/vecx/agente-local/internal/domain"
 	"github.com/chayimamaral/vecx/agente-local/internal/usecase"
@@ -47,6 +48,12 @@ func (h *Handler) Sign(w http.ResponseWriter, r *http.Request) {
 		h.emit("Falha em /sign: corpo invalido")
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "corpo invalido"})
 		return
+	}
+	if doc := strings.TrimSpace(in.DocumentID); doc != "" {
+		h.emit("Documento (EF-937): " + doc)
+	}
+	if tid := strings.TrimSpace(in.TaxID); tid != "" || in.Procuracao {
+		h.emit("Resolucao estruturada de certificado (tax_id / procuracao)")
 	}
 	result, err := h.signUC.Sign(r.Context(), in)
 	if err != nil {

@@ -1,6 +1,7 @@
 import type { AppProps } from 'next/app';
 import { LayoutConfig, type Page } from '../types/types';
-import React from 'react';
+import React, { useContext } from 'react';
+import { useRouter } from 'next/router';
 import { LayoutProvider } from '../layout/context/layoutcontext';
 import Layout from '../layout/layout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,10 +9,12 @@ import 'primereact/resources/primereact.css';
 import 'primeflex/primeflex.css';
 import 'primeicons/primeicons.css';
 import '../styles/layout/layout.scss';
-import { AUTH_SESSION_CHANGED_EVENT, AuthProvider } from '../components/context/AuthContext';
+import AuthContext, { AUTH_SESSION_CHANGED_EVENT, AuthProvider } from '../components/context/AuthContext';
 import { CaixaPostalProvider } from '../components/context/CaixaPostalContext';
 import { useRouteClientGuard } from '../components/hooks/useClientGuards';
 import { useIdleLogout } from '../components/hooks/useIdleLogout';
+import { routeUsesAuthenticatedDashboard } from '../constants/routeAuth';
+import { readAuthTokenForGuard } from '../lib/authTokenRead';
 // import userPersistedState from '../components/utils/usePersistedState';
 
 type Props = AppProps & {
@@ -19,9 +22,30 @@ type Props = AppProps & {
 };
 
 function AppContent({ Component, pageProps }: Props) {
+    const router = useRouter();
+    const { authBootstrapped, isAuthenticated } = useContext(AuthContext);
     useRouteClientGuard();
     useIdleLogout(); // Monitor de inatividade padrão (15 mins)
 
+    const pathname = router.pathname;
+    const usesDashboardLayout = !Component.getLayout;
+    const token = readAuthTokenForGuard();
+    const holdDashboardShell =
+        usesDashboardLayout &&
+        routeUsesAuthenticatedDashboard(pathname) &&
+        (!authBootstrapped || !token || !isAuthenticated);
+
+    if (holdDashboardShell) {
+        return (
+            <LayoutProvider>
+                <div
+                    className="surface-ground min-h-screen min-w-screen"
+                    suppressHydrationWarning
+                    aria-busy="true"
+                />
+            </LayoutProvider>
+        );
+    }
 
     if (Component.getLayout) {
         return <LayoutProvider>{Component.getLayout(<Component {...pageProps} />)}</LayoutProvider>;

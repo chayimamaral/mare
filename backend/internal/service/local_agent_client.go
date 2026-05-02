@@ -18,18 +18,23 @@ type LocalAgentClient struct {
 }
 
 type LocalAgentCertificate struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	Subject    string `json:"subject"`
-	SerialHex  string `json:"serial_hex"`
-	SlotID     uint   `json:"slot_id"`
-	TokenLabel string `json:"token_label"`
+	ID         string   `json:"id"`
+	Label      string   `json:"label"`
+	Subject    string   `json:"subject"`
+	SerialHex  string   `json:"serial_hex"`
+	SlotID     uint     `json:"slot_id"`
+	TokenLabel string   `json:"token_label"`
+	TaxIDs     []string `json:"tax_ids,omitempty"`
 }
 
 type LocalAgentSignRequest struct {
 	HashSHA256Base64 string `json:"hash_sha256_base64"`
 	CertificateID    string `json:"certificate_id,omitempty"`
 	PIN              string `json:"pin,omitempty"`
+	DocumentID       string `json:"document_id,omitempty"`
+	TaxID            string `json:"tax_id,omitempty"`
+	Procuracao       bool   `json:"procuracao"`
+	SignerTaxID      string `json:"signer_tax_id,omitempty"`
 }
 
 type LocalAgentSignResponse struct {
