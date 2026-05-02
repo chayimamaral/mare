@@ -60,3 +60,5 @@ env.senha_compilacao
 bin/
 Makefile
 Makefile copy
+
+tools/encryptor/.env*
