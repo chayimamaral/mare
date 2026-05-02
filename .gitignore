@@ -6,6 +6,12 @@ gitsave.sh
 backup.sh
 bkp_db.sh
 bkp_drive.sh
+bkpgeral.sh
+bkp_drive.sh
+deploy.sh
+deploy-backend.sh
+deploy-frontend.sh
+
 
 *.EF.md
 *.especificacao.migrations
@@ -48,3 +54,5 @@ agente-local/cmd/agent-gui/rsrc_windows_*.syso
 .env.*
 env.senha_compilacao
 bin/
+Makefile
+Makefile copy
