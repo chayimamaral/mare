@@ -214,6 +214,16 @@ const AppMenu = () => {
                     icon: 'pi pi-fw pi-user',
                     to: '/rotinas-pf',
                   },
+                  {
+                    label: 'Lançamentos da Folha',
+                    icon: 'pi pi-fw pi-money-bill',
+                    to: '/lancamentos-folha',
+                  },
+                  {
+                    label: 'Matriz Tributária',
+                    icon: 'pi pi-fw pi-percentage',
+                    to: '/matriz-configuracao-tributaria',
+                  },
                 ],
               },
               {

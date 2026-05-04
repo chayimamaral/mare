@@ -125,6 +125,12 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	representanteService := service.NewRepresentanteService(repository.NewRepresentanteRepository(pool))
 	representanteHandler := handlers.NewRepresentanteHandler(representanteService)
 
+	lancamentoFolhaService := service.NewLancamentoFolhaService(repository.NewLancamentoFolhaRepository(pool))
+	lancamentoFolhaHandler := handlers.NewLancamentoFolhaHandler(lancamentoFolhaService)
+
+	matrizConfiguracaoTributariaService := service.NewMatrizConfiguracaoTributariaService(repository.NewMatrizConfiguracaoTributariaRepository(pool))
+	matrizConfiguracaoTributariaHandler := handlers.NewMatrizConfiguracaoTributariaHandler(matrizConfiguracaoTributariaService)
+
 	caixaPostalRepo := repository.NewCaixaPostalRepository(pool)
 	caixaPostalService := service.NewCaixaPostalService(caixaPostalRepo)
 	caixaPostalHandler := handlers.NewCaixaPostalHandler(caixaPostalService)
@@ -154,7 +160,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, enquadramentoJuridicoPorteHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, aiHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
+		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, enquadramentoJuridicoPorteHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, aiHandler, representanteHandler, lancamentoFolhaHandler, matrizConfiguracaoTributariaHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -211,6 +217,8 @@ func registerRoutes(
 	localAgentHandler *handlers.LocalAgentHandler,
 	aiHandler *handlers.AIHandler,
 	representanteHandler *handlers.RepresentanteHandler,
+	lancamentoFolhaHandler *handlers.LancamentoFolhaHandler,
+	matrizConfiguracaoTributariaHandler *handlers.MatrizConfiguracaoTributariaHandler,
 	requireAuth func(http.Handler) http.Handler,
 	requireAdmin func(http.Handler) http.Handler,
 	requireAdminOnly func(http.Handler) http.Handler,
@@ -233,6 +241,18 @@ func registerRoutes(
 	r.With(requireAuth).Get("/tenants", tenantHandler.List)
 	r.With(requireAuth, requireSuper).Get("/tenant-dados", registroHandler.TenantDadosDetail)
 	r.With(requireAuth, requireSuper).Put("/tenant-dados", registroHandler.TenantDadosUpdate)
+
+	r.With(requireAuth).Get("/lancamentos-folha", lancamentoFolhaHandler.ListTree)
+	r.With(requireAuth, requireAdmin).Post("/lancamento-folha", lancamentoFolhaHandler.Create)
+	r.With(requireAuth, requireAdmin).Put("/lancamento-folha", lancamentoFolhaHandler.Update)
+	r.With(requireAuth, requireAdmin).Delete("/lancamento-folha", lancamentoFolhaHandler.Delete)
+	r.With(requireAuth).Get("/lancamento-folha", lancamentoFolhaHandler.GetByID)
+
+	r.With(requireAuth).Get("/matriz-configuracao-tributaria", matrizConfiguracaoTributariaHandler.List)
+	r.With(requireAuth, requireAdmin).Post("/matriz-configuracao-tributaria", matrizConfiguracaoTributariaHandler.Create)
+	r.With(requireAuth, requireAdmin).Put("/matriz-configuracao-tributaria", matrizConfiguracaoTributariaHandler.Update)
+	r.With(requireAuth, requireAdmin).Delete("/matriz-configuracao-tributaria", matrizConfiguracaoTributariaHandler.Delete)
+	r.With(requireAuth).Get("/matriz-configuracao-tributaria/item", matrizConfiguracaoTributariaHandler.GetByID)
 
 	r.With(requireAuth, requireSuper, requireVecMaster).Get("/representantes", representanteHandler.List)
 	r.With(requireAuth, requireSuper, requireVecMaster).Post("/representantes", representanteHandler.Create)
