@@ -1,42 +1,70 @@
 //go:build gui
 // +build gui
 
+// Interface com Fyne (Windows/Linux). Makefile: CGO + cross MinGW para .exe.
+
 package main
 
 import (
 	"context"
-	"errors"
+	_ "embed"
 	"fmt"
 	"image"
-	"image/color"
 	"log"
-	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"gioui.org/app"
-	"gioui.org/font/gofont"
-	"gioui.org/layout"
-	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
-	"gioui.org/text"
-	"gioui.org/unit"
-	"gioui.org/widget"
-	"gioui.org/widget/material"
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
+	"fyne.io/fyne/v2/widget"
 	"github.com/chayimamaral/vecx/agente-local/internal/config"
 	"github.com/chayimamaral/vecx/agente-local/internal/httpserver"
 	"github.com/chayimamaral/vecx/agente-local/internal/images"
 	"github.com/chayimamaral/vecx/agente-local/internal/provider/pkcs11"
 	"github.com/chayimamaral/vecx/agente-local/internal/settings"
 	"github.com/chayimamaral/vecx/agente-local/internal/usecase"
-	"github.com/ncruces/zenity"
 	"github.com/srwiley/oksvg"
 	"github.com/srwiley/rasterx"
 )
+
+//go:embed build_version.txt
+var embeddedBuildVersion []byte
+
+func resolvedVersion() string {
+	v := strings.TrimSpace(string(embeddedBuildVersion))
+	if v != "" {
+		return v
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	var rev string
+	for _, s := range bi.Settings {
+		if s.Key == "vcs.revision" {
+			rev = s.Value
+			break
+		}
+	}
+	if rev != "" {
+		if len(rev) > 12 {
+			rev = rev[:12]
+		}
+		return "dev+" + rev
+	}
+	if bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return "dev"
+}
 
 type statusState int
 
@@ -47,22 +75,16 @@ const (
 )
 
 type guiState struct {
-	mu                sync.Mutex
-	invalidate        func()
-	logs              []string
-	status            statusState
-	detectBt          widget.Clickable
-	pendingCertRoot   string
+	mu sync.Mutex
+
+	logLbl    *widget.Label
+	statusDot *widget.RichText
+
+	logs   []string
+	status statusState
 }
 
-// Mesmo estilo visual do pacote log do Go (LstdFlags: data, hora, mensagem).
 const logLineTimeFormat = "2006/01/02 15:04:05"
-
-func (s *guiState) setInvalidate(f func()) {
-	s.mu.Lock()
-	s.invalidate = f
-	s.mu.Unlock()
-}
 
 func (s *guiState) appendLog(msg string) {
 	s.mu.Lock()
@@ -71,41 +93,49 @@ func (s *guiState) appendLog(msg string) {
 	if len(s.logs) > 500 {
 		s.logs = s.logs[len(s.logs)-500:]
 	}
-	inv := s.invalidate
+	text := strings.Join(s.logs, "\n")
+	logLbl := s.logLbl
 	s.mu.Unlock()
-	if inv != nil {
-		inv()
+
+	if logLbl != nil && fyne.CurrentApp() != nil {
+		fyne.Do(func() {
+			logLbl.SetText(text)
+		})
+	}
+}
+
+func statusColorName(st statusState) fyne.ThemeColorName {
+	switch st {
+	case statusDetected:
+		return theme.ColorNameSuccess
+	case statusNotDetected:
+		return theme.ColorNameError
+	default:
+		return theme.ColorNameDisabled
 	}
 }
 
 func (s *guiState) setStatus(st statusState) {
 	s.mu.Lock()
 	s.status = st
+	rt := s.statusDot
 	s.mu.Unlock()
-}
 
-func (s *guiState) snapshot() (statusState, string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status, strings.Join(s.logs, "\n")
-}
-
-func (s *guiState) setPendingCertRoot(p string) {
-	s.mu.Lock()
-	s.pendingCertRoot = p
-	inv := s.invalidate
-	s.mu.Unlock()
-	if inv != nil {
-		inv()
+	if rt != nil && fyne.CurrentApp() != nil {
+		fyne.Do(func() {
+			rt.Segments = []widget.RichTextSegment{
+				&widget.TextSegment{
+					Text: " ● ",
+					Style: widget.RichTextStyle{
+						ColorName: statusColorName(st),
+						Inline:    true,
+						SizeName:  theme.SizeNameHeadingText,
+					},
+				},
+			}
+			rt.Refresh()
+		})
 	}
-}
-
-func (s *guiState) takePendingCertRoot() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p := s.pendingCertRoot
-	s.pendingCertRoot = ""
-	return p
 }
 
 func rasterizeSVG(svg string, w, h int) image.Image {
@@ -121,18 +151,8 @@ func rasterizeSVG(svg string, w, h int) image.Image {
 	return img
 }
 
-func drawStatusDot(gtx layout.Context, st statusState) layout.Dimensions {
-	col := color.NRGBA{R: 140, G: 140, B: 140, A: 255}
-	switch st {
-	case statusDetected:
-		col = color.NRGBA{R: 33, G: 160, B: 70, A: 255}
-	case statusNotDetected:
-		col = color.NRGBA{R: 190, G: 48, B: 48, A: 255}
-	}
-	size := gtx.Dp(unit.Dp(14))
-	defer clip.Ellipse{Max: image.Pt(size, size)}.Push(gtx.Ops).Pop()
-	paint.Fill(gtx.Ops, col)
-	return layout.Dimensions{Size: image.Pt(size, size)}
+func appWindowTitle() string {
+	return "Agente VECX - " + resolvedVersion()
 }
 
 func main() {
@@ -140,7 +160,7 @@ func main() {
 	provider := pkcs11.NewProvider(cfg.PKCS11LibraryLinux, cfg.PKCS11LibraryWindow)
 	store, errStore := settings.DefaultStore()
 	if errStore != nil {
-		log.Printf("configuracao local EF-937: %v", errStore)
+		log.Printf("configuracao local: %v", errStore)
 	}
 	signUC := usecase.NewSignUseCase(provider, store)
 	state := &guiState{status: statusIdle}
@@ -151,195 +171,149 @@ func main() {
 	stopCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	a := app.NewWithID("com.vecsistemas.vecx.agent")
+
+	w := a.NewWindow(appWindowTitle())
+	w.Resize(fyne.NewSize(820, 640))
+	w.SetFixedSize(false)
+
+	w.SetCloseIntercept(func() {
+		stop()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = server.Shutdown(shutdownCtx)
+		cancel()
+		w.Close()
+	})
+
 	go func() {
 		<-stopCtx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
-		os.Exit(0)
+		a.Quit()
 	}()
 
-	go func() {
-		w := new(app.Window)
-		state.setInvalidate(w.Invalidate)
-		w.Option(
-			app.Title("Agente VECX"),
-			app.Size(unit.Dp(820), unit.Dp(640)),
-		)
+	logo := canvas.NewImageFromImage(rasterizeSVG(images.VecxLogoSVG, 180, 64))
+	logo.SetMinSize(fyne.NewSize(180, 64))
+	logo.FillMode = canvas.ImageFillContain
 
-		// Depois de Invalidate estar ligado, para o textbox atualizar de imediato.
-		// Textos iguais ao vecx-agent-cli (cmd/agent/main.go), com prefixo data/hora estilo log.
-		state.appendLog(fmt.Sprintf("agente local iniciado em http://%s", cfg.HTTPAddr))
-		if len(cfg.AllowedOrigins) > 0 {
-			state.appendLog(fmt.Sprintf("cors liberado para: %v", cfg.AllowedOrigins))
-		}
-		if cfg.SharedSecret != "" {
-			state.appendLog("autenticacao local habilitada via X-Local-Agent-Secret")
-		}
+	headTitle := widget.NewLabel("Agente VECX")
+	headTitle.TextStyle = fyne.TextStyle{Bold: true}
+	head := container.NewHBox(logo, headTitle)
 
+	verLbl := widget.NewLabel("Versao " + resolvedVersion())
+	hintA1 := widget.NewLabel("Certificados A1 em disco: subpastas cert_clientes/ e cert_contador/; arquivos {CNPJ|CPF}.pfx")
+	hintA1.Wrapping = fyne.TextWrapWord
+
+	rootEntry := widget.NewEntry()
+	rootEntry.SetPlaceHolder("Pasta raiz (ex.: C:\\Users\\...\\certs-vecx)")
+
+	preferA3 := widget.NewCheck("Preferir A3 (ignorar .pfx locais e usar token)", nil)
+	if store != nil {
+		st := store.Load()
+		rootEntry.SetText(st.CertRootDir)
+		preferA3.SetChecked(st.PreferA3)
+	}
+
+	browseBtn := widget.NewButton("Procurar...", func() {
+		dialog.ShowFolderOpen(func(u fyne.ListableURI, err error) {
+			if err != nil {
+				state.appendLog("Seletor de pasta: " + err.Error())
+				return
+			}
+			if u == nil {
+				return
+			}
+			rootEntry.SetText(u.Path())
+		}, w)
+	})
+
+	saveBtn := widget.NewButton("Salvar", func() {
+		if store == nil {
+			state.appendLog("Configuracao local indisponivel")
+			return
+		}
+		st := settings.AgentSettings{
+			CertRootDir: strings.TrimSpace(rootEntry.Text),
+			PreferA3:    preferA3.Checked,
+		}
+		if err := store.Save(st); err != nil {
+			state.appendLog("Falha ao salvar configuracao: " + err.Error())
+		} else {
+			state.appendLog("Configuracao salva (pasta raiz / preferir A3)")
+		}
+	})
+
+	pathRow := container.NewBorder(nil, nil, nil, container.NewHBox(browseBtn, saveBtn), rootEntry)
+
+	statusMark := widget.NewRichText(&widget.TextSegment{
+		Text: " ● ",
+		Style: widget.RichTextStyle{
+			ColorName: statusColorName(statusIdle),
+			Inline:    true,
+			SizeName:  theme.SizeNameHeadingText,
+		},
+	})
+	state.statusDot = statusMark
+
+	detectBtn := widget.NewButton("Detectar", func() {
 		go func() {
-			if err := server.ListenAndServe(); err != nil && !strings.Contains(strings.ToLower(err.Error()), "closed") {
-				state.appendLog("Erro no servidor: " + err.Error())
+			state.appendLog("Acao manual: Detectar certificado A3")
+			certs, err := signUC.ListCertificates(context.Background())
+			if err != nil {
+				state.setStatus(statusNotDetected)
+				state.appendLog("Deteccao falhou: " + err.Error())
+				return
+			}
+			if len(certs) == 0 {
+				state.setStatus(statusNotDetected)
+				state.appendLog("Nenhum certificado A3 detectado")
+			} else {
+				state.setStatus(statusDetected)
+				state.appendLog(fmt.Sprintf("%d certificado(s) detectado(s)", len(certs)))
 			}
 		}()
+	})
 
-		th := material.NewTheme()
-		th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
+	legend := widget.NewLabel("Cinza=aguardando | Verde=detectado | Vermelho=nao detectado")
+	detectRow := container.NewHBox(detectBtn, statusMark, legend)
 
-		var ops op.Ops
-		logEditor := widget.Editor{ReadOnly: true, SingleLine: false}
-		rootPathEditor := widget.Editor{SingleLine: true}
-		preferA3 := widget.Bool{}
-		saveCfgBt := widget.Clickable{}
-		browseBt := widget.Clickable{}
-		if store != nil {
-			st := store.Load()
-			rootPathEditor.SetText(st.CertRootDir)
-			preferA3.Value = st.PreferA3
-		}
-		logo := paint.NewImageOp(rasterizeSVG(images.VecxLogoSVG, 180, 64))
-		var lastLogText string
+	logHint := widget.NewLabel("Log: selecione texto e Ctrl+C para copiar; roda do mouse para rolar")
+	logLbl := widget.NewLabel("")
+	logLbl.Wrapping = fyne.TextWrapWord
+	logLbl.TextStyle = fyne.TextStyle{Monospace: true}
+	logLbl.Selectable = true
+	state.logLbl = logLbl
+	scrollLog := container.NewScroll(logLbl)
+	scrollLog.SetMinSize(fyne.NewSize(760, 260))
 
-		for {
-			e := w.Event()
-			switch e := e.(type) {
-			case app.DestroyEvent:
-				if e.Err != nil {
-					log.Printf("janela encerrada com erro: %v", e.Err)
-				}
-				stop()
-				return
-			case app.FrameEvent:
-				ops.Reset()
-				gtx := app.NewContext(&ops, e)
+	inner := container.NewVBox(
+		head,
+		widget.NewSeparator(),
+		verLbl,
+		hintA1,
+		pathRow,
+		preferA3,
+		detectRow,
+		logHint,
+		scrollLog,
+	)
+	w.SetContent(container.NewPadded(inner))
 
-				if p := state.takePendingCertRoot(); p != "" {
-					rootPathEditor.SetText(p)
-				}
+	state.appendLog("versao " + resolvedVersion())
+	state.appendLog(fmt.Sprintf("agente local iniciado em http://%s", cfg.HTTPAddr))
+	if len(cfg.AllowedOrigins) > 0 {
+		state.appendLog(fmt.Sprintf("cors liberado para: %v", cfg.AllowedOrigins))
+	}
+	if cfg.SharedSecret != "" {
+		state.appendLog("autenticacao local habilitada via X-Local-Agent-Secret")
+	}
 
-				for browseBt.Clicked(gtx) {
-					go func() {
-						path, err := zenity.SelectFile(
-							zenity.Title("Pasta raiz de certificados (EF-937)"),
-							zenity.Directory(),
-						)
-						if err != nil {
-							if !errors.Is(err, zenity.ErrCanceled) {
-								state.appendLog("Seletor de pasta: " + err.Error())
-							}
-							return
-						}
-						if path != "" {
-							state.setPendingCertRoot(path)
-						}
-					}()
-				}
-
-				for saveCfgBt.Clicked(gtx) {
-					if store == nil {
-						state.appendLog("Configuracao local indisponivel (EF-937)")
-					} else {
-						st := settings.AgentSettings{
-							CertRootDir: strings.TrimSpace(rootPathEditor.Text()),
-							PreferA3:    preferA3.Value,
-						}
-						if err := store.Save(st); err != nil {
-							state.appendLog("Falha ao salvar configuracao: " + err.Error())
-						} else {
-							state.appendLog("Configuracao EF-937 salva (pasta raiz / preferir A3)")
-						}
-					}
-				}
-
-				for state.detectBt.Clicked(gtx) {
-					go func() {
-						state.appendLog("Acao manual: Detectar certificado A3")
-						certs, err := signUC.ListCertificates(context.Background())
-						if err != nil {
-							state.setStatus(statusNotDetected)
-							state.appendLog("Deteccao falhou: " + err.Error())
-							return
-						}
-						if len(certs) == 0 {
-							state.setStatus(statusNotDetected)
-							state.appendLog("Nenhum certificado A3 detectado")
-						} else {
-							state.setStatus(statusDetected)
-							state.appendLog(fmt.Sprintf("%d certificado(s) detectado(s)", len(certs)))
-						}
-					}()
-				}
-
-				st, logs := state.snapshot()
-				if logs != lastLogText {
-					logEditor.SetText(logs)
-					logEditor.SetCaret(logEditor.Len(), logEditor.Len())
-					lastLogText = logs
-				}
-
-				layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceStart}.Layout(gtx,
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							gtx.Constraints.Max.Y = min(gtx.Constraints.Max.Y, gtx.Dp(unit.Dp(80)))
-							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									img := widget.Image{Src: logo, Fit: widget.Contain}
-									return img.Layout(gtx)
-								}),
-								layout.Rigid(layout.Spacer{Width: unit.Dp(16)}.Layout),
-								layout.Rigid(material.H4(th, "Agente VECX").Layout),
-							)
-						}),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
-						layout.Rigid(material.Body2(th, "Certificados A1 em disco (EF-937): subpastas cert_clientes/ e cert_contador/; arquivos {CNPJ|CPF}.pfx").Layout),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Alignment: layout.Start}.Layout(gtx,
-								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return material.Editor(th, &rootPathEditor, "Pasta raiz (ex.: /home/user/certs-vecx)").Layout(gtx)
-								}),
-								layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-								layout.Rigid(material.Button(th, &browseBt, "Procurar...").Layout),
-								layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-								layout.Rigid(material.Button(th, &saveCfgBt, "Salvar").Layout),
-							)
-						}),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
-						layout.Rigid(material.CheckBox(th, &preferA3, "Preferir A3 (ignorar .pfx locais e usar token)").Layout),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return material.Button(th, &state.detectBt, "Detectar").Layout(gtx)
-								}),
-								layout.Rigid(layout.Spacer{Width: unit.Dp(12)}.Layout),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return drawStatusDot(gtx, st)
-								}),
-								layout.Rigid(layout.Spacer{Width: unit.Dp(8)}.Layout),
-								layout.Rigid(material.Body2(th, "Cinza=aguardando | Verde=detectado | Vermelho=nao detectado").Layout),
-							)
-						}),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(10)}.Layout),
-						layout.Rigid(material.Body2(th, "Log: selecione texto e Ctrl+C para copiar; roda do mouse para rolar").Layout),
-						layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							gtx.Constraints = gtx.Constraints.AddMin(image.Pt(0, gtx.Dp(unit.Dp(260))))
-							border := widget.Border{Color: color.NRGBA{R: 180, G: 180, B: 190, A: 255}, CornerRadius: unit.Dp(4), Width: unit.Dp(1)}
-							return border.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-									return material.Editor(th, &logEditor, "").Layout(gtx)
-								})
-							})
-						}),
-					)
-				})
-
-				e.Frame(gtx.Ops)
-			}
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !strings.Contains(strings.ToLower(err.Error()), "closed") {
+			state.appendLog("Erro no servidor: " + err.Error())
 		}
 	}()
 
-	app.Main()
+	w.ShowAndRun()
 }
-

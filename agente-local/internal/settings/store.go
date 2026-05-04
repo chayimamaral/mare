@@ -10,7 +10,7 @@ import (
 
 const settingsFile = "settings.json"
 
-// AgentSettings persistido localmente (EF-937).
+// AgentSettings persistido localmente.
 type AgentSettings struct {
 	CertRootDir string `json:"cert_root_dir"`
 	PreferA3    bool   `json:"prefer_a3"`

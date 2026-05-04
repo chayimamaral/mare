@@ -4,7 +4,7 @@ type SignInput struct {
 	HashSHA256Base64 string `json:"hash_sha256_base64"`
 	CertificateID    string `json:"certificate_id,omitempty"`
 	PIN              string `json:"pin,omitempty"`
-	// EF-937: contexto fiscal (pasta cert_clientes / cert_contador e A3 por titular).
+	// Contexto fiscal: pastas cert_clientes / cert_contador e A3 por titular.
 	DocumentID  string `json:"document_id,omitempty"`
 	TaxID       string `json:"tax_id,omitempty"`
 	Procuracao  bool   `json:"procuracao"`

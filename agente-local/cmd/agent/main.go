@@ -22,7 +22,7 @@ func main() {
 	provider := pkcs11.NewProvider(cfg.PKCS11LibraryLinux, cfg.PKCS11LibraryWindow)
 	store, err := settings.DefaultStore()
 	if err != nil {
-		log.Printf("aviso: configuracao local EF-937 indisponivel (%v); apenas A3 legado", err)
+		log.Printf("aviso: configuracao local indisponivel (%v); apenas A3 legado", err)
 	}
 	signUC := usecase.NewSignUseCase(provider, store)
 	handler := httpserver.NewHandler(signUC, nil)

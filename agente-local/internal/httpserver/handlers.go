@@ -50,7 +50,7 @@ func (h *Handler) Sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if doc := strings.TrimSpace(in.DocumentID); doc != "" {
-		h.emit("Documento (EF-937): " + doc)
+		h.emit("Documento: " + doc)
 	}
 	if tid := strings.TrimSpace(in.TaxID); tid != "" || in.Procuracao {
 		h.emit("Resolucao estruturada de certificado (tax_id / procuracao)")
