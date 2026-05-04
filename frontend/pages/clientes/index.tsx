@@ -898,11 +898,11 @@ const Clientes = () => {
       rotina: row.rotina,
       enquadramento_juridico_porte: row.enquadramento_juridico_porte?.id
         ? {
-            id: row.enquadramento_juridico_porte.id,
-            sigla: row.enquadramento_juridico_porte.sigla ?? '',
-            descricao: row.enquadramento_juridico_porte.descricao ?? '',
-            limite_final: row.enquadramento_juridico_porte.limite_final,
-          }
+          id: row.enquadramento_juridico_porte.id,
+          sigla: row.enquadramento_juridico_porte.sigla ?? '',
+          descricao: row.enquadramento_juridico_porte.descricao ?? '',
+          limite_final: row.enquadramento_juridico_porte.limite_final,
+        }
         : { id: '', sigla: '', descricao: '' },
       faturamento_acumulado_ano: row.faturamento_acumulado_ano ?? 0,
       classificacao_observacao: row.classificacao_observacao ?? '',
@@ -910,10 +910,10 @@ const Clientes = () => {
       rotina_pf: row.rotina_pf ?? { id: '', nome: '', categoria: '' },
       regime_tributario: row.regime_tributario?.id
         ? {
-            id: row.regime_tributario.id,
-            nome: row.regime_tributario.nome ?? '',
-            codigo_crt: row.regime_tributario.codigo_crt,
-          }
+          id: row.regime_tributario.id,
+          nome: row.regime_tributario.nome ?? '',
+          codigo_crt: row.regime_tributario.codigo_crt,
+        }
         : { id: '', nome: '', codigo_crt: undefined },
       ie: row.ie ?? '',
       im: row.im ?? '',
@@ -2146,8 +2146,8 @@ const Clientes = () => {
                 return (
                   <div className="flex flex-column gap-3">
                     <p className="text-600 text-sm m-0">
-                      Valores com base nas notas fiscais em <strong>nfe_gestao</strong> em que o CNPJ do cliente é o{' '}
-                      <strong>emitente</strong>, somando <strong>valor_total</strong> no ano calendário{' '}
+                      Valores com base nas notas fiscais em que o CNPJ do cliente é o{' '}
+                      <strong>emitente</strong>, somando <strong>Valor Total</strong> no ano calendário{' '}
                       <strong>{anoCalendario}</strong>.
                     </p>
                     {isPF ? (
