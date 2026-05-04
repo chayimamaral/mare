@@ -15,6 +15,7 @@ import { useRouteClientGuard } from '../components/hooks/useClientGuards';
 import { useIdleLogout } from '../components/hooks/useIdleLogout';
 import { routeUsesAuthenticatedDashboard } from '../constants/routeAuth';
 import { readAuthTokenForGuard } from '../lib/authTokenRead';
+import { authTokenScopeKey } from '../lib/authTokenScope';
 // import userPersistedState from '../components/utils/usePersistedState';
 
 type Props = AppProps & {
@@ -115,7 +116,7 @@ export default function App({ Component, pageProps }: Props) {
         }
         const readTokenFingerprint = () => {
             const token = String(window.sessionStorage.getItem('vecontab_token') ?? window.localStorage.getItem('vecontab_token') ?? '').trim();
-            return token ? `tk:${token.slice(0, 16)}` : 'anon';
+            return authTokenScopeKey(token);
         };
         const handleAuthSessionChanged = () => {
             queryClient.clear();

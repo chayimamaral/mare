@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { authTokenScopeKey } from '../../lib/authTokenScope';
 import { AUTH_SESSION_CHANGED_EVENT } from '../context/AuthContext';
 
 function readToken(): string {
@@ -13,15 +14,11 @@ function readToken(): string {
 }
 
 export function useAuthScopeKey(): string {
-    const [scope, setScope] = useState(() => {
-        const t = readToken();
-        return t ? `tk:${t.slice(0, 16)}` : 'anon';
-    });
+    const [scope, setScope] = useState(() => authTokenScopeKey(readToken()));
 
     useEffect(() => {
         const refresh = () => {
-            const t = readToken();
-            setScope(t ? `tk:${t.slice(0, 16)}` : 'anon');
+            setScope(authTokenScopeKey(readToken()));
         };
         refresh();
         if (typeof window !== 'undefined') {

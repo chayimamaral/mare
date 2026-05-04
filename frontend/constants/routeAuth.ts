@@ -23,6 +23,7 @@ export const AUTH_REQUIRED_ROUTES = new Set<string>([
     '/configuracoes/integra-contador-servicos',
     '/configuracoes/integra-contador-tabela-consumo',
     '/empresas',
+    '/enquadramento-juridico',
     '/estados',
     '/feriados',
     '/grupopassos',

@@ -64,4 +64,5 @@ export const PATH_REQUIRES_CORE = new Set<string>([
   '/salario-minimo',
   '/tipoempresa',
   '/cnae',
+  '/enquadramento-juridico',
 ]);

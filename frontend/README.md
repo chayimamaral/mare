@@ -5,11 +5,11 @@
 <h1 align="center">Hub Contabil</h1>
 
 
-# Vecontab Frontend - Interface em Next.js + React
+# VECX Frontend - Interface em Next.js + React
 
 
 
-Interface moderna e responsiva para o sistema Vecontab de gestão de contabilidade. Construída com Next.js 16, React 18 e PrimeReact 10.
+Interface moderna e responsiva para o sistema VECX de gestão de contabilidade. Construída com Next.js 16, React 18 e PrimeReact 10.
 
 ## 📋 Índice
 
@@ -307,8 +307,8 @@ npm start
 ### Docker
 
 ```bash
-docker build -t vecontab-frontend .
-docker run -p 3000:3000 vecontab-frontend
+docker build -t vecx-frontend .
+docker run -p 3000:3000 vecx-frontend
 ```
 
 ## 🔐 Acessibilidade

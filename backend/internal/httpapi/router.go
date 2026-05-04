@@ -46,6 +46,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	cnaeService := service.NewCnaeService(repository.NewCnaeRepository(pool))
 	regimeTributarioService := service.NewRegimeTributarioService(repository.NewRegimeTributarioRepository(pool))
 	salarioMinimoService := service.NewSalarioMinimoService(repository.NewSalarioMinimoRepository(pool))
+	enquadramentoJuridicoPorteService := service.NewEnquadramentoJuridicoPorteService(repository.NewEnquadramentoJuridicoPorteRepository(pool))
 	agendaService := service.NewAgendaService(repository.NewAgendaRepository(pool))
 	rotinaService := service.NewRotinaService(repository.NewRotinaRepository(pool))
 	registroService := service.NewRegistroService(repository.NewRegistroRepository(pool))
@@ -99,6 +100,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 	cnaeHandler := handlers.NewCnaeHandler(cnaeService)
 	regimeTributarioHandler := handlers.NewRegimeTributarioHandler(regimeTributarioService)
 	salarioMinimoHandler := handlers.NewSalarioMinimoHandler(salarioMinimoService)
+	enquadramentoJuridicoPorteHandler := handlers.NewEnquadramentoJuridicoPorteHandler(enquadramentoJuridicoPorteService)
 	agendaHandler := handlers.NewAgendaHandler(agendaService)
 	rotinaHandler := handlers.NewRotinaHandler(rotinaService)
 	registroHandler := handlers.NewRegistroHandler(registroService)
@@ -152,7 +154,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, auditPool *pgxpool.Pool, s
 
 	// API apenas sob /api — evita colidir com rotas do Next (ex.: GET /clientes).
 	r.Route("/api", func(api chi.Router) {
-		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, aiHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
+		registerRoutes(api, authHandler, globalMonitorHandler, userHandler, estadoHandler, cidadeHandler, tenantHandler, tipoEmpresaHandler, passoHandler, grupoPassosHandler, feriadoHandler, empresaHandler, empresaDadosHandler, cnaeHandler, regimeTributarioHandler, salarioMinimoHandler, enquadramentoJuridicoPorteHandler, agendaHandler, rotinaHandler, rotinaPFHandler, registroHandler, nodeHandler, obrigacaoHandler, empresaAgendaHandler, empresaCompromissoHandler, clienteHandler, monitorOperacaoHandler, configuracaoIntegracaoHandler, certificadoClienteHandler, catalogoServicoHandler, serproServicoEnquadramentoHandler, integraContadorHandler, integraServicoProcHandler, integraTabelaConsumoHandler, caixaPostalHandler, nfeSerproHandler, localAgentHandler, aiHandler, representanteHandler, requireAuth, requireAdmin, requireAdminOnly, requireAdminOrUser, requireSuper, requireVecMaster, requireNFe)
 		api.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			render.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		})
@@ -186,6 +188,7 @@ func registerRoutes(
 	cnaeHandler *handlers.CnaeHandler,
 	regimeTributarioHandler *handlers.RegimeTributarioHandler,
 	salarioMinimoHandler *handlers.SalarioMinimoHandler,
+	enquadramentoJuridicoPorteHandler *handlers.EnquadramentoJuridicoPorteHandler,
 	agendaHandler *handlers.AgendaHandler,
 	rotinaHandler *handlers.RotinaHandler,
 	rotinaPFHandler *handlers.RotinaPFHandler,
@@ -353,6 +356,11 @@ func registerRoutes(
 	r.With(requireAuth, requireAdmin).Post("/salario-minimo", salarioMinimoHandler.Create)
 	r.With(requireAuth, requireAdmin).Put("/salario-minimo", salarioMinimoHandler.Update)
 	r.With(requireAuth, requireAdmin).Delete("/salario-minimo", salarioMinimoHandler.Delete)
+
+	r.With(requireAuth).Get("/enquadramentos-juridicos-porte", enquadramentoJuridicoPorteHandler.List)
+	r.With(requireAuth, requireAdmin).Post("/enquadramento-juridico-porte", enquadramentoJuridicoPorteHandler.Create)
+	r.With(requireAuth, requireAdmin).Put("/enquadramento-juridico-porte", enquadramentoJuridicoPorteHandler.Update)
+	r.With(requireAuth, requireAdmin).Delete("/enquadramento-juridico-porte", enquadramentoJuridicoPorteHandler.Delete)
 
 	r.With(requireAuth, requireCompromissos).Get("/agendalist", agendaHandler.List)
 	r.With(requireAuth, requireCompromissos).Get("/agendadetalhes", agendaHandler.Detail)

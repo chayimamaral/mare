@@ -9,7 +9,7 @@
 --     (nao depende de public.gerar_compromissos_*).
 --
 -- Banco novo / zerado:
---   1) Migrations: vecontab/migrations (000_ordem_aplicacao.txt).
+--   1) Migrations: vecx/migrations (000_ordem_aplicacao.txt).
 --   2) Cadastro pela aplicacao (tenant + usuario + schema provisionado).
 --   3) Clientes e empresas pela aplicacao (dados no schema do tenant).
 --   4) Compromissos pela UI/API ou cron do worker.

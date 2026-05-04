@@ -5,9 +5,9 @@
 <h1 align="center">Hub Contabil</h1>
 
 
-# Vecontab Backend - API REST em Go
+# VECX Backend - API REST em Go
 
-API REST robusta para o sistema Vecontab de gestão de contabilidade. Backend construído em Go com PostgreSQL, autenticação JWT e suporte multi-tenant.
+API REST robusta para o sistema VECX de gestão de contabilidade. Backend construído em Go com PostgreSQL, autenticação JWT e suporte multi-tenant.
 
 ## 📋 Índice
 
@@ -73,7 +73,7 @@ backend/
 │       └── user_service.go
 ├── go.mod                   # Dependências Go
 ├── nginx.conf               # Configuração Nginx (reverse proxy)
-├── bkp_vecontab.sql        # Backup do banco de dados
+├── bkp_vecx.sql        # Backup do banco de dados
 └── README.md               # Este arquivo
 ```
 
@@ -126,8 +126,8 @@ API estará em http://localhost:3333
 ### Build para Produção
 
 ```bash
-go build -o vecontab ./cmd/api/main.go
-./vecontab
+go build -o vecx ./cmd/api/main.go
+./vecx
 ```
 
 ### Com Nginx (Reverse Proxy)
@@ -141,12 +141,12 @@ nginx -c ./nginx.conf
 
 ### 🔐 Autenticação
 
-| Método | Rota                 | Descrição                    |
-| ------ | -------------------- | ---------------------------- |
-| POST   | `/api/session`       | Login com email/senha        |
+| Método | Rota                 | Descrição                                                                  |
+| ------ | -------------------- | -------------------------------------------------------------------------- |
+| POST   | `/api/session`       | Login com email/senha                                                      |
 | GET    | `/me`                | Perfil do usuário logado (JSON plano: id, nome, email, tenant, role, etc.) |
-| GET    | `/api/usuariorole`   | Role do usuário (ADMIN/USER) |
-| GET    | `/api/usuariotenant` | Tenant do usuário            |
+| GET    | `/api/usuariorole`   | Role do usuário (ADMIN/USER)                                               |
+| GET    | `/api/usuariotenant` | Tenant do usuário                                                          |
 
 ### 👥 Usuários
 

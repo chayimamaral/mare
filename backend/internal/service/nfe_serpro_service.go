@@ -129,7 +129,7 @@ func (s *NFESerproService) resolveProvider(providerName, uf, ambiente string, si
 	switch name {
 	case "SC", "SEF_SC":
 		hom := strings.EqualFold(strings.TrimSpace(ambiente), "homologacao") || strings.EqualFold(strings.TrimSpace(ambiente), "hom")
-		return nfeprovider.NewSCProvider(hom, "vecontab-ef920"), "SC", "SC", nil
+		return nfeprovider.NewSCProvider(hom, "vecx-ef920"), "SC", "SC", nil
 	case "NACIONAL":
 		return nfeprovider.NewNacionalProvider(), "NACIONAL", ufNorm, nil
 	default:

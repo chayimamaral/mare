@@ -489,7 +489,7 @@ export const EmpresasPage = ({ dados, tipoPessoa = 'PJ' }: EmpresasPageProps) =>
               </div>
               {!isPF && (
                 <div className="field mb-0 min-w-0">
-                  <label htmlFor="filtroEnquadramento" className="text-sm text-600 mb-2 block">Enquadramento Juridico</label>
+                  <label htmlFor="filtroEnquadramento" className="text-sm text-600 mb-2 block">Natureza jurídica</label>
                   <Dropdown
                     id="filtroEnquadramento"
                     value={enquadramentoFiltro}
@@ -555,8 +555,8 @@ export const EmpresasPage = ({ dados, tipoPessoa = 'PJ' }: EmpresasPageProps) =>
           >
             <Column field="nome" header={isPF ? 'Nome (Cliente PF / Processo)' : 'Nome (Empresa / Processo)'} expander body={nomeBodyTemplate} style={{ width: '32%' }} />
             <Column field="municipio" header="Municipio" body={municipioBodyTemplate} style={{ width: '20%' }} />
-            {!isPF && <Column field="tipo_empresa" header="Enquadramento Jurídico" body={tipoEmpresaBodyTemplate} style={{ width: '20%' }} />}
-            {!isPF && <Column field="regime" header="Regime Tributário" body={regimeBodyTemplate} style={{ width: '18%' }} />}
+            {!isPF && <Column field="tipo_empresa" header="Natureza Jurídica" body={tipoEmpresaBodyTemplate} style={{ width: '20%' }} />}
+            {!isPF && <Column field="regime" header="Enquadramento tributário" body={regimeBodyTemplate} style={{ width: '18%' }} />}
             <Column header="Ações" body={actionBodyTemplate} style={{ width: '10%' }} />
           </TreeTable>
 

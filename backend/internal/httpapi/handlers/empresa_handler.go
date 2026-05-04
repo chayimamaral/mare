@@ -40,6 +40,10 @@ type empresaEnvelope struct {
 		TipoEmpresa struct {
 			ID string `json:"id"`
 		} `json:"tipo_empresa"`
+		EnquadramentoJuridicoPorte struct {
+			ID string `json:"id"`
+		} `json:"enquadramento_juridico_porte"`
+		ClassificacaoObservacao string `json:"classificacao_observacao"`
 		Cnaes      any    `json:"cnaes"`
 		Bairro     string `json:"bairro"`
 		TipoPessoa string `json:"tipo_pessoa"`
@@ -111,19 +115,21 @@ func (h *EmpresaHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Create(r.Context(), service.EmpresaInput{
-		Nome:               payload.Params.Nome,
-		TenantID:           tenantID,
-		MunicipioID:        strings.TrimSpace(payload.Params.Municipio.ID),
-		RotinaID:           payload.Params.Rotina.ID,
-		RotinaPFID:         strings.TrimSpace(payload.Params.RotinaPF.ID),
-		Cnaes:              payload.Params.Cnaes,
-		Bairro:             payload.Params.Bairro,
-		TipoPessoa:         tp,
-		Documento:          payload.Params.Documento,
-		IE:                 payload.Params.IE,
-		IM:                 payload.Params.IM,
-		RegimeTributarioID: strings.TrimSpace(payload.Params.RegimeTributario.ID),
-		TipoEmpresaID:      strings.TrimSpace(payload.Params.TipoEmpresa.ID),
+		Nome:                         payload.Params.Nome,
+		TenantID:                     tenantID,
+		MunicipioID:                  strings.TrimSpace(payload.Params.Municipio.ID),
+		RotinaID:                     payload.Params.Rotina.ID,
+		RotinaPFID:                   strings.TrimSpace(payload.Params.RotinaPF.ID),
+		Cnaes:                        payload.Params.Cnaes,
+		Bairro:                       payload.Params.Bairro,
+		TipoPessoa:                   tp,
+		Documento:                    payload.Params.Documento,
+		IE:                           payload.Params.IE,
+		IM:                           payload.Params.IM,
+		RegimeTributarioID:           strings.TrimSpace(payload.Params.RegimeTributario.ID),
+		TipoEmpresaID:                strings.TrimSpace(payload.Params.TipoEmpresa.ID),
+		EnquadramentoJuridicoPorteID: strings.TrimSpace(payload.Params.EnquadramentoJuridicoPorte.ID),
+		ClassificacaoObservacao:      strings.TrimSpace(payload.Params.ClassificacaoObservacao),
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
@@ -168,20 +174,22 @@ func (h *EmpresaHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Update(r.Context(), service.EmpresaInput{
-		ID:                 strings.TrimSpace(payload.Params.ID),
-		Nome:               payload.Params.Nome,
-		TenantID:           tenantID,
-		MunicipioID:        strings.TrimSpace(payload.Params.Municipio.ID),
-		RotinaID:           payload.Params.Rotina.ID,
-		RotinaPFID:         strings.TrimSpace(payload.Params.RotinaPF.ID),
-		Cnaes:              payload.Params.Cnaes,
-		Bairro:             payload.Params.Bairro,
-		TipoPessoa:         tp,
-		Documento:          payload.Params.Documento,
-		IE:                 payload.Params.IE,
-		IM:                 payload.Params.IM,
-		RegimeTributarioID: strings.TrimSpace(payload.Params.RegimeTributario.ID),
-		TipoEmpresaID:      strings.TrimSpace(payload.Params.TipoEmpresa.ID),
+		ID:                           strings.TrimSpace(payload.Params.ID),
+		Nome:                         payload.Params.Nome,
+		TenantID:                     tenantID,
+		MunicipioID:                  strings.TrimSpace(payload.Params.Municipio.ID),
+		RotinaID:                     payload.Params.Rotina.ID,
+		RotinaPFID:                   strings.TrimSpace(payload.Params.RotinaPF.ID),
+		Cnaes:                        payload.Params.Cnaes,
+		Bairro:                       payload.Params.Bairro,
+		TipoPessoa:                   tp,
+		Documento:                    payload.Params.Documento,
+		IE:                           payload.Params.IE,
+		IM:                           payload.Params.IM,
+		RegimeTributarioID:           strings.TrimSpace(payload.Params.RegimeTributario.ID),
+		TipoEmpresaID:                strings.TrimSpace(payload.Params.TipoEmpresa.ID),
+		EnquadramentoJuridicoPorteID: strings.TrimSpace(payload.Params.EnquadramentoJuridicoPorte.ID),
+		ClassificacaoObservacao:      strings.TrimSpace(payload.Params.ClassificacaoObservacao),
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())

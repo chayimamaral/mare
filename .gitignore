@@ -23,8 +23,8 @@ docker-compose.yml
 .cursorrules
 # Binários locais do backend (go build -o)
 backend/cmd/api/api-mare
-backend/cmd/api/api-vecontab
-backend/cmd/api/vecontab_bin
+backend/cmd/api/api-vecx
+backend/cmd/api/vecx_bin
 public-api/public-api
 backup/
 docs/

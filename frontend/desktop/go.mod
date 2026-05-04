@@ -1,4 +1,4 @@
-module vecontab-desktop
+module vecx-desktop
 
 go 1.26.2
 

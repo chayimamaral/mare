@@ -198,10 +198,10 @@ const TipoEmpresa = () => {
                         const { tiposEmpresa, totalRecords } = response.data;
                         setTiposEmpresa(tiposEmpresa);
                         setTotalRecords(totalRecords);
-                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento Jurídico Atualizado', life: 3000 });
+                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Natureza Jurídica Atualizado', life: 3000 });
                     })
                     .catch((error) => {
-                        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao atualizar o Enquadramento Jurídico', life: 3000 });
+                        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao atualizar o Natureza Jurídica', life: 3000 });
                     })
                     .finally(() => {
                         setTipoEmpresaDialog(false);
@@ -214,10 +214,10 @@ const TipoEmpresa = () => {
                         const { tiposEmpresa, totalRecords } = response.data;
                         setTiposEmpresa(tiposEmpresa);
                         setTotalRecords(totalRecords);
-                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento Jurídico Criado', life: 3000 });
+                        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Natureza Jurídica Criado', life: 3000 });
                     })
                     .catch((error) => {
-                        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao criar o Enquadramento Jurídico', life: 3000 });
+                        toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao criar o Natureza Jurídica', life: 3000 });
                     })
                     .finally(() => {
                         setTipoEmpresaDialog(false);
@@ -239,10 +239,10 @@ const TipoEmpresa = () => {
                     const { tiposEmpresa, totalRecords } = response.data;
                     setTiposEmpresa(tiposEmpresa);
                     setTotalRecords(totalRecords);
-                    toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento Jurídico Excluído', life: 3000 });
+                    toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Natureza Jurídica Excluído', life: 3000 });
                 })
                 .catch((error) => {
-                    toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao excluir o Enquadramento Jurídico', life: 5000 });
+                    toast.current?.show({ severity: 'error', summary: 'Erro', detail: 'Erro ao excluir o Natureza Jurídica', life: 5000 });
                 })
                 .finally(() => {
                     setDeleteTipoEmpresaDialog(false);
@@ -345,10 +345,10 @@ const TipoEmpresa = () => {
 
     const header = (
         <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
-            <h5 className="m-0">Cadastro de Enquadramento Jurídico</h5>
+            <h5 className="m-0">Cadastro de Natureza Jurídica</h5>
             <span className="block mt-2 md:mt-0 p-input-icon-left">
                 <i className="pi pi-search" />
-                <InputText type="search" onKeyDown={(e) => handleBuscaTipo(e, e.currentTarget.value)} onChange={handleClear} placeholder="Procurar enquadramento..." tooltip='Digite o Enquadramento Jurídico e tecle Enter' tooltipOptions={{ position: 'left' }} />
+                <InputText type="search" onKeyDown={(e) => handleBuscaTipo(e, e.currentTarget.value)} onChange={handleClear} placeholder="Procurar natureza jurídica..." tooltip='Digite a natureza jurídica e tecle Enter' tooltipOptions={{ position: 'left' }} />
             </span>
         </div>
     );
@@ -398,7 +398,7 @@ const TipoEmpresa = () => {
                         className="datatable-responsive"
                         paginatorTemplate={template}
                         globalFilter={globalFilter}
-                        emptyMessage="Nenhum Enquadramento Jurídico encontrado."
+                        emptyMessage="Nenhum Natureza Jurídica encontrado."
                         header={header}
                         size="small"
                         stripedRows
@@ -419,11 +419,11 @@ const TipoEmpresa = () => {
 
                     </DataTable>
 
-                    <Dialog visible={tipoEmpresaDialog} style={{ width: '450px' }} header="Detalhe do Enquadramento Jurídico" modal className="p-fluid" footer={tipoEmpresaDialogFooter} onHide={hideDialog}>
+                    <Dialog visible={tipoEmpresaDialog} style={{ width: '450px' }} header="Detalhe do Natureza Jurídica" modal className="p-fluid" footer={tipoEmpresaDialogFooter} onHide={hideDialog}>
                         <div className="field">
                             <label htmlFor="descricao">Descrição</label>
                             <InputText id="descricao" value={tipoEmpresa.descricao} type='text' onChange={(e) => onInputChange(e, 'descricao')} required autoFocus className={classNames({ 'p-invalid': submitted && !tipoEmpresa.descricao })} />
-                            {submitted && !tipoEmpresa.descricao && <small className="p-invalid">Descrição do Enquadramento Jurídico é obrigatória.</small>}
+                            {submitted && !tipoEmpresa.descricao && <small className="p-invalid">Descrição do Natureza Jurídica é obrigatória.</small>}
                         </div>
                         <div className="field">
                             <label htmlFor="anual">Faturamento Anual</label>

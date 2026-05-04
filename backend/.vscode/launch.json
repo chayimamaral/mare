@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug Vecontab Backend",
+      "name": "Debug VECX Backend",
       "type": "go",
       "request": "launch",
       "mode": "auto",

@@ -20,6 +20,7 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import CertificadoClienteService from '../../services/cruds/CertificadoClienteService';
 import EmpresaService from '../../services/cruds/EmpresaService';
+import EnquadramentoJuridicoPorteService from '../../services/cruds/EnquadramentoJuridicoPorteService';
 import EmpresaDadosService from '../../services/cruds/EmpresaDadosService';
 import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
 import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
@@ -27,6 +28,7 @@ import { isWebRuntime } from '../../constants/runtime';
 import { isValidCNPJ, isValidCPF, onlyDigits } from '../../constants/documento';
 import { parseCookies } from 'nookies';
 import { getAuthTokenFromParsedCookies } from '../../constants/authCookie';
+import { authTokenScopeKey } from '../../lib/authTokenScope';
 
 interface LazyTableState {
   totalRecords: number;
@@ -118,6 +120,13 @@ const Clientes = () => {
       id: '',
       descricao: ''
     },
+    enquadramento_juridico_porte: {
+      id: '',
+      sigla: '',
+      descricao: '',
+    },
+    classificacao_observacao: '',
+    classificacao_atualizado_em: '',
     uf: '',
     cep: '',
     cnaes: [],
@@ -235,7 +244,7 @@ const Clientes = () => {
     isError: userRoleError,
     refetch: refetchUserRole,
   } = useQuery<string | null>({
-    queryKey: ['user-role', authToken],
+    queryKey: ['user-role', authTokenScopeKey(authToken)],
     enabled: !!authToken,
     queryFn: async () => {
       const r = await api.get('/api/usuariorole');
@@ -258,12 +267,18 @@ const Clientes = () => {
   const podeCadastrarClientes = userRole === 'ADMIN' || userRole === 'SUPER';
   const podeEditarDadosComplementares = userRole === 'ADMIN' || userRole === 'USER' || userRole === 'SUPER';
   const podeEditarComplementosCliente = podeCadastrarClientes || podeEditarDadosComplementares;
-  /** ADMIN/SUPER podem ajustar enquadramento jurídico e regime (CRT) mesmo com processo iniciado; USER só complementos. */
+  /** ADMIN/SUPER podem ajustar natureza jurídica e enquadramento tributário (CRT) mesmo com processo iniciado; USER só complementos. */
   const podeEditarEnquadramentoRegimePJ =
     (userRole === 'ADMIN' || userRole === 'SUPER') && !userRoleLoading && !userRoleError;
   /** Certificado por cliente: ADMIN do escritório e SUPER; USER não vê nem altera (EF-907). */
   const podeAnexarCertificadoCliente = userRole === 'ADMIN' || userRole === 'SUPER';
   const abaCertificadoClienteHabilitada = podeAnexarCertificadoCliente;
+
+  /** O .p-dialog-content usa overflow:auto; overlays dos Dropdown ficam cortados sem appendTo no body. */
+  const dropdownAppendTo =
+    typeof globalThis !== 'undefined' && typeof document !== 'undefined'
+      ? (document.body as HTMLElement)
+      : undefined;
 
   const certClienteService = CertificadoClienteService();
 
@@ -292,6 +307,22 @@ const Clientes = () => {
     retry: 2,
   });
 
+  const anoVigenciaPorteClassif = new Date().getFullYear();
+  const enquadramentoPorteSvc = EnquadramentoJuridicoPorteService();
+  const {
+    data: porteClassificacaoOptions = [],
+    isPending: porteClassificacaoLoading,
+    isError: porteClassificacaoError,
+  } = useQuery<Vec.EnquadramentoJuridicoPorte[]>({
+    queryKey: ['enquadramentos-juridicos-porte', 'cliente-classificacao', anoVigenciaPorteClassif],
+    queryFn: async () => {
+      const { data } = await enquadramentoPorteSvc.list(anoVigenciaPorteClassif);
+      return data?.items ?? [];
+    },
+    staleTime: 1000 * 60 * 5,
+    retry: 2,
+  });
+
   const { data: tiposEmpresaOptions = [] } = useQuery<Vec.TipoEmpresaLite[]>({
     queryKey: ['tiposempresa-lite', 'cliente-form'],
     queryFn: async () => {
@@ -308,11 +339,23 @@ const Clientes = () => {
     }
     toast.current?.show({
       severity: 'warn',
-      summary: 'Regimes tributários',
-      detail: 'Não foi possível carregar a lista (GET /api/regimes-tributarios). Verifique o console de rede ou o cadastro em Regimes tributários.',
+      summary: 'Enquadramentos tributários',
+      detail: 'Não foi possível carregar a lista (GET /api/regimes-tributarios). Verifique o console de rede ou o cadastro em Enquadramento tributário.',
       life: 6000,
     });
   }, [empresaDialog, regimesTributariosError]);
+
+  useEffect(() => {
+    if (!empresaDialog || !porteClassificacaoError) {
+      return;
+    }
+    toast.current?.show({
+      severity: 'warn',
+      summary: 'Enquadramento por porte',
+      detail: 'Não foi possível carregar a lista (GET /api/enquadramentos-juridicos-porte). Verifique o cadastro em Enquadramento jurídico por porte.',
+      life: 6000,
+    });
+  }, [empresaDialog, porteClassificacaoError]);
 
   const {
     data: certClienteRemote,
@@ -335,7 +378,7 @@ const Clientes = () => {
     if (!empresaDialog || abaCertificadoClienteHabilitada) {
       return;
     }
-    if (clienteDialogTabIndex === 2) {
+    if (clienteDialogTabIndex === 3) {
       setClienteDialogTabIndex(0);
     }
   }, [empresaDialog, abaCertificadoClienteHabilitada, clienteDialogTabIndex]);
@@ -612,6 +655,23 @@ const Clientes = () => {
     } as Vec.TipoEmpresaLite;
   })();
 
+  const enquadramentoPorteFormDropdownValue = (() => {
+    const id = (empresa.enquadramento_juridico_porte?.id ?? '').trim();
+    if (!id) {
+      return null;
+    }
+    const fromList = porteClassificacaoOptions.find((p) => (p.id ?? '').trim() === id);
+    if (fromList) {
+      return fromList;
+    }
+    return {
+      id: empresa.enquadramento_juridico_porte?.id ?? '',
+      sigla: empresa.enquadramento_juridico_porte?.sigla ?? '',
+      descricao: empresa.enquadramento_juridico_porte?.descricao ?? '',
+      ano_vigencia: anoVigenciaPorteClassif,
+    } as Vec.EnquadramentoJuridicoPorte;
+  })();
+
   const buildPayloadDados = (empresaId: string) => {
     const pf = (empresa.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF';
     return {
@@ -690,6 +750,10 @@ const Clientes = () => {
           id: (empresa.rotina_pf?.id ?? '').trim(),
         },
         cnaes: Array.isArray(empresa.cnaes) ? [...empresa.cnaes] : [],
+        enquadramento_juridico_porte: isClientePF
+          ? { id: '' }
+          : { id: (empresa.enquadramento_juridico_porte?.id ?? '').trim() },
+        classificacao_observacao: isClientePF ? '' : String(empresa.classificacao_observacao ?? '').trim(),
       };
 
       const afterEmpresaOk = (id: string) => {
@@ -785,6 +849,15 @@ const Clientes = () => {
       ...row,
       municipio: row.municipio ?? { id: '', nome: '' },
       rotina: row.rotina,
+      enquadramento_juridico_porte: row.enquadramento_juridico_porte?.id
+        ? {
+            id: row.enquadramento_juridico_porte.id,
+            sigla: row.enquadramento_juridico_porte.sigla ?? '',
+            descricao: row.enquadramento_juridico_porte.descricao ?? '',
+          }
+        : { id: '', sigla: '', descricao: '' },
+      classificacao_observacao: row.classificacao_observacao ?? '',
+      classificacao_atualizado_em: row.classificacao_atualizado_em ?? '',
       rotina_pf: row.rotina_pf ?? { id: '', nome: '', categoria: '' },
       regime_tributario: row.regime_tributario?.id
         ? {
@@ -876,6 +949,9 @@ const Clientes = () => {
         ie: '',
         im: '',
         tipo_empresa: { id: '', descricao: '' },
+        enquadramento_juridico_porte: { id: '', sigla: '', descricao: '' },
+        classificacao_observacao: '',
+        classificacao_atualizado_em: '',
         cnaes: [],
       }));
       return;
@@ -1006,7 +1082,7 @@ const Clientes = () => {
   const tipoEmpresaBodyTemplate = (rowData: Vec.Empresa) => {
     return (
       <>
-        <span className="p-column-title">Enquadramento Jurídico</span>
+        <span className="p-column-title">Natureza Jurídica</span>
         {rowData.tipo_empresa?.descricao ?? '—'}
       </>
     );
@@ -1019,8 +1095,18 @@ const Clientes = () => {
     const crtTxt = crt !== undefined && crt !== null && Number(crt) > 0 ? ` (CRT ${crt})` : '';
     return (
       <>
-        <span className="p-column-title">Regime tributário</span>
+        <span className="p-column-title">Enquadramento tributário</span>
         {nome ? `${nome}${crtTxt}` : '—'}
+      </>
+    );
+  };
+
+  const enquadramentoPorteBodyTemplate = (rowData: Vec.Empresa) => {
+    const s = (rowData.enquadramento_juridico_porte?.sigla ?? '').trim();
+    return (
+      <>
+        <span className="p-column-title">Porte</span>
+        {s || '—'}
       </>
     );
   };
@@ -1185,14 +1271,20 @@ const Clientes = () => {
               headerStyle={{ minWidth: '6rem' }}
             />
             <Column field="municipio" header="Municipio" body={municipioBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
-            <Column field="tipo_empresa" header="Enquadramento Jurídico" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
-            <Column field="regime_tributario" header="Regime tributário" body={regimeTributarioBodyTemplate} headerStyle={{ minWidth: '14rem' }}></Column>
+            <Column field="tipo_empresa" header="Natureza Jurídica" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
+            <Column
+              field="enquadramento_juridico_porte"
+              header="Porte"
+              body={enquadramentoPorteBodyTemplate}
+              headerStyle={{ minWidth: '7rem' }}
+            ></Column>
+            <Column field="regime_tributario" header="Enquadramento tributário" body={regimeTributarioBodyTemplate} headerStyle={{ minWidth: '14rem' }}></Column>
             <Column body={actionBodyTemplate} header="Ações" headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
 
           <Dialog
             visible={empresaDialog}
-            style={{ width: '686px', maxWidth: '98vw' }}
+            style={{ width: 'min(920px, 96vw)', maxWidth: '96vw' }}
             contentStyle={{ overflow: 'auto', height: '47vh', minHeight: '47vh', maxHeight: '47vh' }}
             header={empresa?.id ? 'Cliente (edição)' : 'Cliente (novo)'}
             modal
@@ -1229,7 +1321,7 @@ const Clientes = () => {
                 />
                 <Button
                   type="button"
-                  tooltip="Endereço e meios de contato"
+                  tooltip="Classificação fiscal e jurídica"
                   tooltipOptions={{ position: 'bottom' }}
                   onClick={() => setClienteDialogTabIndex(1)}
                   className="w-2rem h-2rem p-0"
@@ -1239,24 +1331,34 @@ const Clientes = () => {
                 />
                 <Button
                   type="button"
-                  tooltip={
-                    abaCertificadoClienteHabilitada
-                      ? 'Certificado digital'
-                      : 'Certificado digital (somente administrador do escritório)'
-                  }
+                  tooltip="Endereço e meios de contato"
                   tooltipOptions={{ position: 'bottom' }}
                   onClick={() => setClienteDialogTabIndex(2)}
                   className="w-2rem h-2rem p-0"
                   rounded
                   outlined={clienteDialogTabIndex !== 2}
                   label="3"
+                />
+                <Button
+                  type="button"
+                  tooltip={
+                    abaCertificadoClienteHabilitada
+                      ? 'Certificado digital'
+                      : 'Certificado digital (somente administrador do escritório)'
+                  }
+                  tooltipOptions={{ position: 'bottom' }}
+                  onClick={() => setClienteDialogTabIndex(3)}
+                  className="w-2rem h-2rem p-0"
+                  rounded
+                  outlined={clienteDialogTabIndex !== 3}
+                  label="4"
                   disabled={!abaCertificadoClienteHabilitada}
                 />
               </div>
               <TabView
                 activeIndex={clienteDialogTabIndex}
                 onTabChange={(e) => {
-                  if (!abaCertificadoClienteHabilitada && e.index === 2) {
+                  if (!abaCertificadoClienteHabilitada && e.index === 3) {
                     return;
                   }
                   setClienteDialogTabIndex(e.index);
@@ -1271,7 +1373,7 @@ const Clientes = () => {
                     style: {
                       boxSizing: 'border-box',
                       paddingLeft: 0,
-                      paddingRight: '11.25rem',
+                      paddingRight: '16.75rem',
                       position: 'relative',
                       borderBottom: 'none',
                     },
@@ -1293,7 +1395,7 @@ const Clientes = () => {
                       width: '100%',
                       justifyContent: 'flex-start',
                       alignItems: 'flex-end',
-                      columnGap: '1.5rem',
+                      columnGap: '1rem',
                       listStyle: 'none',
                       margin: 0,
                       paddingLeft: 0,
@@ -1314,6 +1416,7 @@ const Clientes = () => {
                       optionValue="value"
                       disabled={empresa?.iniciado === true || coreCamposBloqueados}
                       className="w-full"
+                      appendTo={dropdownAppendTo}
                     />
                   </div>
 
@@ -1346,97 +1449,9 @@ const Clientes = () => {
                       disabled={!podeEditarComplementosCliente}
                       className="w-full"
                       showClear
+                      appendTo={dropdownAppendTo}
                     />
                   </div>
-
-                  {!isClientePF && (
-                    <div className="formgrid grid">
-                      <div className="field col-12 md:col-6">
-                        <label htmlFor="dd_tipo_emp_cli">Enquadramento jurídico</label>
-                        <Dropdown
-                          id="dd_tipo_emp_cli"
-                          value={tipoEmpresaFormDropdownValue}
-                          options={tiposEmpresaOptions}
-                          onChange={(e) => {
-                            const opt = e.value as Vec.TipoEmpresaLite | null;
-                            if (!opt?.id) {
-                              setEmpresa((prev) => ({
-                                ...prev,
-                                tipo_empresa: { id: '', descricao: '' },
-                              }));
-                              return;
-                            }
-                            setEmpresa((prev) => ({
-                              ...prev,
-                              tipo_empresa: {
-                                id: opt.id ?? '',
-                                descricao: opt.descricao ?? '',
-                              },
-                            }));
-                          }}
-                          optionLabel="descricao"
-                          dataKey="id"
-                          placeholder="Selecione o enquadramento"
-                          emptyMessage="Cadastre tipos em Tipos de empresa"
-                          disabled={!podeEditarEnquadramentoRegimePJ}
-                          className="w-full"
-                          showClear
-                          filter
-                          filterBy="descricao"
-                        />
-                      </div>
-                      <div className="field col-12 md:col-6">
-                        <label htmlFor="dd_regime_trib">Regime tributário</label>
-                        <Dropdown
-                          id="dd_regime_trib"
-                          value={regimeTributarioFormDropdownValue}
-                          options={regimesTributariosOptions}
-                          onChange={(e) => {
-                            const opt = e.value as Vec.RegimeTributario | null;
-                            if (!opt?.id) {
-                              setEmpresa((prev) => ({
-                                ...prev,
-                                regime_tributario: { id: '', nome: '', codigo_crt: undefined },
-                              }));
-                              return;
-                            }
-                            setEmpresa((prev) => ({
-                              ...prev,
-                              regime_tributario: {
-                                id: opt.id ?? '',
-                                nome: opt.nome ?? '',
-                                codigo_crt: opt.codigo_crt,
-                              },
-                            }));
-                          }}
-                          optionLabel="nome"
-                          itemTemplate={(r: Vec.RegimeTributario) => (
-                            <span>
-                              {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
-                            </span>
-                          )}
-                          valueTemplate={(r: Vec.RegimeTributario | null) =>
-                            r?.id ? (
-                              <span>
-                                {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
-                              </span>
-                            ) : (
-                              <span className="text-500">Selecione o regime (CRT)</span>
-                            )
-                          }
-                          dataKey="id"
-                          placeholder="Selecione o regime (CRT)"
-                          emptyMessage="Cadastre regimes em Regimes tributários"
-                          disabled={!podeEditarEnquadramentoRegimePJ}
-                          className="w-full"
-                          showClear
-                          loading={regimesTributariosLoading}
-                          filter
-                          filterBy="nome"
-                        />
-                      </div>
-                    </div>
-                  )}
 
                   {!isClientePF && (
                     <div className="p-fluid field">
@@ -1544,9 +1559,191 @@ const Clientes = () => {
                   )}
                 </TabPanel>
 
+                <TabPanel header="Classificação Fiscal e Jurídica" headerStyle={{ whiteSpace: 'nowrap' }}>
+                  {isClientePF ? (
+                    <p className="text-600 text-sm mt-0">
+                      Classificação fiscal e jurídica não se aplica a pessoa física.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-600 text-sm mt-0 mb-3">
+                        Natureza jurídica, porte por faturamento e regime tributário (CRT). Listas de porte conforme vigência{' '}
+                        <strong>{anoVigenciaPorteClassif}</strong> — ajuste anual conforme o cadastro base.
+                      </p>
+                      <div className="formgrid grid">
+                        <div className="field col-12 md:col-6">
+                          <label htmlFor="dd_tipo_emp_cli">Natureza jurídica</label>
+                          <Dropdown
+                            id="dd_tipo_emp_cli"
+                            value={tipoEmpresaFormDropdownValue}
+                            options={tiposEmpresaOptions}
+                            onChange={(e) => {
+                              const opt = e.value as Vec.TipoEmpresaLite | null;
+                              if (!opt?.id) {
+                                setEmpresa((prev) => ({
+                                  ...prev,
+                                  tipo_empresa: { id: '', descricao: '' },
+                                }));
+                                return;
+                              }
+                              setEmpresa((prev) => ({
+                                ...prev,
+                                tipo_empresa: {
+                                  id: opt.id ?? '',
+                                  descricao: opt.descricao ?? '',
+                                },
+                              }));
+                            }}
+                            optionLabel="descricao"
+                            dataKey="id"
+                            placeholder="Selecione a natureza jurídica"
+                            emptyMessage="Cadastre em Natureza jurídica (menu Cadastros Contábeis)"
+                            disabled={!podeEditarEnquadramentoRegimePJ}
+                            className="w-full"
+                            showClear
+                            filter
+                            filterBy="descricao"
+                            appendTo={dropdownAppendTo}
+                          />
+                        </div>
+                        <div className="field col-12 md:col-6">
+                          <label htmlFor="dd_porte_classif">Enquadramento por porte</label>
+                          <Dropdown
+                            id="dd_porte_classif"
+                            value={enquadramentoPorteFormDropdownValue}
+                            options={porteClassificacaoOptions}
+                            onChange={(e) => {
+                              const opt = e.value as Vec.EnquadramentoJuridicoPorte | null;
+                              if (!opt?.id) {
+                                setEmpresa((prev) => ({
+                                  ...prev,
+                                  enquadramento_juridico_porte: { id: '', sigla: '', descricao: '' },
+                                }));
+                                return;
+                              }
+                              setEmpresa((prev) => ({
+                                ...prev,
+                                enquadramento_juridico_porte: {
+                                  id: opt.id ?? '',
+                                  sigla: opt.sigla ?? '',
+                                  descricao: opt.descricao ?? '',
+                                },
+                              }));
+                            }}
+                            dataKey="id"
+                            itemTemplate={(p: Vec.EnquadramentoJuridicoPorte) => (
+                              <span>
+                                {(p.sigla ?? '').trim()}
+                                {(p.sigla ?? '').trim() && (p.descricao ?? '').trim() ? ' — ' : ''}
+                                {p.descricao ?? ''}
+                              </span>
+                            )}
+                            valueTemplate={(p: Vec.EnquadramentoJuridicoPorte | null) =>
+                              p?.id ? (
+                                <span>
+                                  {(p.sigla ?? '').trim()}
+                                  {(p.sigla ?? '').trim() && (p.descricao ?? '').trim() ? ' — ' : ''}
+                                  {p.descricao ?? ''}
+                                </span>
+                              ) : (
+                                <span className="text-500">Selecione o porte</span>
+                              )
+                            }
+                            placeholder="Selecione o porte"
+                            emptyMessage="Cadastre em Enquadramento jurídico por porte"
+                            disabled={!podeEditarEnquadramentoRegimePJ}
+                            className="w-full"
+                            showClear
+                            loading={porteClassificacaoLoading}
+                            filter
+                            filterBy="descricao"
+                            appendTo={dropdownAppendTo}
+                          />
+                        </div>
+                        <div className="field col-12">
+                          <label htmlFor="dd_regime_trib">Regime tributário (CRT)</label>
+                          <Dropdown
+                            id="dd_regime_trib"
+                            value={regimeTributarioFormDropdownValue}
+                            options={regimesTributariosOptions}
+                            onChange={(e) => {
+                              const opt = e.value as Vec.RegimeTributario | null;
+                              if (!opt?.id) {
+                                setEmpresa((prev) => ({
+                                  ...prev,
+                                  regime_tributario: { id: '', nome: '', codigo_crt: undefined },
+                                }));
+                                return;
+                              }
+                              setEmpresa((prev) => ({
+                                ...prev,
+                                regime_tributario: {
+                                  id: opt.id ?? '',
+                                  nome: opt.nome ?? '',
+                                  codigo_crt: opt.codigo_crt,
+                                },
+                              }));
+                            }}
+                            optionLabel="nome"
+                            itemTemplate={(r: Vec.RegimeTributario) => (
+                              <span>
+                                {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
+                              </span>
+                            )}
+                            valueTemplate={(r: Vec.RegimeTributario | null) =>
+                              r?.id ? (
+                                <span>
+                                  {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
+                                </span>
+                              ) : (
+                                <span className="text-500">Selecione o regime (CRT)</span>
+                              )
+                            }
+                            dataKey="id"
+                            placeholder="Selecione o regime (CRT)"
+                            emptyMessage="Cadastre em Enquadramento tributário"
+                            disabled={!podeEditarEnquadramentoRegimePJ}
+                            className="w-full"
+                            showClear
+                            loading={regimesTributariosLoading}
+                            filter
+                            filterBy="nome"
+                            appendTo={dropdownAppendTo}
+                          />
+                        </div>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="classif_obs_cli">Observação da classificação</label>
+                        <InputTextarea
+                          id="classif_obs_cli"
+                          value={empresa.classificacao_observacao ?? ''}
+                          onChange={(e) => setEmpresa((prev) => ({ ...prev, classificacao_observacao: e.target.value }))}
+                          disabled={!podeEditarEnquadramentoRegimePJ}
+                          rows={3}
+                          className="w-full"
+                          autoResize
+                          placeholder="Ex.: alteração de porte ou regime no exercício…"
+                        />
+                      </div>
+                      {(empresa.classificacao_atualizado_em ?? '').trim() ? (
+                        <p className="text-600 text-sm mt-0 mb-0">
+                          Última atualização registrada:{' '}
+                          <strong>
+                            {(() => {
+                              const raw = String(empresa.classificacao_atualizado_em ?? '').trim();
+                              const d = new Date(raw);
+                              return Number.isNaN(d.getTime()) ? raw : d.toLocaleString('pt-BR');
+                            })()}
+                          </strong>
+                        </p>
+                      ) : null}
+                    </>
+                  )}
+                </TabPanel>
+
                 <TabPanel header="Endereço e Meios de Contato" headerStyle={{ whiteSpace: 'nowrap' }}>
                   <p className="text-600 text-sm mt-0 mb-3">
-                    Município e dados principais foram informados na aba <strong>Dados Principais</strong>.
+                    Município foi informado na aba <strong>Dados Principais</strong>. Classificação fiscal e jurídica na aba homônima.
                   </p>
 
                   <div className="formgrid grid">
@@ -1695,6 +1892,7 @@ const Clientes = () => {
                           placeholder="Selecione"
                           className="w-full"
                           disabled={!podeAnexarCertificadoCliente}
+                          appendTo={dropdownAppendTo}
                         />
                       </div>
                       <div className="field">

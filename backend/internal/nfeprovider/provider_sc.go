@@ -35,7 +35,7 @@ func NewSCProvider(homologacao bool, verAplic string) *SCProvider {
 	}
 	verAplic = strings.TrimSpace(verAplic)
 	if verAplic == "" {
-		verAplic = "vecontab-ef920"
+		verAplic = "vecx-ef920"
 	}
 	return &SCProvider{url: url, verAplic: verAplic}
 }

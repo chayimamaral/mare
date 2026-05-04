@@ -767,7 +767,7 @@ const Rotinas = () => {
     const tipoEmpresaBodyTemplate = (rowData: Rotinas) => {
         return (
             <>
-                <span className="p-column-title">Enquadramento Jurídico</span>
+                <span className="p-column-title">Natureza Jurídica</span>
                 {rowData.tipo_empresa?.descricao ?? '—'}
             </>
         );
@@ -918,7 +918,7 @@ const Rotinas = () => {
                         />
                         <Column
                             field="tipo_empresa"
-                            header="Enquadramento Jurídico"
+                            header="Natureza Jurídica"
                             body={tipoEmpresaBodyTemplate}
                             headerStyle={{ minWidth: '12rem' }}
                             showFilterMenu={false}
@@ -970,7 +970,7 @@ const Rotinas = () => {
                             </span>
                         </div>
                         <div className="field">
-                            <label htmlFor="dropdownTipoEmpresa">Enquadramento Jurídico</label>
+                            <label htmlFor="dropdownTipoEmpresa">Natureza Jurídica</label>
                             <Dropdown
                                 id="dropdownTipoEmpresa"
                                 options={tiposEmpresaQuery}

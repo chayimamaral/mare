@@ -1,4 +1,4 @@
-module vecontab-frontend-shell
+module vecx-frontend-shell
 
 go 1.26.2
 

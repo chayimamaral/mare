@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/chayimamaral/vecx/backend/internal/domain"
 	"github.com/chayimamaral/vecx/backend/internal/repository"
@@ -27,20 +28,22 @@ type EmpresaProcessoResponse struct {
 }
 
 type EmpresaInput struct {
-	ID                 string `json:"id"`
-	Nome               string `json:"nome"`
-	TenantID           string `json:"tenantid"`
-	MunicipioID        string `json:"municipio_id"`
-	RotinaID           string `json:"rotina_id"`
-	RotinaPFID         string `json:"rotina_pf_id"`
-	Cnaes              any    `json:"cnaes"`
-	Bairro             string `json:"bairro"`
-	TipoPessoa         string `json:"tipo_pessoa"`
-	Documento          string `json:"documento"`
-	IE                 string `json:"ie"`
-	IM                 string `json:"im"`
-	RegimeTributarioID string `json:"regime_tributario_id"`
-	TipoEmpresaID      string `json:"tipo_empresa_id"`
+	ID                           string `json:"id"`
+	Nome                         string `json:"nome"`
+	TenantID                     string `json:"tenantid"`
+	MunicipioID                  string `json:"municipio_id"`
+	RotinaID                     string `json:"rotina_id"`
+	RotinaPFID                   string `json:"rotina_pf_id"`
+	Cnaes                        any    `json:"cnaes"`
+	Bairro                       string `json:"bairro"`
+	TipoPessoa                   string `json:"tipo_pessoa"`
+	Documento                    string `json:"documento"`
+	IE                           string `json:"ie"`
+	IM                           string `json:"im"`
+	RegimeTributarioID           string `json:"regime_tributario_id"`
+	TipoEmpresaID                string `json:"tipo_empresa_id"`
+	EnquadramentoJuridicoPorteID string `json:"enquadramento_juridico_porte_id"`
+	ClassificacaoObservacao      string `json:"classificacao_observacao"`
 }
 
 func NewEmpresaService(repo *repository.EmpresaRepository) *EmpresaService {
@@ -56,21 +59,45 @@ func (s *EmpresaService) List(ctx context.Context, params repository.EmpresaList
 	return EmpresaListResponse{Empresas: empresas, TotalRecords: total}, nil
 }
 
+func classificacaoBumpCreate(tp, regimeID, tipoEmpID, porteID, obs string) bool {
+	if strings.ToUpper(strings.TrimSpace(tp)) != "PJ" {
+		return false
+	}
+	return strings.TrimSpace(regimeID) != "" ||
+		strings.TrimSpace(tipoEmpID) != "" ||
+		strings.TrimSpace(porteID) != "" ||
+		strings.TrimSpace(obs) != ""
+}
+
+func classificacaoBumpUpdate(snap repository.ClienteClassificacaoSnapshot, tp, regimeID, tipoEmpID, porteID, obs string) bool {
+	if strings.ToUpper(strings.TrimSpace(tp)) != "PJ" {
+		return false
+	}
+	return strings.TrimSpace(regimeID) != strings.TrimSpace(snap.RegimeTributarioID) ||
+		strings.TrimSpace(tipoEmpID) != strings.TrimSpace(snap.TipoEmpresaID) ||
+		strings.TrimSpace(porteID) != strings.TrimSpace(snap.EnquadramentoJuridicoPorteID) ||
+		strings.TrimSpace(obs) != strings.TrimSpace(snap.ClassificacaoObservacao)
+}
+
 func (s *EmpresaService) Create(ctx context.Context, input EmpresaInput) (EmpresaMutationResponse, error) {
 	empresas, total, err := s.repo.Create(ctx, repository.EmpresaUpsertInput{
-		Nome:               input.Nome,
-		TenantID:           input.TenantID,
-		MunicipioID:        input.MunicipioID,
-		RotinaID:           input.RotinaID,
-		RotinaPFID:         input.RotinaPFID,
-		Cnaes:              input.Cnaes,
-		Bairro:             input.Bairro,
-		TipoPessoa:         input.TipoPessoa,
-		Documento:          input.Documento,
-		IE:                 input.IE,
-		IM:                 input.IM,
-		RegimeTributarioID: input.RegimeTributarioID,
-		TipoEmpresaID:      input.TipoEmpresaID,
+		Nome:                         input.Nome,
+		TenantID:                     input.TenantID,
+		MunicipioID:                  input.MunicipioID,
+		RotinaID:                     input.RotinaID,
+		RotinaPFID:                   input.RotinaPFID,
+		Cnaes:                        input.Cnaes,
+		Bairro:                       input.Bairro,
+		TipoPessoa:                   input.TipoPessoa,
+		Documento:                    input.Documento,
+		IE:                           input.IE,
+		IM:                           input.IM,
+		RegimeTributarioID:           input.RegimeTributarioID,
+		TipoEmpresaID:                input.TipoEmpresaID,
+		EnquadramentoJuridicoPorteID: input.EnquadramentoJuridicoPorteID,
+		ClassificacaoObservacao:      input.ClassificacaoObservacao,
+		SetClassificacaoTimestamp: classificacaoBumpCreate(
+			input.TipoPessoa, input.RegimeTributarioID, input.TipoEmpresaID, input.EnquadramentoJuridicoPorteID, input.ClassificacaoObservacao),
 	})
 	if err != nil {
 		return EmpresaMutationResponse{}, err
@@ -80,21 +107,30 @@ func (s *EmpresaService) Create(ctx context.Context, input EmpresaInput) (Empres
 }
 
 func (s *EmpresaService) Update(ctx context.Context, input EmpresaInput) (EmpresaMutationResponse, error) {
+	snap, errSnap := s.repo.ClienteClassificacaoSnapshot(ctx, strings.TrimSpace(input.ID), strings.TrimSpace(input.TenantID))
+	if errSnap != nil {
+		return EmpresaMutationResponse{}, errSnap
+	}
+	bump := classificacaoBumpUpdate(snap, input.TipoPessoa, input.RegimeTributarioID, input.TipoEmpresaID, input.EnquadramentoJuridicoPorteID, input.ClassificacaoObservacao)
+
 	empresas, total, err := s.repo.Update(ctx, repository.EmpresaUpsertInput{
-		ID:                 input.ID,
-		Nome:               input.Nome,
-		TenantID:           input.TenantID,
-		MunicipioID:        input.MunicipioID,
-		RotinaID:           input.RotinaID,
-		RotinaPFID:         input.RotinaPFID,
-		Cnaes:              input.Cnaes,
-		Bairro:             input.Bairro,
-		TipoPessoa:         input.TipoPessoa,
-		Documento:          input.Documento,
-		IE:                 input.IE,
-		IM:                 input.IM,
-		RegimeTributarioID: input.RegimeTributarioID,
-		TipoEmpresaID:      input.TipoEmpresaID,
+		ID:                           input.ID,
+		Nome:                         input.Nome,
+		TenantID:                     input.TenantID,
+		MunicipioID:                  input.MunicipioID,
+		RotinaID:                     input.RotinaID,
+		RotinaPFID:                   input.RotinaPFID,
+		Cnaes:                        input.Cnaes,
+		Bairro:                       input.Bairro,
+		TipoPessoa:                   input.TipoPessoa,
+		Documento:                    input.Documento,
+		IE:                           input.IE,
+		IM:                           input.IM,
+		RegimeTributarioID:           input.RegimeTributarioID,
+		TipoEmpresaID:                input.TipoEmpresaID,
+		EnquadramentoJuridicoPorteID: input.EnquadramentoJuridicoPorteID,
+		ClassificacaoObservacao:      input.ClassificacaoObservacao,
+		SetClassificacaoTimestamp:    bump,
 	})
 	if err != nil {
 		return EmpresaMutationResponse{}, err

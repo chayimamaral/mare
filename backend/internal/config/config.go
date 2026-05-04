@@ -106,7 +106,7 @@ func Load() (Config, error) {
 	if runtime == "" {
 		if exe, err := os.Executable(); err == nil {
 			exeNorm := strings.ReplaceAll(strings.ToLower(exe), "\\", "/")
-			if strings.Contains(exeNorm, "/backend/bin/") || strings.Contains(exeNorm, "/bin/vecontab-backend") {
+			if strings.Contains(exeNorm, "/backend/bin/") || strings.Contains(exeNorm, "/bin/vecx-backend") {
 				runtime = "binary"
 			}
 		}
@@ -201,7 +201,7 @@ func Load() (Config, error) {
 		LocalAgentSharedSecret:         strings.TrimSpace(os.Getenv("LOCAL_AGENT_SHARED_SECRET")),
 		IAEnabled:                      strings.EqualFold(strings.TrimSpace(getEnv("IA_ENABLED", "false")), "true"),
 		// Padrão 127.0.0.1: em vários Linux, "localhost" resolve primeiro para ::1 e o Ollama costuma escutar só em IPv4 — conexão recusada → 502 no chat.
-		OllamaGenerateURL:              strings.TrimRight(strings.TrimSpace(getEnv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")), "/") + "/api/generate",
+		OllamaGenerateURL: strings.TrimRight(strings.TrimSpace(getEnv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")), "/") + "/api/generate",
 		// Padrão llama3: costuma existir após instalação típica do Ollama. Para o modelo customizado: ollama create vecx-ai -f VECX_AI.Modelfile e defina OLLAMA_MODEL=vecx-ai.
 		OllamaModel: ollamaModel,
 	}

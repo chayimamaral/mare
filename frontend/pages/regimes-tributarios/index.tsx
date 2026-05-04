@@ -325,7 +325,7 @@ const RegimesTributarios = () => {
       svc
         .updateRegime(payload)
         .then(() => {
-          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Regime atualizado.', life: 3000 });
+          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento tributário atualizado.', life: 3000 });
           done();
         })
         .catch((err) => toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 }));
@@ -333,7 +333,7 @@ const RegimesTributarios = () => {
       svc
         .createRegime(payload)
         .then(() => {
-          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Regime criado.', life: 3000 });
+          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento tributário criado.', life: 3000 });
           done();
         })
         .catch((err) => toast.current?.show({ severity: 'error', summary: 'Erro', detail: apiErr(err), life: 5000 }));
@@ -345,7 +345,7 @@ const RegimesTributarios = () => {
     svc
       .deleteRegime({ id: regime.id })
       .then(() => {
-        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Regime desativado.', life: 3000 });
+          toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Enquadramento tributário desativado.', life: 3000 });
         setDeleteDialog(false);
         setRegime(empty);
         refetch();
@@ -400,7 +400,7 @@ const RegimesTributarios = () => {
 
   const header = (
     <div className="flex flex-column md:flex-row md:justify-content-between md:align-items-center">
-      <h5 className="m-0">Regime tributário</h5>
+      <h5 className="m-0">Enquadramento tributário</h5>
       <span className="block mt-2 md:mt-0 p-input-icon-left">
         <i className="pi pi-search" />
         <InputText
@@ -446,7 +446,7 @@ const RegimesTributarios = () => {
             rowsPerPageOptions={[10, 20, 30]}
             className="datatable-responsive"
             paginatorTemplate={template as never}
-            emptyMessage="Nenhum regime encontrado."
+            emptyMessage="Nenhum enquadramento tributário encontrado."
             header={header}
             size="small"
             stripedRows
@@ -469,7 +469,7 @@ const RegimesTributarios = () => {
           <Dialog
             visible={regimeDialog}
             style={{ width: 'min(520px, 95vw)' }}
-            header={regime.id ? 'Editar regime' : 'Novo regime'}
+            header={regime.id ? 'Editar enquadramento tributário' : 'Novo enquadramento tributário'}
             modal
             className="p-fluid"
             footer={dialogFooter}
@@ -526,7 +526,7 @@ const RegimesTributarios = () => {
               <i className="pi pi-exclamation-triangle mr-3" style={{ fontSize: '2rem', color: '#d6551e' }} />
               {regime?.nome && (
                 <span>
-                  Desativar o regime <b>{regime.nome}</b>? Ele deixará de aparecer nas listagens.
+                  Desativar o enquadramento tributário <b>{regime.nome}</b>? Ele deixará de aparecer nas listagens.
                 </span>
               )}
             </div>

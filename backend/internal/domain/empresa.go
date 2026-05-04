@@ -21,6 +21,13 @@ type EmpresaTipoEmpresaRef struct {
 	Descricao string `json:"descricao"`
 }
 
+// EmpresaEnquadramentoPorteRef porte por faturamento (public.enquadramento_juridico_porte).
+type EmpresaEnquadramentoPorteRef struct {
+	ID        string `json:"id"`
+	Sigla     string `json:"sigla"`
+	Descricao string `json:"descricao"`
+}
+
 // EmpresaRegimeTributarioRef regime federal (CRT) vinculado ao cliente PJ.
 type EmpresaRegimeTributarioRef struct {
 	ID        string `json:"id"`
@@ -38,9 +45,12 @@ type EmpresaListItem struct {
 	Municipio           EmpresaRef                 `json:"municipio"`
 	Rotina              EmpresaRotinaRef           `json:"rotina"`
 	RotinaPF            EmpresaRotinaPFRef         `json:"rotina_pf"`
-	TipoEmpresa         EmpresaTipoEmpresaRef      `json:"tipo_empresa"`
-	RegimeTributario    EmpresaRegimeTributarioRef `json:"regime_tributario"`
-	Cnaes               any                        `json:"cnaes"`
+	TipoEmpresa                EmpresaTipoEmpresaRef          `json:"tipo_empresa"`
+	RegimeTributario           EmpresaRegimeTributarioRef     `json:"regime_tributario"`
+	EnquadramentoJuridicoPorte EmpresaEnquadramentoPorteRef   `json:"enquadramento_juridico_porte"`
+	ClassificacaoObservacao    string                         `json:"classificacao_observacao"`
+	ClassificacaoAtualizadoEm  string                         `json:"classificacao_atualizado_em"`
+	Cnaes                      any                            `json:"cnaes"`
 	Bairro              string                     `json:"bairro"`
 	Iniciado            bool                       `json:"iniciado"`
 	PassosConcluidos    bool                       `json:"passos_concluidos"`

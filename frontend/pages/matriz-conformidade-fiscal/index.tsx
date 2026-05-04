@@ -151,12 +151,12 @@ export default function MatrizConformidadeFiscalPage() {
         <Toast ref={toast} />
         <Card title="Matriz de Conformidade Fiscal (SERPRO)">
           <p className="mt-0 text-600">
-            Defina os serviços disponíveis por combinação de Enquadramento Jurídico e Regime Tributário.
+            Defina os serviços disponíveis por combinação de natureza jurídica e enquadramento tributário.
           </p>
 
           <div className="grid mb-2">
             <div className="col-12 md:col-4">
-              <label className="block mb-2 font-medium">Enquadramento Jurídico</label>
+              <label className="block mb-2 font-medium">Natureza jurídica</label>
               <Dropdown
                 value={enquadramentoID}
                 options={enquadramentos}
@@ -170,7 +170,7 @@ export default function MatrizConformidadeFiscalPage() {
               />
             </div>
             <div className="col-12 md:col-4">
-              <label className="block mb-2 font-medium">Regime Tributário</label>
+              <label className="block mb-2 font-medium">Enquadramento tributário</label>
               <Dropdown
                 value={regimeID}
                 options={regimes}
@@ -225,7 +225,7 @@ export default function MatrizConformidadeFiscalPage() {
 
           {(!enquadramentoID || !regimeID) ? (
             <div className="p-3 border-1 border-round border-300 surface-50 text-700">
-              Selecione Enquadramento e Regime para carregar a matriz.
+              Selecione natureza jurídica e enquadramento tributário para carregar a matriz.
             </div>
           ) : (
             <div className="border-1 border-300 border-round surface-50 p-2" style={{ maxHeight: '60vh', overflowY: 'auto' }}>

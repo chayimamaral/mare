@@ -85,6 +85,12 @@ declare namespace Vec {
         codigo_crt?: number;
     };
 
+    type EmpresaEnquadramentoPorteLite = {
+        id?: string;
+        sigla?: string;
+        descricao?: string;
+    };
+
     type Empresa = {
         id?: string;
         nome?: string;
@@ -108,6 +114,9 @@ declare namespace Vec {
         /** Template PF (IRPF / Carnê-Leão etc.); alinhado ao JSON da API */
         rotina_pf?: RotinaPFLite;
         tipo_empresa?: TipoEmpresaLite;
+        enquadramento_juridico_porte?: EmpresaEnquadramentoPorteLite;
+        classificacao_observacao?: string;
+        classificacao_atualizado_em?: string;
         uf?: string;
         cep?: string;
         tenantid?: string;
@@ -227,7 +236,7 @@ declare namespace Vec {
         denominacao?: string;
     }
 
-    /** CRT federal (SPED) + metadados de obrigacoes em configuracao_json */
+    /** Enquadramento tributário: CRT federal (SPED) + metadados de obrigacoes em configuracao_json */
     type RegimeTributario = {
         id?: string;
         nome?: string;
@@ -241,6 +250,17 @@ declare namespace Vec {
         id?: string;
         ano?: number;
         valor?: number;
+    }
+
+    /** Porte por faixa de faturamento anual (public.enquadramento_juridico_porte). */
+    type EnquadramentoJuridicoPorte = {
+        id?: string;
+        sigla?: string;
+        descricao?: string;
+        limite_inicial?: number;
+        limite_final?: number | null;
+        ano_vigencia?: number;
+        ativo?: boolean;
     }
 
     type CompromissoRef = {

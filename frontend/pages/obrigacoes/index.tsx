@@ -724,7 +724,7 @@ const ObrigacoesLegaisPage = () => {
           optionLabel="descricao"
           dataKey="id"
           className="w-full md:w-16rem"
-          placeholder="Filtre por Enquadramento Jurídico"
+          placeholder="Filtre por natureza jurídica"
           filter
           showClear
         />
@@ -800,7 +800,7 @@ const ObrigacoesLegaisPage = () => {
               rowsPerPageOptions={[10, 20, 50]}
               className="datatable-responsive"
               paginatorTemplate={template}
-              emptyMessage={tipoEmpresaSelecionado ? 'Nenhuma obrigação legal encontrada.' : 'Selecione um Enquadramento Jurídico para listar.'}
+              emptyMessage={tipoEmpresaSelecionado ? 'Nenhuma obrigação legal encontrada.' : 'Selecione uma natureza jurídica para listar.'}
               header={header}
               size="small"
               stripedRows
@@ -814,7 +814,7 @@ const ObrigacoesLegaisPage = () => {
               paginatorLeft={paginatorLeft}
             >
               <Column field="descricao" header="Descrição" sortable headerStyle={{ minWidth: '16rem' }} />
-              <Column field="tipoempresa.nome" header="Enquadramento Jurídico" sortable headerStyle={{ minWidth: '14rem' }} />
+              <Column field="tipoempresa.nome" header="Natureza Jurídica" sortable headerStyle={{ minWidth: '14rem' }} />
               <Column
                 field="tipo_classificacao"
                 header="Tipo de Classificação"
@@ -841,7 +841,7 @@ const ObrigacoesLegaisPage = () => {
               onHide={hideDialog}
             >
               <div className="field">
-                <label htmlFor="ddtipoempresa">Enquadramento Jurídico *</label>
+                <label htmlFor="ddtipoempresa">Natureza jurídica *</label>
                 <Dropdown
                   id="ddtipoempresa"
                   value={selectedTipoEmpresa}
@@ -849,11 +849,11 @@ const ObrigacoesLegaisPage = () => {
                   onChange={(e) => setSelectedTipoEmpresa(e.value)}
                   optionLabel="descricao"
                   dataKey="id"
-                  placeholder="Selecione um Enquadramento Jurídico"
+                  placeholder="Selecione uma natureza jurídica"
                   filter
                   className={classNames({ 'p-invalid': submitted && !selectedTipoEmpresa })}
                 />
-                {submitted && !selectedTipoEmpresa && <small className="p-invalid">Tipo de empresa é obrigatório.</small>}
+                {submitted && !selectedTipoEmpresa && <small className="p-invalid">Natureza jurídica é obrigatória.</small>}
               </div>
 
               <div className="field">

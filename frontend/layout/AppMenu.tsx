@@ -221,14 +221,19 @@ const AppMenu = () => {
                 icon: 'pi pi-fw pi-sitemap',
                 items: [
                   {
-                    label: 'Enquadramento Jurídico',
+                    label: 'Natureza Jurídica',
                     icon: 'pi pi-fw pi-table',
                     to: '/tipoempresa',
                   },
                   {
-                    label: 'Regime tributário',
+                    label: 'Enquadramento Tributário',
                     icon: 'pi pi-fw pi-percentage',
                     to: '/regimes-tributarios',
+                  },
+                  {
+                    label: 'Enquadramento Jurídico',
+                    icon: 'pi pi-fw pi-briefcase',
+                    to: '/enquadramento-juridico',
                   },
                   {
                     label: 'CNAE',
