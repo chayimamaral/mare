@@ -7,9 +7,12 @@ import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { InputTextarea } from 'primereact/inputtextarea';
+import { ProgressBar } from 'primereact/progressbar';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
+import { Tooltip } from 'primereact/tooltip';
 import { Toolbar } from 'primereact/toolbar';
+import { Message } from 'primereact/message';
 import { classNames } from 'primereact/utils';
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -73,6 +76,48 @@ type PaginatorCurrentPageReportOptions = {
   rows: number;
 };
 
+type IndicadorFaturamentoNivel = 'verde' | 'amarelo' | 'vermelho' | 'neutro';
+
+function indicadorFaturamentoNivel(row: Vec.Empresa): IndicadorFaturamentoNivel {
+  if ((row.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF') {
+    return 'neutro';
+  }
+  const doc = onlyDigits(row.documento ?? '');
+  if (doc.length !== 14) {
+    return 'neutro';
+  }
+  const lim = row.enquadramento_juridico_porte?.limite_final;
+  if (lim == null || !(lim > 0)) {
+    return 'neutro';
+  }
+  const fat = Number(row.faturamento_acumulado_ano ?? 0);
+  const p = (fat / lim) * 100;
+  if (p < 80) {
+    return 'verde';
+  }
+  if (p < 95) {
+    return 'amarelo';
+  }
+  return 'vermelho';
+}
+
+function corIndicadorFaturamento(nivel: IndicadorFaturamentoNivel): string {
+  switch (nivel) {
+    case 'verde':
+      return '#22c55e';
+    case 'amarelo':
+      return '#eab308';
+    case 'vermelho':
+      return '#ef4444';
+    default:
+      return '#94a3b8';
+  }
+}
+
+function formatBRL(n: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+}
+
 const Clientes = () => {
   const tipoPessoaOptions = [
     { label: 'Pessoa jurídica (PJ)', value: 'PJ' },
@@ -133,6 +178,7 @@ const Clientes = () => {
     iniciado: false,
     passos_concluidos: false,
     compromissos_gerados: false,
+    faturamento_acumulado_ano: 0,
   };
 
   const [empresas, setEmpresas] = useState([]);
@@ -195,6 +241,7 @@ const Clientes = () => {
   const [clienteDialogTabIndex, setClienteDialogTabIndex] = useState(0);
   const [deleteEmpresaDialog, setDeleteEmpresaDialog] = useState(false);
   const [a3WebDialogVisible, setA3WebDialogVisible] = useState(false);
+  const [faturamentoAnaliseRow, setFaturamentoAnaliseRow] = useState<Vec.Empresa | null>(null);
   const [empresa, setEmpresa] = useState<Vec.Empresa>(emptyEmpresa);
   const [submitted, setSubmitted] = useState(false);
   const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -854,8 +901,10 @@ const Clientes = () => {
             id: row.enquadramento_juridico_porte.id,
             sigla: row.enquadramento_juridico_porte.sigla ?? '',
             descricao: row.enquadramento_juridico_porte.descricao ?? '',
+            limite_final: row.enquadramento_juridico_porte.limite_final,
           }
         : { id: '', sigla: '', descricao: '' },
+      faturamento_acumulado_ano: row.faturamento_acumulado_ano ?? 0,
       classificacao_observacao: row.classificacao_observacao ?? '',
       classificacao_atualizado_em: row.classificacao_atualizado_em ?? '',
       rotina_pf: row.rotina_pf ?? { id: '', nome: '', categoria: '' },
@@ -1069,6 +1118,38 @@ const Clientes = () => {
     );
   };
 
+  const indicadorFaturamentoStBodyTemplate = (rowData: Vec.Empresa) => {
+    const nivel = indicadorFaturamentoNivel(rowData);
+    const cor = corIndicadorFaturamento(nivel);
+    return (
+      <>
+        <span className="p-column-title">ST</span>
+        <button
+          type="button"
+          className="cliente-indicador-faturamento-dot p-0 border-none bg-transparent cursor-pointer p-component"
+          style={{ lineHeight: 0, padding: '2px' }}
+          aria-label="Indicador de faturamento em relação ao teto do porte"
+          onClick={(e) => {
+            e.stopPropagation();
+            setFaturamentoAnaliseRow(rowData);
+          }}
+        >
+          <span
+            className="border-circle inline-block"
+            style={{
+              width: '0.65rem',
+              height: '0.65rem',
+              minWidth: '0.65rem',
+              minHeight: '0.65rem',
+              backgroundColor: cor,
+              boxShadow: nivel === 'neutro' ? 'inset 0 0 0 1px rgba(0,0,0,0.15)' : undefined,
+            }}
+          />
+        </button>
+      </>
+    );
+  };
+
   const municipioBodyTemplate = (rowData: Vec.Empresa) => {
     const n = rowData.municipio?.nome?.trim();
     return (
@@ -1231,6 +1312,11 @@ const Clientes = () => {
       <div className="col-12">
         <div className="card">
           <Toast ref={toast} />
+          <Tooltip
+            target=".cliente-indicador-faturamento-dot"
+            content="Clique para ver detalhes do faturamento"
+            position="top"
+          />
           <Toolbar className="mb-4" left={leftToolbarTemplate} ></Toolbar>
 
           <DataTable
@@ -1258,6 +1344,12 @@ const Clientes = () => {
             totalRecords={totalRecords}
             paginatorLeft={paginatorLeft}
           >
+            <Column
+              field="faturamento_indicador"
+              header="ST"
+              body={indicadorFaturamentoStBodyTemplate}
+              headerStyle={{ width: '3.25rem', maxWidth: '4rem' }}
+            ></Column>
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column
               field="tipo_pessoa"
@@ -2008,6 +2100,140 @@ const Clientes = () => {
                 </TabPanel>
               </TabView>
             </div>
+          </Dialog>
+
+          <Dialog
+            visible={!!faturamentoAnaliseRow}
+            style={{ width: 'min(34rem, 94vw)' }}
+            header={
+              faturamentoAnaliseRow
+                ? `Análise de Faturamento - ${faturamentoAnaliseRow.nome ?? ''}`
+                : ''
+            }
+            modal
+            className="p-fluid"
+            onHide={() => setFaturamentoAnaliseRow(null)}
+            footer={
+              <Button
+                type="button"
+                label="Fechar"
+                icon="pi pi-times"
+                text
+                onClick={() => setFaturamentoAnaliseRow(null)}
+              />
+            }
+          >
+            {faturamentoAnaliseRow ? (
+              (() => {
+                const fa = faturamentoAnaliseRow;
+                const anoCalendario = new Date().getFullYear();
+                const isPF = (fa.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF';
+                const docDigits = onlyDigits(fa.documento ?? '');
+                const doc14 = docDigits.length === 14;
+                const limRaw = fa.enquadramento_juridico_porte?.limite_final;
+                const limNum = limRaw != null ? Number(limRaw) : NaN;
+                const limOk = Number.isFinite(limNum) && limNum > 0;
+                const fat = Number(fa.faturamento_acumulado_ano ?? 0);
+                const nivel = indicadorFaturamentoNivel(fa);
+                const pct = limOk ? (fat / limNum) * 100 : 0;
+                const porteRotulo = [fa.enquadramento_juridico_porte?.sigla, fa.enquadramento_juridico_porte?.descricao]
+                  .map((s) => (s ?? '').trim())
+                  .filter(Boolean)
+                  .join(' — ');
+                const barColor =
+                  nivel === 'vermelho' ? '#ef4444' : nivel === 'amarelo' ? '#eab308' : '#22c55e';
+
+                return (
+                  <div className="flex flex-column gap-3">
+                    <p className="text-600 text-sm m-0">
+                      Valores com base nas notas fiscais em <strong>nfe_gestao</strong> em que o CNPJ do cliente é o{' '}
+                      <strong>emitente</strong>, somando <strong>valor_total</strong> no ano calendário{' '}
+                      <strong>{anoCalendario}</strong>.
+                    </p>
+                    {isPF ? (
+                      <Message
+                        severity="info"
+                        text="Indicador de porte (ME, EPP, etc.) não se aplica a pessoa física."
+                        className="w-full"
+                      />
+                    ) : null}
+                    {!isPF && !doc14 ? (
+                      <Message
+                        severity="info"
+                        text="Informe um CNPJ válido (14 dígitos) no cadastro do cliente para vincular o faturamento das NF-e emitidas."
+                        className="w-full"
+                      />
+                    ) : null}
+                    {!isPF && doc14 ? (
+                      <div className="field mb-0">
+                        <label className="block text-900 font-medium mb-1">Valor total faturado (acumulado no ano)</label>
+                        <span className="text-xl">{formatBRL(fat)}</span>
+                      </div>
+                    ) : null}
+                    {!isPF && doc14 && limOk ? (
+                      <div className="field mb-0">
+                        <label className="block text-900 font-medium mb-1">Teto do enquadramento por porte</label>
+                        <span className="text-lg">
+                          {formatBRL(limNum)}
+                          {porteRotulo ? (
+                            <span className="text-600 text-base font-normal">
+                              {' '}
+                              ({porteRotulo})
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+                    ) : null}
+                    {!isPF && doc14 && !limOk ? (
+                      <Message
+                        severity="info"
+                        text="Defina o enquadramento por porte no cliente (aba Classificação fiscal e jurídica) para exibir o teto e o percentual em relação ao faturamento."
+                        className="w-full"
+                      />
+                    ) : null}
+                    {!isPF && doc14 && limOk ? (
+                      <>
+                        <div>
+                          <label className="block text-900 font-medium mb-2">Progresso em relação ao teto</label>
+                          <ProgressBar
+                            value={Math.min(100, Math.round(pct * 10) / 10)}
+                            showValue={false}
+                            style={{ height: '12px' }}
+                            pt={{
+                              value: {
+                                style: {
+                                  background: barColor,
+                                },
+                              },
+                            }}
+                          />
+                          <div className="flex justify-content-between align-items-center mt-2">
+                            <span className="text-600 text-sm">
+                              {pct >= 100 ? 'Atingido ou superado o teto' : 'Percentual utilizado'}
+                            </span>
+                            <span className="text-900 font-semibold">{pct.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                        {nivel === 'amarelo' ? (
+                          <Message
+                            severity="warn"
+                            text="Atenção: o faturamento acumulado ultrapassou 80% do teto do enquadramento por porte. Monitore a proximidade do limite."
+                            className="w-full"
+                          />
+                        ) : null}
+                        {nivel === 'vermelho' ? (
+                          <Message
+                            severity="error"
+                            text="Alerta: o faturamento atingiu ou ultrapassou 95% do teto. Avalie o enquadramento e o planejamento fiscal."
+                            className="w-full"
+                          />
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                );
+              })()
+            ) : null}
           </Dialog>
 
           <Dialog visible={deleteEmpresaDialog} style={{ width: '450px' }} header="Confirma a exclusão ?" modal footer={deleteEmpresaDialogFooter} onHide={hideDeleteEmpresaDialog} className="red-header">

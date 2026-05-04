@@ -273,6 +273,8 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			COALESCE(NULLIF(BTRIM(ejp.id::text), ''), ''),
 			COALESCE(NULLIF(BTRIM(ejp.sigla), ''), ''),
 			COALESCE(NULLIF(BTRIM(ejp.descricao), ''), ''),
+			ejp.limite_final::float8,
+			COALESCE(fat_ytd.fat_total, 0)::float8,
 			COALESCE(c.classificacao_observacao, ''),
 			c.classificacao_atualizado_em
 		FROM empresa e
@@ -282,6 +284,16 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		LEFT JOIN public.tipoempresa te_cli ON te_cli.id = c.tipo_empresa_id
 		LEFT JOIN public.regime_tributario rt ON rt.id = c.regime_tributario_id
 		LEFT JOIN public.enquadramento_juridico_porte ejp ON ejp.id = c.enquadramento_juridico_porte_id
+		LEFT JOIN (
+			SELECT
+				regexp_replace(COALESCE(cnpj_emitente, ''), '[^0-9]', '', 'g') AS cnpj_norm,
+				SUM(COALESCE(valor_total, 0)) AS fat_total
+			FROM nfe_gestao
+			WHERE data_emissao IS NOT NULL
+			  AND EXTRACT(YEAR FROM data_emissao) = EXTRACT(YEAR FROM CURRENT_DATE)
+			  AND LENGTH(regexp_replace(COALESCE(cnpj_emitente, ''), '[^0-9]', '', 'g')) = 14
+			GROUP BY 1
+		) fat_ytd ON fat_ytd.cnpj_norm = regexp_replace(COALESCE(NULLIF(BTRIM(c.documento), ''), ''), '[^0-9]', '', 'g')
 		WHERE %s
 		ORDER BY %s
 		LIMIT $%d OFFSET $%d`, strings.Join(whereParts, " AND "), orderBy, argIndex, argIndex+1)
@@ -301,14 +313,26 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		var iniciado, passosConcluidos, compromissosGerados bool
 		var cnaes any
 		var ejpID, ejpSigla, ejpDesc, classObs string
+		var ejpLimite sql.NullFloat64
+		var fatYTD float64
 		var classAt sql.NullTime
-		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &ie, &im, &rtid, &rtnome, &rtcod, &mid, &mnome, &rid, &rdesc, &teid, &tedesc, &rpfid, &rpfnome, &rpfcat, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados, &ejpID, &ejpSigla, &ejpDesc, &classObs, &classAt); err != nil {
+		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &ie, &im, &rtid, &rtnome, &rtcod, &mid, &mnome, &rid, &rdesc, &teid, &tedesc, &rpfid, &rpfnome, &rpfcat, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados, &ejpID, &ejpSigla, &ejpDesc, &ejpLimite, &fatYTD, &classObs, &classAt); err != nil {
 			return nil, 0, fmt.Errorf("scan empresa: %w", err)
 		}
 
 		classAtStr := ""
 		if classAt.Valid {
 			classAtStr = classAt.Time.UTC().Format(time.RFC3339)
+		}
+
+		ejpRef := domain.EmpresaEnquadramentoPorteRef{
+			ID:        ejpID,
+			Sigla:     ejpSigla,
+			Descricao: ejpDesc,
+		}
+		if ejpLimite.Valid {
+			v := ejpLimite.Float64
+			ejpRef.LimiteFinal = &v
 		}
 
 		item := domain.EmpresaListItem{
@@ -327,13 +351,10 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			Iniciado:                  iniciado,
 			PassosConcluidos:          passosConcluidos,
 			CompromissosGerados:       compromissosGerados,
+			FaturamentoAcumuladoAno:   fatYTD,
 			ClassificacaoObservacao:   classObs,
 			ClassificacaoAtualizadoEm: classAtStr,
-			EnquadramentoJuridicoPorte: domain.EmpresaEnquadramentoPorteRef{
-				ID:        ejpID,
-				Sigla:     ejpSigla,
-				Descricao: ejpDesc,
-			},
+			EnquadramentoJuridicoPorte: ejpRef,
 			RegimeTributario: domain.EmpresaRegimeTributarioRef{
 				ID:        rtid,
 				Nome:      rtnome,

@@ -23,9 +23,10 @@ type EmpresaTipoEmpresaRef struct {
 
 // EmpresaEnquadramentoPorteRef porte por faturamento (public.enquadramento_juridico_porte).
 type EmpresaEnquadramentoPorteRef struct {
-	ID        string `json:"id"`
-	Sigla     string `json:"sigla"`
-	Descricao string `json:"descricao"`
+	ID          string   `json:"id"`
+	Sigla       string   `json:"sigla"`
+	Descricao   string   `json:"descricao"`
+	LimiteFinal *float64 `json:"limite_final,omitempty"`
 }
 
 // EmpresaRegimeTributarioRef regime federal (CRT) vinculado ao cliente PJ.
@@ -48,6 +49,8 @@ type EmpresaListItem struct {
 	TipoEmpresa                EmpresaTipoEmpresaRef          `json:"tipo_empresa"`
 	RegimeTributario           EmpresaRegimeTributarioRef     `json:"regime_tributario"`
 	EnquadramentoJuridicoPorte EmpresaEnquadramentoPorteRef   `json:"enquadramento_juridico_porte"`
+	// FaturamentoAcumuladoAno soma valor_total em nfe_gestao (emitente = documento PJ) no ano calendário corrente (sessão DB).
+	FaturamentoAcumuladoAno float64 `json:"faturamento_acumulado_ano"`
 	ClassificacaoObservacao    string                         `json:"classificacao_observacao"`
 	ClassificacaoAtualizadoEm  string                         `json:"classificacao_atualizado_em"`
 	Cnaes                      any                            `json:"cnaes"`

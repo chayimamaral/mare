@@ -89,6 +89,8 @@ declare namespace Vec {
         id?: string;
         sigla?: string;
         descricao?: string;
+        /** Teto da faixa (R$) em public.enquadramento_juridico_porte; null/omit = sem teto. */
+        limite_final?: number | null;
     };
 
     type Empresa = {
@@ -115,6 +117,8 @@ declare namespace Vec {
         rotina_pf?: RotinaPFLite;
         tipo_empresa?: TipoEmpresaLite;
         enquadramento_juridico_porte?: EmpresaEnquadramentoPorteLite;
+        /** Soma valor_total em nfe_gestao como emitente (CNPJ = documento), ano calendário corrente. */
+        faturamento_acumulado_ano?: number;
         classificacao_observacao?: string;
         classificacao_atualizado_em?: string;
         uf?: string;
