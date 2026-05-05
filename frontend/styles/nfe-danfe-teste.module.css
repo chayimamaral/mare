@@ -1,0 +1,167 @@
+.wrapper {
+  background: var(--surface-0, #fff);
+  color: var(--text-color, #111827);
+}
+
+.wrapperPrint {
+  padding: 0;
+}
+
+/* A4: 21.0cm x 29.7cm (retrato). */
+.page {
+  width: 21cm;
+  height: 29.7cm;
+  background: var(--surface-card, #fff);
+  border: 1px solid var(--surface-border, #e5e7eb);
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-color-secondary, #6b7280);
+}
+
+.box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 0.04cm solid #111;
+  padding: 0.08cm 0.12cm;
+  overflow: hidden;
+}
+
+.barcodeBox {
+  padding: 0;
+}
+
+.barcodeSvg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.boxLabel {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 8px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.boxValue {
+  margin-top: 0.08cm;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 10px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.prodGrid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.prodHeaderRow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 0.60cm;
+  border-bottom: 0.04cm solid #111;
+  display: flex;
+}
+
+.prodCol {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0.06cm 0.08cm;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 7px;
+  line-height: 1.05;
+  text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prodRows {
+  position: absolute;
+  left: 0;
+  top: 0.60cm;
+  width: 100%;
+  height: calc(100% - 0.60cm);
+  /* Linhas horizontais “de guia” (casca vazia). */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 0.64cm,
+    rgba(17, 17, 17, 1) 0.64cm,
+    rgba(17, 17, 17, 1) calc(0.64cm + 0.04cm)
+  );
+  background-size: 100% calc(0.64cm + 0.04cm);
+}
+
+.prodVertLinesAll {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.prodVert {
+  height: 100%;
+  border-right: 0.04cm solid #111;
+  box-sizing: border-box;
+}
+
+.prodVert:last-child {
+  border-right: none;
+}
+
+.prodDataLayer {
+  position: absolute;
+  left: 0;
+  top: 0.60cm;
+  width: 100%;
+  height: calc(100% - 0.60cm);
+  pointer-events: none;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 8px;
+  line-height: 1.05;
+}
+
+.prodRow {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 0.64cm;
+  display: flex;
+}
+
+.prodCellText {
+  padding: 0.06cm 0.08cm;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media print {
+  .wrapper {
+    padding: 0;
+    margin: 0;
+    border: none;
+  }
+  .page {
+    border: none;
+  }
+}
+

@@ -14,6 +14,7 @@ import React, { useMemo, useRef, useState } from 'react';
 
 import api from '../../components/api/apiClient';
 import { DanfeView } from '../../components/nfe/DanfeView';
+import { DanfeTesteView } from '../../components/nfe/DanfeTesteView';
 import { useAuthScopeKey } from '../../components/hooks/useAuthScopeKey';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
 import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
@@ -138,11 +139,14 @@ export default function NFEManutencaoPage() {
     const [danfeLoading, setDanfeLoading] = useState(false);
     const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
     const [danfeChave, setDanfeChave] = useState('');
+    /** `consulta` = abas (`DanfeView`); `matriz` = folha A4 (`DanfeTesteView`), a partir de Imprimir. */
+    const [danfePane, setDanfePane] = useState<'consulta' | 'matriz'>('consulta');
     const closeDanfePreview = () => {
         setDanfeVisible(false);
         setDanfeData(null);
         setDanfeChave('');
         setDanfeLoading(false);
+        setDanfePane('consulta');
     };
 
 
@@ -316,6 +320,7 @@ export default function NFEManutencaoPage() {
         }
         setDetalhe(null);
         setDanfeChave(chave);
+        setDanfePane('consulta');
         setDanfeVisible(true);
         setDanfeData(null);
         setDanfeLoading(true);
@@ -347,6 +352,14 @@ export default function NFEManutencaoPage() {
         }, 25000);
         return () => window.clearTimeout(t);
     }, [danfeVisible, danfeLoading]);
+
+    React.useEffect(() => {
+        if (danfePane !== 'matriz' || !danfeData) {
+            return;
+        }
+        const t = window.setTimeout(() => window.print(), 600);
+        return () => window.clearTimeout(t);
+    }, [danfePane, danfeData]);
 
     const enviarManifestacao = async () => {
         if (!detalhe) {
@@ -420,16 +433,29 @@ export default function NFEManutencaoPage() {
                 <div className="card">
                     <Toast ref={toast} />
                     <Dialog
-                        header={`DANFE — chave ${danfeChave || '…'}`}
+                        header={
+                            danfePane === 'matriz'
+                                ? `DANFE — impressão (A4) — ${danfeChave || '…'}`
+                                : `DANFE — consulta — ${danfeChave || '…'}`
+                        }
                         visible={danfeVisible}
                         modal={false}
-                        style={{ width: '980px' }}
+                        style={{ width: danfePane === 'matriz' ? 'min(86rem, 99.5vw)' : '980px' }}
                         contentStyle={{ overflow: 'auto', height: '78vh', minHeight: '78vh', maxHeight: '78vh' }}
                         maximizable
                         dismissableMask
                         closeOnEscape
                         footer={(
-                            <div className="flex justify-content-end">
+                            <div className="flex justify-content-end flex-wrap gap-2">
+                                {danfePane === 'matriz' ? (
+                                    <Button
+                                        type="button"
+                                        label="Voltar à consulta (abas)"
+                                        icon="pi pi-arrow-left"
+                                        text
+                                        onClick={() => setDanfePane('consulta')}
+                                    />
+                                ) : null}
                                 <Button
                                     type="button"
                                     label="Fechar pré-visualização"
@@ -441,16 +467,29 @@ export default function NFEManutencaoPage() {
                         )}
                         onHide={closeDanfePreview}
                     >
-                        <p className="text-600 text-sm mt-0 mb-3">
-                            Documento carregado do tenant e renderizado em visualização DANFE nativa React.
-                        </p>
+                        {danfePane === 'consulta' ? (
+                            <p className="text-600 text-sm mt-0 mb-3">
+                                Documento carregado do tenant e renderizado em visualização DANFE nativa React. Em{' '}
+                                <strong>Imprimir</strong>, abre-se a matriz A4 para pré-visualização de impressão.
+                            </p>
+                        ) : (
+                            <p className="text-600 text-sm mt-0 mb-3">
+                                Matriz A4 retrato (MOC 7.0 — Anexo II, 3.8.1) com os dados desta NF-e. A pré-impressão do
+                                navegador deve refletir apenas esta folha.
+                            </p>
+                        )}
                         {danfeLoading ? (
                             <div className="flex flex-column align-items-center gap-3 py-6">
                                 <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
                                 <span className="text-600">Montando visualização DANFE…</span>
                             </div>
                         ) : null}
-                        {!danfeLoading && danfeData ? <DanfeView data={danfeData} /> : null}
+                        {!danfeLoading && danfeData && danfePane === 'consulta' ? (
+                            <DanfeView data={danfeData} onImprimirMatriz={() => setDanfePane('matriz')} />
+                        ) : null}
+                        {!danfeLoading && danfeData && danfePane === 'matriz' ? (
+                            <DanfeTesteView data={danfeData} variant="default" />
+                        ) : null}
                     </Dialog>
                     <div className="mb-4">
                         <p className="text-600 m-0 text-sm mb-3">

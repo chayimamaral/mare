@@ -1,3 +1,6 @@
+# Dependências npm instaladas por engano na raiz (ex.: antes de mover pacote para frontend/)
+node_modules/
+
 # Local scratch images
 Imagem colada*.png
 

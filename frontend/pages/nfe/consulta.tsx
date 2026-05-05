@@ -14,6 +14,7 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import api from '../../components/api/apiClient';
 import { useAuthScopeKey } from '../../components/hooks/useAuthScopeKey';
 import { useRouteClientGuard } from '../../components/hooks/useClientGuards';
+import { DanfeTesteView } from '../../components/nfe/DanfeTesteView';
 import { DanfeView } from '../../components/nfe/DanfeView';
 import { fetchDanfeJsonByChave, parseDanfeErrorMessage, type NFEDanfeView } from '../../lib/nfeDanfeClient';
 import { parseNFEApiError } from '../../lib/nfeError';
@@ -79,6 +80,7 @@ export default function NFEConsultaPage() {
     const [danfeVisible, setDanfeVisible] = useState(false);
     const [danfeLoading, setDanfeLoading] = useState(false);
     const [danfeData, setDanfeData] = useState<NFEDanfeView | null>(null);
+    const [danfePane, setDanfePane] = useState<'consulta' | 'matriz'>('consulta');
     const [localPin, setLocalPin] = useState('');
     const [selectedLocalCert, setSelectedLocalCert] = useState('');
     const [localSigning, setLocalSigning] = useState(false);
@@ -93,6 +95,7 @@ export default function NFEConsultaPage() {
         setDanfeVisible(false);
         setDanfeData(null);
         setDanfeLoading(false);
+        setDanfePane('consulta');
     }, []);
 
 
@@ -130,6 +133,7 @@ export default function NFEConsultaPage() {
 
     const abrirDanfePorChave = useCallback(
         async (chave: string) => {
+            setDanfePane('consulta');
             setDanfeVisible(true);
             setDanfeData(null);
             setDanfeLoading(true);
@@ -168,6 +172,14 @@ export default function NFEConsultaPage() {
         }, 25000);
         return () => window.clearTimeout(t);
     }, [danfeVisible, danfeLoading, closeDanfePreview]);
+
+    useEffect(() => {
+        if (danfePane !== 'matriz' || !danfeData) {
+            return;
+        }
+        const t = window.setTimeout(() => window.print(), 600);
+        return () => window.clearTimeout(t);
+    }, [danfePane, danfeData]);
 
     useEffect(() => {
         if (!router.isReady) {
@@ -407,16 +419,29 @@ export default function NFEConsultaPage() {
                     </p>
                 </Dialog>
                 <Dialog
-                    header="DANFE (visualização nativa React)"
+                    header={
+                        danfePane === 'matriz'
+                            ? 'DANFE — impressão (A4)'
+                            : 'DANFE (visualização nativa React)'
+                    }
                     visible={danfeVisible}
                     modal={false}
-                    style={{ width: '980px' }}
+                    style={{ width: danfePane === 'matriz' ? 'min(86rem, 99.5vw)' : '980px' }}
                     contentStyle={{ overflow: 'auto', height: '78vh', minHeight: '78vh', maxHeight: '78vh' }}
                     maximizable
                     dismissableMask
                     closeOnEscape
                     footer={(
-                        <div className="flex justify-content-end">
+                        <div className="flex justify-content-end flex-wrap gap-2">
+                            {danfePane === 'matriz' ? (
+                                <Button
+                                    type="button"
+                                    label="Voltar à consulta (abas)"
+                                    icon="pi pi-arrow-left"
+                                    text
+                                    onClick={() => setDanfePane('consulta')}
+                                />
+                            ) : null}
                             <Button
                                 type="button"
                                 label="Fechar pré-visualização"
@@ -428,16 +453,28 @@ export default function NFEConsultaPage() {
                     )}
                     onHide={closeDanfePreview}
                 >
-                    <p className="text-600 text-sm mt-0 mb-3">
-                        A DANFE é renderizada em componente React com dados normalizados do XML armazenado no tenant.
-                    </p>
+                    {danfePane === 'consulta' ? (
+                        <p className="text-600 text-sm mt-0 mb-3">
+                            A DANFE é renderizada em componente React com dados normalizados do XML armazenado no tenant. Em{' '}
+                            <strong>Imprimir</strong>, abre-se a matriz A4 para pré-visualização de impressão.
+                        </p>
+                    ) : (
+                        <p className="text-600 text-sm mt-0 mb-3">
+                            Matriz A4 retrato (MOC 7.0 — Anexo II, 3.8.1) com os dados desta NF-e.
+                        </p>
+                    )}
                     {danfeLoading ? (
                         <div className="flex flex-column align-items-center gap-3 py-6">
                             <ProgressSpinner style={{ width: '3rem', height: '3rem' }} />
                             <span className="text-600">Montando visualização DANFE…</span>
                         </div>
                     ) : null}
-                    {!danfeLoading && danfeData ? <DanfeView data={danfeData} /> : null}
+                    {!danfeLoading && danfeData && danfePane === 'consulta' ? (
+                        <DanfeView data={danfeData} onImprimirMatriz={() => setDanfePane('matriz')} />
+                    ) : null}
+                    {!danfeLoading && danfeData && danfePane === 'matriz' ? (
+                        <DanfeTesteView data={danfeData} variant="default" />
+                    ) : null}
                 </Dialog>
                 <Card title="Consulta NF-e (Tenant)">
                     <p className="text-600 mt-0 mb-4">
