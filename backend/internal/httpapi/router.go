@@ -415,8 +415,8 @@ func registerRoutes(
 
 	r.With(requireAuth, requireSuper).Get("/chavessuper", configuracaoIntegracaoHandler.GetChavesSuper)
 	r.With(requireAuth, requireSuper).Put("/chavessuper", configuracaoIntegracaoHandler.SaveChavesSuper)
-	r.With(requireAuth, requireIntegraCnt).Get("/tenant-configuracoes", configuracaoIntegracaoHandler.GetTenantConfiguracoes)
-	r.With(requireAuth, requireIntegraCnt).Put("/tenant-configuracoes", configuracaoIntegracaoHandler.SaveTenantConfiguracoes)
+	r.With(requireAuth, requireAdmin).Get("/tenant-configuracoes", configuracaoIntegracaoHandler.GetTenantConfiguracoes)
+	r.With(requireAuth, requireAdmin).Put("/tenant-configuracoes", configuracaoIntegracaoHandler.SaveTenantConfiguracoes)
 	r.With(requireAuth, requireIntegraCnt).Get("/certificado-digital", configuracaoIntegracaoHandler.GetCertificadoDigital)
 	r.With(requireAuth, requireIntegraCnt, requireAdmin).Post("/certificado-digital/upload", configuracaoIntegracaoHandler.UploadCertificadoDigital)
 	r.With(requireAuth).Get("/catalogo-servicos", catalogoServicoHandler.List)

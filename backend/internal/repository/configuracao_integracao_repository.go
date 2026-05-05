@@ -92,6 +92,7 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context
 			tenant_id,
 			gerar_das_por_procuracao,
 			gerar_darf_dctfweb_por_procuracao,
+			enviar_resumo_mensal,
 			tipo_certificado,
 			local_arquivo_certificado,
 			senha_certificado,
@@ -102,10 +103,11 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context
 			validade_ate,
 			atualizado_em
 		)
-		VALUES ($1,$2,$3,NULLIF(TRIM($4),''),NULLIF(TRIM($5),''),NULLIF(TRIM($6),''),NULLIF(TRIM($7),''),NULLIF(TRIM($8),''),NULLIF(TRIM($9),''),NULLIF(TRIM($10), '')::date,NULLIF(TRIM($11), '')::date,NOW())
+		VALUES ($1,$2,$3,$4,NULLIF(TRIM($5),''),NULLIF(TRIM($6),''),NULLIF(TRIM($7),''),NULLIF(TRIM($8),''),NULLIF(TRIM($9),''),NULLIF(TRIM($10),''),NULLIF(TRIM($11), '')::date,NULLIF(TRIM($12), '')::date,NOW())
 		ON CONFLICT (tenant_id) DO UPDATE SET
 			gerar_das_por_procuracao = EXCLUDED.gerar_das_por_procuracao,
 			gerar_darf_dctfweb_por_procuracao = EXCLUDED.gerar_darf_dctfweb_por_procuracao,
+			enviar_resumo_mensal = EXCLUDED.enviar_resumo_mensal,
 			tipo_certificado = EXCLUDED.tipo_certificado,
 			local_arquivo_certificado = EXCLUDED.local_arquivo_certificado,
 			senha_certificado = EXCLUDED.senha_certificado,
@@ -115,7 +117,7 @@ func (r *ConfiguracaoIntegracaoRepository) UpsertTenantConfiguracoes(ctx context
 			validade_de = EXCLUDED.validade_de,
 			validade_ate = EXCLUDED.validade_ate,
 			atualizado_em = NOW()
-	`, item.TenantID, item.GerarDASPorProcuracao, item.GerarDARFDCTFWebPorProcuracao, item.TipoCertificado, item.LocalArquivoCertificado, item.SenhaCertificado, item.NomeCertificado, item.EmitidoPara, item.EmitidoPor, item.ValidadeDe, item.ValidadeAte)
+	`, item.TenantID, item.GerarDASPorProcuracao, item.GerarDARFDCTFWebPorProcuracao, item.EnviarResumoMensal, item.TipoCertificado, item.LocalArquivoCertificado, item.SenhaCertificado, item.NomeCertificado, item.EmitidoPara, item.EmitidoPor, item.ValidadeDe, item.ValidadeAte)
 	if err != nil {
 		return fmt.Errorf("upsert tenant_configuracoes: %w", err)
 	}
@@ -129,6 +131,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetTenantConfiguracoes(ctx context.Co
 			tenant_id::text,
 			COALESCE(gerar_das_por_procuracao, false),
 			COALESCE(gerar_darf_dctfweb_por_procuracao, false),
+			COALESCE(enviar_resumo_mensal, false),
 			COALESCE(tipo_certificado, ''),
 			COALESCE(local_arquivo_certificado, ''),
 			COALESCE(senha_certificado, ''),
@@ -143,6 +146,7 @@ func (r *ConfiguracaoIntegracaoRepository) GetTenantConfiguracoes(ctx context.Co
 		&out.TenantID,
 		&out.GerarDASPorProcuracao,
 		&out.GerarDARFDCTFWebPorProcuracao,
+		&out.EnviarResumoMensal,
 		&out.TipoCertificado,
 		&out.LocalArquivoCertificado,
 		&out.SenhaCertificado,

@@ -23,36 +23,38 @@ type registroCreatePayload struct {
 }
 
 type registroUpdatePayload struct {
-	CNPJ        string `json:"cnpj"`
-	CEP         string `json:"cep"`
-	Endereco    string `json:"endereco"`
-	Bairro      string `json:"bairro"`
-	Cidade      string `json:"cidade"`
-	Estado      string `json:"estado"`
-	Telefone    string `json:"telefone"`
-	Email       string `json:"email"`
-	IE          string `json:"ie"`
-	IM          string `json:"im"`
-	RazaoSocial string `json:"razaosocial"`
-	Fantasia    string `json:"fantasia"`
-	Observacoes string `json:"observacoes"`
+	CNPJ               string `json:"cnpj"`
+	CEP                string `json:"cep"`
+	Endereco           string `json:"endereco"`
+	Bairro             string `json:"bairro"`
+	Cidade             string `json:"cidade"`
+	Estado             string `json:"estado"`
+	Telefone           string `json:"telefone"`
+	Email              string `json:"email"`
+	IE                 string `json:"ie"`
+	IM                 string `json:"im"`
+	RazaoSocial        string `json:"razaosocial"`
+	Fantasia           string `json:"fantasia"`
+	Observacoes        string `json:"observacoes"`
+	EnviarResumoMensal bool   `json:"enviar_resumo_mensal"`
 }
 
 type tenantDadosUpdatePayload struct {
-	TenantID    string `json:"tenantId"`
-	CNPJ        string `json:"cnpj"`
-	CEP         string `json:"cep"`
-	Endereco    string `json:"endereco"`
-	Bairro      string `json:"bairro"`
-	Cidade      string `json:"cidade"`
-	Estado      string `json:"estado"`
-	Telefone    string `json:"telefone"`
-	Email       string `json:"email"`
-	IE          string `json:"ie"`
-	IM          string `json:"im"`
-	RazaoSocial string `json:"razaosocial"`
-	Fantasia    string `json:"fantasia"`
-	Observacoes string `json:"observacoes"`
+	TenantID           string `json:"tenantId"`
+	CNPJ               string `json:"cnpj"`
+	CEP                string `json:"cep"`
+	Endereco           string `json:"endereco"`
+	Bairro             string `json:"bairro"`
+	Cidade             string `json:"cidade"`
+	Estado             string `json:"estado"`
+	Telefone           string `json:"telefone"`
+	Email              string `json:"email"`
+	IE                 string `json:"ie"`
+	IM                 string `json:"im"`
+	RazaoSocial        string `json:"razaosocial"`
+	Fantasia           string `json:"fantasia"`
+	Observacoes        string `json:"observacoes"`
+	EnviarResumoMensal bool   `json:"enviar_resumo_mensal"`
 }
 
 func NewRegistroHandler(service *service.RegistroService) *RegistroHandler {
@@ -128,19 +130,20 @@ func (h *RegistroHandler) TenantDadosUpdate(w http.ResponseWriter, r *http.Reque
 	}
 
 	response, err := h.service.UpdateByTenantID(r.Context(), payload.TenantID, service.RegistroUpdateInput{
-		CNPJ:        payload.CNPJ,
-		CEP:         payload.CEP,
-		Endereco:    payload.Endereco,
-		Bairro:      payload.Bairro,
-		Cidade:      payload.Cidade,
-		Estado:      payload.Estado,
-		Telefone:    payload.Telefone,
-		Email:       payload.Email,
-		IE:          payload.IE,
-		IM:          payload.IM,
-		RazaoSocial: payload.RazaoSocial,
-		Fantasia:    payload.Fantasia,
-		Observacoes: payload.Observacoes,
+		CNPJ:               payload.CNPJ,
+		CEP:                payload.CEP,
+		Endereco:           payload.Endereco,
+		Bairro:             payload.Bairro,
+		Cidade:             payload.Cidade,
+		Estado:             payload.Estado,
+		Telefone:           payload.Telefone,
+		Email:              payload.Email,
+		IE:                 payload.IE,
+		IM:                 payload.IM,
+		RazaoSocial:        payload.RazaoSocial,
+		Fantasia:           payload.Fantasia,
+		Observacoes:        payload.Observacoes,
+		EnviarResumoMensal: payload.EnviarResumoMensal,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
@@ -162,19 +165,20 @@ func (h *RegistroHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := h.service.Update(r.Context(), middleware.UserID(r.Context()), service.RegistroUpdateInput{
-		CNPJ:        payload.CNPJ,
-		CEP:         payload.CEP,
-		Endereco:    payload.Endereco,
-		Bairro:      payload.Bairro,
-		Cidade:      payload.Cidade,
-		Estado:      payload.Estado,
-		Telefone:    payload.Telefone,
-		Email:       payload.Email,
-		IE:          payload.IE,
-		IM:          payload.IM,
-		RazaoSocial: payload.RazaoSocial,
-		Fantasia:    payload.Fantasia,
-		Observacoes: payload.Observacoes,
+		CNPJ:               payload.CNPJ,
+		CEP:                payload.CEP,
+		Endereco:           payload.Endereco,
+		Bairro:             payload.Bairro,
+		Cidade:             payload.Cidade,
+		Estado:             payload.Estado,
+		Telefone:           payload.Telefone,
+		Email:              payload.Email,
+		IE:                 payload.IE,
+		IM:                 payload.IM,
+		RazaoSocial:        payload.RazaoSocial,
+		Fantasia:           payload.Fantasia,
+		Observacoes:        payload.Observacoes,
+		EnviarResumoMensal: payload.EnviarResumoMensal,
 	})
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())

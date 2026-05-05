@@ -353,7 +353,7 @@ const AppMenu = () => {
                     label: 'Geração de Guias',
                     icon: 'pi pi-fw pi-file',
                     to: '/configuracoes/geracao-guias',
-                    visible: (roleForMenu === 'SUPER' || roleForMenu === 'ADMIN') && hasFeature('integra_contador'),
+                    visible: roleForMenu === 'SUPER' || roleForMenu === 'ADMIN',
                   },
                   {
                     label: 'Certificado Digital',

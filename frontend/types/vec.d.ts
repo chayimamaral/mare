@@ -93,6 +93,18 @@ declare namespace Vec {
         limite_final?: number | null;
     };
 
+    type EmpresaMatrizTributariaLite = {
+        id?: string;
+        nome?: string;
+        substituicao_tributaria?: boolean;
+    };
+
+    type MatrizConfiguracaoTributariaLite = {
+        id?: string;
+        nome?: string;
+        substituicao_tributaria?: boolean;
+    };
+
     type Empresa = {
         id?: string;
         nome?: string;
@@ -103,8 +115,8 @@ declare namespace Vec {
         cnpj?: string;
         ie?: string;
         im?: string;
-        /** Regime tributario federal (CRT); public.cliente.regime_tributario_id */
-        regime_tributario?: EmpresaRegimeTributarioLite;
+        /** Matriz de Configuração Tributária (substitui regime_tributario, tipo_empresa, enquadramento_juridico_porte) */
+        matriz_tributaria?: EmpresaMatrizTributariaLite;
         razaosocial?: string;
         fantasia?: string;
         endereco?: string;
@@ -115,12 +127,8 @@ declare namespace Vec {
         rotina: RotinaLite;
         /** Template PF (IRPF / Carnê-Leão etc.); alinhado ao JSON da API */
         rotina_pf?: RotinaPFLite;
-        tipo_empresa?: TipoEmpresaLite;
-        enquadramento_juridico_porte?: EmpresaEnquadramentoPorteLite;
         /** Soma valor_total em nfe_gestao como emitente (CNPJ = documento), ano calendário corrente. */
         faturamento_acumulado_ano?: number;
-        classificacao_observacao?: string;
-        classificacao_atualizado_em?: string;
         uf?: string;
         cep?: string;
         tenantid?: string;

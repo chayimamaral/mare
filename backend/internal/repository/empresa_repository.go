@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/chayimamaral/vecx/backend/internal/domain"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,31 +29,19 @@ type EmpresaListParams struct {
 }
 
 type EmpresaUpsertInput struct {
-	ID                 string
-	Nome               string
-	TenantID           string
-	MunicipioID        string
-	RotinaID           string
-	RotinaPFID         string
-	Cnaes              any
-	Bairro             string
-	TipoPessoa         string
-	Documento          string
-	IE                 string
-	IM                 string
-	RegimeTributarioID           string
-	TipoEmpresaID                string
-	EnquadramentoJuridicoPorteID string
-	ClassificacaoObservacao      string
-	SetClassificacaoTimestamp    bool
-}
-
-// ClienteClassificacaoSnapshot estado atual da classificação fiscal/jurídica no cliente.
-type ClienteClassificacaoSnapshot struct {
-	RegimeTributarioID           string
-	TipoEmpresaID                string
-	EnquadramentoJuridicoPorteID string
-	ClassificacaoObservacao      string
+	ID               string
+	Nome             string
+	TenantID         string
+	MunicipioID      string
+	RotinaID         string
+	RotinaPFID       string
+	Cnaes            any
+	Bairro           string
+	TipoPessoa       string
+	Documento        string
+	IE               string
+	IM               string
+	MatrizTributariaID string
 }
 
 type EmpresaProcessoInput struct {
@@ -147,57 +134,14 @@ func empresaMunicipioIDParam(s string) any {
 	return strings.TrimSpace(s)
 }
 
-func empresaRegimeTributarioIDParam(tipo, regimeID string) any {
+func empresaMatrizTributariaIDParam(tipo, matrizID string) any {
 	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
 		return nil
 	}
-	if id := strings.TrimSpace(regimeID); id != "" {
+	if id := strings.TrimSpace(matrizID); id != "" {
 		return id
 	}
 	return nil
-}
-
-func empresaTipoEmpresaIDParam(tipo, tipoEmpresaID string) any {
-	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
-		return nil
-	}
-	if id := strings.TrimSpace(tipoEmpresaID); id != "" {
-		return id
-	}
-	return nil
-}
-
-func empresaEnquadramentoJuridicoPorteIDParam(tipo, porteID string) any {
-	if normalizeEmpresaTipoPessoa(tipo) == "PF" {
-		return nil
-	}
-	if id := strings.TrimSpace(porteID); id != "" {
-		return id
-	}
-	return nil
-}
-
-func (r *EmpresaRepository) ClienteClassificacaoSnapshot(ctx context.Context, empresaID, tenantID string) (ClienteClassificacaoSnapshot, error) {
-	const q = `
-		SELECT
-			COALESCE(c.regime_tributario_id::text, ''),
-			COALESCE(c.tipo_empresa_id::text, ''),
-			COALESCE(c.enquadramento_juridico_porte_id::text, ''),
-			COALESCE(c.classificacao_observacao, '')
-		FROM empresa e
-		INNER JOIN cliente c ON c.id = e.cliente_id
-		WHERE e.id = $1 AND e.tenant_id = $2 AND e.ativo = true AND c.ativo = true`
-	var snap ClienteClassificacaoSnapshot
-	err := dbQueryRow(ctx, r.pool, q, empresaID, tenantID).Scan(
-		&snap.RegimeTributarioID,
-		&snap.TipoEmpresaID,
-		&snap.EnquadramentoJuridicoPorteID,
-		&snap.ClassificacaoObservacao,
-	)
-	if err != nil {
-		return ClienteClassificacaoSnapshot{}, fmt.Errorf("snapshot classificacao cliente: %w", err)
-	}
-	return snap, nil
 }
 
 func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) ([]domain.EmpresaListItem, int64, error) {
@@ -240,15 +184,10 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 			COALESCE(NULLIF(BTRIM(c.documento), ''), ''),
 			COALESCE(c.ie, ''),
 			COALESCE(c.im, ''),
-			COALESCE(rt.id::text, ''),
-			COALESCE(rt.nome, ''),
-			COALESCE(rt.codigo_crt, 0),
 			COALESCE(m.id::text, ''),
 			COALESCE(m.nome, ''),
 			'' AS rotina_id,
 			'' AS rotina_descricao,
-			COALESCE(NULLIF(BTRIM(te_cli.id::text), ''), ''),
-			COALESCE(NULLIF(BTRIM(te_cli.descricao), ''), ''),
 			'' AS rotina_pf_id,
 			'' AS rotina_pf_nome,
 			'' AS rotina_pf_categoria,
@@ -270,20 +209,15 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 				FROM empresa_compromissos ec
 				WHERE ec.empresa_id = e.id
 			) AS compromissos_gerados,
-			COALESCE(NULLIF(BTRIM(ejp.id::text), ''), ''),
-			COALESCE(NULLIF(BTRIM(ejp.sigla), ''), ''),
-			COALESCE(NULLIF(BTRIM(ejp.descricao), ''), ''),
-			ejp.limite_final::float8,
-			COALESCE(fat_ytd.fat_total, 0)::float8,
-			COALESCE(c.classificacao_observacao, ''),
-			c.classificacao_atualizado_em
+			COALESCE(mtc.id::text, ''),
+			COALESCE(mtc.nome, ''),
+			COALESCE(mtc.substituicao_tributaria, false),
+			COALESCE(fat_ytd.fat_total, 0)::float8
 		FROM empresa e
 		INNER JOIN cliente c ON c.id = e.cliente_id
 		LEFT JOIN clientes_dados ed ON ed.cliente_id = c.id
 		LEFT JOIN public.municipio m ON m.id = COALESCE(c.municipio_id, ed.municipio_id)
-		LEFT JOIN public.tipoempresa te_cli ON te_cli.id = c.tipo_empresa_id
-		LEFT JOIN public.regime_tributario rt ON rt.id = c.regime_tributario_id
-		LEFT JOIN public.enquadramento_juridico_porte ejp ON ejp.id = c.enquadramento_juridico_porte_id
+		LEFT JOIN public.matriz_configuracao_tributaria mtc ON mtc.id = c.matriz_tributaria_id
 		LEFT JOIN (
 			SELECT
 				regexp_replace(COALESCE(cnpj_emitente, ''), '[^0-9]', '', 'g') AS cnpj_norm,
@@ -307,32 +241,14 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 
 	empresas := make([]domain.EmpresaListItem, 0)
 	for rows.Next() {
-		var id, nome, tpessoa, doc, ie, im, rtid, rtnome string
-		var rtcod int32
-		var mid, mnome, rid, rdesc, teid, tedesc, rpfid, rpfnome, rpfcat, ebairro string
+		var id, nome, tpessoa, doc, ie, im, mid, mnome, rid, rdesc, rpfid, rpfnome, rpfcat, ebairro string
 		var iniciado, passosConcluidos, compromissosGerados bool
 		var cnaes any
-		var ejpID, ejpSigla, ejpDesc, classObs string
-		var ejpLimite sql.NullFloat64
+		var mtcID, mtcNome string
+		var mtcST bool
 		var fatYTD float64
-		var classAt sql.NullTime
-		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &ie, &im, &rtid, &rtnome, &rtcod, &mid, &mnome, &rid, &rdesc, &teid, &tedesc, &rpfid, &rpfnome, &rpfcat, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados, &ejpID, &ejpSigla, &ejpDesc, &ejpLimite, &fatYTD, &classObs, &classAt); err != nil {
+		if err := rows.Scan(&id, &nome, &tpessoa, &doc, &ie, &im, &mid, &mnome, &rid, &rdesc, &rpfid, &rpfnome, &rpfcat, &cnaes, &ebairro, &iniciado, &passosConcluidos, &compromissosGerados, &mtcID, &mtcNome, &mtcST, &fatYTD); err != nil {
 			return nil, 0, fmt.Errorf("scan empresa: %w", err)
-		}
-
-		classAtStr := ""
-		if classAt.Valid {
-			classAtStr = classAt.Time.UTC().Format(time.RFC3339)
-		}
-
-		ejpRef := domain.EmpresaEnquadramentoPorteRef{
-			ID:        ejpID,
-			Sigla:     ejpSigla,
-			Descricao: ejpDesc,
-		}
-		if ejpLimite.Valid {
-			v := ejpLimite.Float64
-			ejpRef.LimiteFinal = &v
 		}
 
 		item := domain.EmpresaListItem{
@@ -346,19 +262,16 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 				ID:   mid,
 				Nome: mnome,
 			},
-			Cnaes:                     cnaes,
-			Bairro:                    ebairro,
-			Iniciado:                  iniciado,
-			PassosConcluidos:          passosConcluidos,
-			CompromissosGerados:       compromissosGerados,
-			FaturamentoAcumuladoAno:   fatYTD,
-			ClassificacaoObservacao:   classObs,
-			ClassificacaoAtualizadoEm: classAtStr,
-			EnquadramentoJuridicoPorte: ejpRef,
-			RegimeTributario: domain.EmpresaRegimeTributarioRef{
-				ID:        rtid,
-				Nome:      rtnome,
-				CodigoCRT: int(rtcod),
+			Cnaes:                 cnaes,
+			Bairro:                ebairro,
+			Iniciado:              iniciado,
+			PassosConcluidos:      passosConcluidos,
+			CompromissosGerados:   compromissosGerados,
+			FaturamentoAcumuladoAno: fatYTD,
+			MatrizTributaria: domain.EmpresaMatrizTributariaRef{
+				ID:                     mtcID,
+				Nome:                   mtcNome,
+				SubstituicaoTributaria: mtcST,
 			},
 		}
 		item.Rotina.ID = rid
@@ -366,8 +279,6 @@ func (r *EmpresaRepository) List(ctx context.Context, params EmpresaListParams) 
 		item.RotinaPF.ID = rpfid
 		item.RotinaPF.Nome = rpfnome
 		item.RotinaPF.Categoria = rpfcat
-		item.TipoEmpresa.ID = teid
-		item.TipoEmpresa.Descricao = tedesc
 		empresas = append(empresas, item)
 	}
 
@@ -402,7 +313,6 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		cnaes = []string{}
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
-	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
 
 	tx, err := dbBegin(ctx, r.pool)
 	if err != nil {
@@ -411,17 +321,9 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 	defer tx.Rollback(ctx)
 
 	const insCliente = `
-		INSERT INTO cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, cnaes, bairro, ie, im, regime_tributario_id, tipo_empresa_id, enquadramento_juridico_porte_id, classificacao_observacao, classificacao_atualizado_em)
-		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), $5, $6, NULLIF(TRIM($7), ''), TRIM(COALESCE($8::text, '')), TRIM(COALESCE($9::text, '')), $10, $11, $12, NULLIF(TRIM($13), ''), $14)
+		INSERT INTO cliente (tenant_id, nome, tipo_pessoa, documento, municipio_id, cnaes, bairro, ie, im, matriz_tributaria_id)
+		VALUES ($1, $2, $3, NULLIF(TRIM($4), ''), $5, $6, NULLIF(TRIM($7), ''), TRIM(COALESCE($8::text, '')), TRIM(COALESCE($9::text, '')), $10)
 		RETURNING id::text`
-
-	porteArg := empresaEnquadramentoJuridicoPorteIDParam(tipo, input.EnquadramentoJuridicoPorteID)
-	var classTs any
-	if input.SetClassificacaoTimestamp && tipo == "PJ" {
-		classTs = time.Now().UTC()
-	} else {
-		classTs = nil
-	}
 
 	var clienteID string
 	if err := tx.QueryRow(ctx, insCliente,
@@ -434,11 +336,7 @@ func (r *EmpresaRepository) Create(ctx context.Context, input EmpresaUpsertInput
 		input.Bairro,
 		strings.TrimSpace(input.IE),
 		strings.TrimSpace(input.IM),
-		empresaRegimeTributarioIDParam(tipo, input.RegimeTributarioID),
-		tipoEmpresaArg,
-		porteArg,
-		strings.TrimSpace(input.ClassificacaoObservacao),
-		classTs,
+		empresaMatrizTributariaIDParam(tipo, input.MatrizTributariaID),
 	).Scan(&clienteID); err != nil {
 		return nil, 0, fmt.Errorf("create cliente: %w", err)
 	}
@@ -508,11 +406,7 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 		    municipio_id = $9,
 		    ie = TRIM(COALESCE($10::text, '')),
 		    im = TRIM(COALESCE($11::text, '')),
-		    regime_tributario_id = $12,
-		    tipo_empresa_id = $13,
-		    enquadramento_juridico_porte_id = $14,
-		    classificacao_observacao = NULLIF(TRIM($15), ''),
-		    classificacao_atualizado_em = CASE WHEN $16::boolean THEN NOW() ELSE c.classificacao_atualizado_em END,
+		    matriz_tributaria_id = $12,
 		    atualizado_em = NOW()
 		FROM empresa e
 		WHERE c.id = e.cliente_id AND e.id = $4 AND e.tenant_id = $5
@@ -523,10 +417,8 @@ func (r *EmpresaRepository) Update(ctx context.Context, input EmpresaUpsertInput
 		cnaes = []string{}
 	}
 	cnaesArg := empresaCnaesParam(tipo, cnaes)
-	regimeArg := empresaRegimeTributarioIDParam(tipo, input.RegimeTributarioID)
-	tipoEmpresaArg := empresaTipoEmpresaIDParam(tipo, input.TipoEmpresaID)
-	porteArg := empresaEnquadramentoJuridicoPorteIDParam(tipo, input.EnquadramentoJuridicoPorteID)
-	rows, err := dbQuery(ctx, r.pool, sqlQuery, input.Nome, input.TenantID, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), regimeArg, tipoEmpresaArg, porteArg, strings.TrimSpace(input.ClassificacaoObservacao), input.SetClassificacaoTimestamp)
+	matrizArg := empresaMatrizTributariaIDParam(tipo, input.MatrizTributariaID)
+	rows, err := dbQuery(ctx, r.pool, sqlQuery, input.Nome, input.TenantID, cnaesArg, input.ID, input.TenantID, input.Bairro, tipo, doc, empresaMunicipioIDParam(input.MunicipioID), strings.TrimSpace(input.IE), strings.TrimSpace(input.IM), matrizArg)
 	if err != nil {
 		return nil, 0, fmt.Errorf("update empresa: %w", err)
 	}
@@ -865,16 +757,12 @@ func (r *EmpresaRepository) MunicipioEUfIDs(ctx context.Context, empresaID, tena
 	return municipioID, ufID, nil
 }
 
-// TipoEmpresaIDFromRotina retorna o tipo de empresa do cliente ou da rotina do processo mais recente.
+// TipoEmpresaIDFromRotina retorna o tipo de empresa da rotina do processo mais recente.
 func (r *EmpresaRepository) TipoEmpresaIDFromRotina(ctx context.Context, empresaID string) (string, error) {
 	var tid *string
 	err := dbQueryRow(ctx, r.pool, `
-		SELECT COALESCE(
-			NULLIF(TRIM(c.tipo_empresa_id::text), ''),
-			NULLIF(TRIM(r.tipo_empresa_id::text), '')
-		)
+		SELECT NULLIF(TRIM(r.tipo_empresa_id::text), '')
 		FROM empresa e
-		INNER JOIN cliente c ON c.id = e.cliente_id
 		LEFT JOIN empresa_processos ep ON ep.empresa_id = e.id AND ep.ativo = true
 		LEFT JOIN rotinas r ON r.id = ep.rotina_id
 		WHERE e.id = $1 AND e.ativo = true

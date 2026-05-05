@@ -3,29 +3,32 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/chayimamaral/vecx/backend/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RegistroUpdateInput struct {
-	CNPJ        string
-	CEP         string
-	Endereco    string
-	Bairro      string
-	Cidade      string
-	Estado      string
-	Telefone    string
-	Email       string
-	IE          string
-	IM          string
-	RazaoSocial string
-	Fantasia    string
-	Observacoes string
+	CNPJ               string
+	CEP                string
+	Endereco           string
+	Bairro             string
+	Cidade             string
+	Estado             string
+	Telefone           string
+	Email              string
+	IE                 string
+	IM                 string
+	RazaoSocial        string
+	Fantasia           string
+	Observacoes        string
+	EnviarResumoMensal bool
 }
 
 type RegistroCreateInput struct {
@@ -91,11 +94,20 @@ func nullStringPtr(ns sql.NullString) *string {
 	return &s
 }
 
+func isUndefinedTableOrColumnError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "42P01" || pgErr.Code == "42703"
+}
+
 func scanDadosComplementares(
 	tenantid string,
 	scan func(dest ...any) error,
 ) (domain.DadosComplementaresRecord, error) {
 	var cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes sql.NullString
+	var enviarResumoMensal bool
 	if err := scan(
 		&tenantid,
 		&cnpj,
@@ -111,24 +123,26 @@ func scanDadosComplementares(
 		&razaosocial,
 		&fantasia,
 		&observacoes,
+		&enviarResumoMensal,
 	); err != nil {
 		return domain.DadosComplementaresRecord{}, err
 	}
 	return domain.DadosComplementaresRecord{
-		Tenantid:    tenantid,
-		CNPJ:        nullStringPtr(cnpj),
-		CEP:         nullStringPtr(cep),
-		Endereco:    nullStringPtr(endereco),
-		Bairro:      nullStringPtr(bairro),
-		Cidade:      nullStringPtr(cidade),
-		Estado:      nullStringPtr(estado),
-		Telefone:    nullStringPtr(telefone),
-		Email:       nullStringPtr(email),
-		IE:          nullStringPtr(ie),
-		IM:          nullStringPtr(im),
-		RazaoSocial: nullStringPtr(razaosocial),
-		Fantasia:    nullStringPtr(fantasia),
-		Observacoes: nullStringPtr(observacoes),
+		Tenantid:           tenantid,
+		CNPJ:               nullStringPtr(cnpj),
+		CEP:                nullStringPtr(cep),
+		Endereco:           nullStringPtr(endereco),
+		Bairro:             nullStringPtr(bairro),
+		Cidade:             nullStringPtr(cidade),
+		Estado:             nullStringPtr(estado),
+		Telefone:           nullStringPtr(telefone),
+		Email:              nullStringPtr(email),
+		IE:                 nullStringPtr(ie),
+		IM:                 nullStringPtr(im),
+		RazaoSocial:        nullStringPtr(razaosocial),
+		Fantasia:           nullStringPtr(fantasia),
+		Observacoes:        nullStringPtr(observacoes),
+		EnviarResumoMensal: enviarResumoMensal,
 	}, nil
 }
 
@@ -140,8 +154,8 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 	var record domain.DadosComplementaresRecord
 	err := withTenantSchemaContext(ctx, r.pool, tenantID, func(inner context.Context) error {
 		const query = `
-			SELECT tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes
-			FROM tenant_dados
+			SELECT td.tenantid, td.cnpj, td.cep, td.endereco, td.bairro, td.cidade, td.estado, td.telefone, td.email, td.ie, td.im, td.razaosocial, td.fantasia, td.observacoes, false
+			FROM tenant_dados td
 			WHERE tenantid = $1::uuid
 			LIMIT 1`
 		loaded, loadErr := scanDadosComplementares("", func(dest ...any) error {
@@ -151,6 +165,19 @@ func (r *RegistroRepository) DetailByTenant(ctx context.Context, tenantID string
 			return loadErr
 		}
 		record = loaded
+
+		if err := dbQueryRow(inner, r.pool, `
+			SELECT COALESCE(enviar_resumo_mensal, false)
+			FROM tenant_configuracoes
+			WHERE tenant_id = $1::uuid
+			LIMIT 1
+		`, tenantID).Scan(&record.EnviarResumoMensal); err != nil {
+			if err == pgx.ErrNoRows || isUndefinedTableOrColumnError(err) {
+				record.EnviarResumoMensal = false
+				return nil
+			}
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -187,6 +214,18 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 			return err
 		}
 
+		const ensureCfg = `
+			INSERT INTO tenant_configuracoes (tenant_id, enviar_resumo_mensal, atualizado_em)
+			VALUES ($1::uuid, $2, NOW())
+			ON CONFLICT (tenant_id) DO UPDATE SET
+				enviar_resumo_mensal = EXCLUDED.enviar_resumo_mensal,
+				atualizado_em = NOW()`
+		if _, err := dbExec(inner, r.pool, ensureCfg, tenantID, input.EnviarResumoMensal); err != nil {
+			if !isUndefinedTableOrColumnError(err) {
+				return err
+			}
+		}
+
 		const query = `
 			UPDATE tenant_dados
 			SET cnpj = $1,
@@ -203,7 +242,7 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 				fantasia = $12,
 				observacoes = $13
 			WHERE tenantid = $14::uuid
-			RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes`
+			RETURNING tenantid, cnpj, cep, endereco, bairro, cidade, estado, telefone, email, ie, im, razaosocial, fantasia, observacoes, $15::boolean`
 
 		loaded, loadErr := scanDadosComplementares(tenantID, func(dest ...any) error {
 			return dbQueryRow(
@@ -224,6 +263,7 @@ func (r *RegistroRepository) UpdateByTenantID(ctx context.Context, tenantID stri
 				input.Fantasia,
 				input.Observacoes,
 				tenantID,
+				input.EnviarResumoMensal,
 			).Scan(dest...)
 		})
 		if loadErr != nil {

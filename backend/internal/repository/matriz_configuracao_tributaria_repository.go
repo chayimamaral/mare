@@ -91,6 +91,7 @@ func (r *MatrizConfiguracaoTributariaRepository) List(ctx context.Context, param
 			m.aliquota_base,
 			m.possui_fator_r,
 			m.aliquota_fator_r,
+			m.substituicao_tributaria,
 			m.ativo
 		FROM public.matriz_configuracao_tributaria m
 		JOIN public.tipoempresa t ON t.id = m.natureza_juridica_id
@@ -117,7 +118,7 @@ func (r *MatrizConfiguracaoTributariaRepository) List(ctx context.Context, param
 			&m.EnquadramentoPorteID, &m.EnquadramentoPorte,
 			&m.RegimeTributarioID, &m.RegimeTributario,
 			&m.AliquotaBase, &m.PossuiFatorR, &m.AliquotaFatorR,
-			&m.Ativo,
+			&m.SubstituicaoTributaria, &m.Ativo,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan matriz: %w", err)
 		}
@@ -140,17 +141,17 @@ func (r *MatrizConfiguracaoTributariaRepository) List(ctx context.Context, param
 	return items, total, nil
 }
 
-func (r *MatrizConfiguracaoTributariaRepository) Create(ctx context.Context, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64) (domain.MatrizConfiguracaoTributaria, error) {
+func (r *MatrizConfiguracaoTributariaRepository) Create(ctx context.Context, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, substituicaoTributaria bool) (domain.MatrizConfiguracaoTributaria, error) {
 	const query = `
 		INSERT INTO public.matriz_configuracao_tributaria
-			(nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r, ativo`
+			(nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r, substituicao_tributaria)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r, substituicao_tributaria, ativo`
 
 	var m domain.MatrizConfiguracaoTributaria
-	err := dbQueryRow(ctx, r.pool, query, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR).Scan(
+	err := dbQueryRow(ctx, r.pool, query, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, substituicaoTributaria).Scan(
 		&m.ID, &m.Nome, &m.NaturezaJuridicaID, &m.EnquadramentoPorteID, &m.RegimeTributarioID,
-		&m.AliquotaBase, &m.PossuiFatorR, &m.AliquotaFatorR, &m.Ativo,
+		&m.AliquotaBase, &m.PossuiFatorR, &m.AliquotaFatorR, &m.SubstituicaoTributaria, &m.Ativo,
 	)
 	if err != nil {
 		return domain.MatrizConfiguracaoTributaria{}, fmt.Errorf("create matriz: %w", err)
@@ -158,19 +159,19 @@ func (r *MatrizConfiguracaoTributariaRepository) Create(ctx context.Context, nom
 	return m, nil
 }
 
-func (r *MatrizConfiguracaoTributariaRepository) Update(ctx context.Context, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, ativo bool) (domain.MatrizConfiguracaoTributaria, error) {
+func (r *MatrizConfiguracaoTributariaRepository) Update(ctx context.Context, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, substituicaoTributaria bool, ativo bool) (domain.MatrizConfiguracaoTributaria, error) {
 	const query = `
 		UPDATE public.matriz_configuracao_tributaria
 		SET nome = $1, natureza_juridica_id = $2, enquadramento_porte_id = $3,
 		    regime_tributario_id = $4, aliquota_base = $5, possui_fator_r = $6,
-		    aliquota_fator_r = $7, ativo = $8, updated_at = now()
-		WHERE id = $9
-		RETURNING id, nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r, ativo`
+		    aliquota_fator_r = $7, substituicao_tributaria = $8, ativo = $9, updated_at = now()
+		WHERE id = $10
+		RETURNING id, nome, natureza_juridica_id, enquadramento_porte_id, regime_tributario_id, aliquota_base, possui_fator_r, aliquota_fator_r, substituicao_tributaria, ativo`
 
 	var m domain.MatrizConfiguracaoTributaria
-	err := dbQueryRow(ctx, r.pool, query, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, ativo, id).Scan(
+	err := dbQueryRow(ctx, r.pool, query, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, substituicaoTributaria, ativo, id).Scan(
 		&m.ID, &m.Nome, &m.NaturezaJuridicaID, &m.EnquadramentoPorteID, &m.RegimeTributarioID,
-		&m.AliquotaBase, &m.PossuiFatorR, &m.AliquotaFatorR, &m.Ativo,
+		&m.AliquotaBase, &m.PossuiFatorR, &m.AliquotaFatorR, &m.SubstituicaoTributaria, &m.Ativo,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {

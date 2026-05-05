@@ -32,16 +32,16 @@ func (s *MatrizConfiguracaoTributariaService) List(ctx context.Context, params r
 	return MatrizConfiguracaoTributariaListResponse{Items: items, TotalRecords: total}, nil
 }
 
-func (s *MatrizConfiguracaoTributariaService) Create(ctx context.Context, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64) (MatrizConfiguracaoTributariaMutationResponse, error) {
-	item, err := s.repo.Create(ctx, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR)
+func (s *MatrizConfiguracaoTributariaService) Create(ctx context.Context, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, substituicaoTributaria bool) (MatrizConfiguracaoTributariaMutationResponse, error) {
+	item, err := s.repo.Create(ctx, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, substituicaoTributaria)
 	if err != nil {
 		return MatrizConfiguracaoTributariaMutationResponse{}, err
 	}
 	return MatrizConfiguracaoTributariaMutationResponse{Item: item}, nil
 }
 
-func (s *MatrizConfiguracaoTributariaService) Update(ctx context.Context, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, ativo bool) (MatrizConfiguracaoTributariaMutationResponse, error) {
-	item, err := s.repo.Update(ctx, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, ativo)
+func (s *MatrizConfiguracaoTributariaService) Update(ctx context.Context, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID string, aliquotaBase float64, possuiFatorR bool, aliquotaFatorR float64, substituicaoTributaria bool, ativo bool) (MatrizConfiguracaoTributariaMutationResponse, error) {
+	item, err := s.repo.Update(ctx, id, nome, naturezaJuridicaID, enquadramentoPorteID, regimeTributarioID, aliquotaBase, possuiFatorR, aliquotaFatorR, substituicaoTributaria, ativo)
 	if err != nil {
 		return MatrizConfiguracaoTributariaMutationResponse{}, err
 	}

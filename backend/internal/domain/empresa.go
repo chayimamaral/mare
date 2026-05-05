@@ -16,48 +16,33 @@ type EmpresaRotinaPFRef struct {
 	Categoria string `json:"categoria"`
 }
 
-type EmpresaTipoEmpresaRef struct {
-	ID        string `json:"id"`
-	Descricao string `json:"descricao"`
-}
-
-// EmpresaEnquadramentoPorteRef porte por faturamento (public.enquadramento_juridico_porte).
-type EmpresaEnquadramentoPorteRef struct {
-	ID          string   `json:"id"`
-	Sigla       string   `json:"sigla"`
-	Descricao   string   `json:"descricao"`
-	LimiteFinal *float64 `json:"limite_final,omitempty"`
-}
-
-// EmpresaRegimeTributarioRef regime federal (CRT) vinculado ao cliente PJ.
-type EmpresaRegimeTributarioRef struct {
-	ID        string `json:"id"`
-	Nome      string `json:"nome"`
-	CodigoCRT int    `json:"codigo_crt"`
+// EmpresaMatrizTributariaRef referencia a matriz de configuração tributária do cliente.
+type EmpresaMatrizTributariaRef struct {
+	ID                     string `json:"id"`
+	Nome                   string `json:"nome"`
+	SubstituicaoTributaria bool   `json:"substituicao_tributaria"`
 }
 
 type EmpresaListItem struct {
-	ID                  string                     `json:"id"`
-	Nome                string                     `json:"nome"`
-	TipoPessoa          string                     `json:"tipo_pessoa"`
-	Documento           string                     `json:"documento"`
-	IE                  string                     `json:"ie"`
-	IM                  string                     `json:"im"`
-	Municipio           EmpresaRef                 `json:"municipio"`
-	Rotina              EmpresaRotinaRef           `json:"rotina"`
-	RotinaPF            EmpresaRotinaPFRef         `json:"rotina_pf"`
-	TipoEmpresa                EmpresaTipoEmpresaRef          `json:"tipo_empresa"`
-	RegimeTributario           EmpresaRegimeTributarioRef     `json:"regime_tributario"`
-	EnquadramentoJuridicoPorte EmpresaEnquadramentoPorteRef   `json:"enquadramento_juridico_porte"`
+	ID         string           `json:"id"`
+	Nome       string           `json:"nome"`
+	TipoPessoa string           `json:"tipo_pessoa"`
+	Documento  string           `json:"documento"`
+	IE         string           `json:"ie"`
+	IM         string           `json:"im"`
+	Municipio  EmpresaRef       `json:"municipio"`
+	Rotina     EmpresaRotinaRef `json:"rotina"`
+	RotinaPF   EmpresaRotinaPFRef `json:"rotina_pf"`
+	// MatrizTributaria vincula o cliente à Matriz de Configuração Tributária,
+	// substituindo os campos individuais natureza_juridica, porte e regime_tributario.
+	MatrizTributaria EmpresaMatrizTributariaRef `json:"matriz_tributaria"`
 	// FaturamentoAcumuladoAno soma valor_total em nfe_gestao (emitente = documento PJ) no ano calendário corrente (sessão DB).
 	FaturamentoAcumuladoAno float64 `json:"faturamento_acumulado_ano"`
-	ClassificacaoObservacao    string                         `json:"classificacao_observacao"`
-	ClassificacaoAtualizadoEm  string                         `json:"classificacao_atualizado_em"`
-	Cnaes                      any                            `json:"cnaes"`
-	Bairro              string                     `json:"bairro"`
-	Iniciado            bool                       `json:"iniciado"`
-	PassosConcluidos    bool                       `json:"passos_concluidos"`
-	CompromissosGerados bool                       `json:"compromissos_gerados"`
+	Cnaes                   any     `json:"cnaes"`
+	Bairro                  string  `json:"bairro"`
+	Iniciado                bool    `json:"iniciado"`
+	PassosConcluidos        bool    `json:"passos_concluidos"`
+	CompromissosGerados     bool    `json:"compromissos_gerados"`
 }
 
 type EmpresaMutationItem struct {

@@ -26,6 +26,7 @@ type MatrizItem = {
     aliquota_base: number;
     possui_fator_r: boolean;
     aliquota_fator_r: number;
+    substituicao_tributaria: boolean;
     ativo: boolean;
 };
 
@@ -62,12 +63,13 @@ const MatrizConfiguracaoTributaria = () => {
     const [formData, setFormData] = useState({
         id: '',
         nome: '',
-        natureza_juridica_id: null as DropdownOption | null,
-        enquadramento_porte_id: null as DropdownOption | null,
-        regime_tributario_id: null as DropdownOption | null,
+        natureza_juridica_id: '',
+        enquadramento_porte_id: '',
+        regime_tributario_id: '',
         aliquota_base: 0,
         possui_fator_r: false,
         aliquota_fator_r: 0,
+        substituicao_tributaria: false,
         ativo: true,
     });
 
@@ -110,9 +112,25 @@ const MatrizConfiguracaoTributaria = () => {
                 regimeServiceRef.current.getRegimes({ lazyEvent: JSON.stringify({ first: 0, rows: 200, sortField: 'nome', sortOrder: 1 }) }),
             ]);
 
-            setNaturezaOptions(naturezaRes.data.tiposEmpresa || []);
-            setPorteOptions(porteRes.data.items || []);
-            setRegimeOptions(regimeRes.data.regimes || []);
+            setNaturezaOptions(
+                (naturezaRes.data.tiposEmpresa || []).map((o: any) => ({
+                    id: String(o?.id ?? '').trim(),
+                    descricao: String(o?.descricao ?? '').trim(),
+                })),
+            );
+            setPorteOptions(
+                (porteRes.data.items || []).map((o: any) => ({
+                    id: String(o?.id ?? '').trim(),
+                    sigla: String(o?.sigla ?? '').trim(),
+                    descricao: String(o?.descricao ?? '').trim(),
+                })),
+            );
+            setRegimeOptions(
+                (regimeRes.data.regimes || []).map((o: any) => ({
+                    id: String(o?.id ?? '').trim(),
+                    nome: String(o?.nome ?? '').trim(),
+                })),
+            );
         } catch (err) {
             console.error('Erro ao carregar dropdowns:', err);
         }
@@ -142,32 +160,30 @@ const MatrizConfiguracaoTributaria = () => {
         setFormData({
             id: '',
             nome: '',
-            natureza_juridica_id: null,
-            enquadramento_porte_id: null,
-            regime_tributario_id: null,
+            natureza_juridica_id: '',
+            enquadramento_porte_id: '',
+            regime_tributario_id: '',
             aliquota_base: 0,
             possui_fator_r: false,
             aliquota_fator_r: 0,
+            substituicao_tributaria: false,
             ativo: true,
         });
         setDialogVisible(true);
     };
 
     const openEdit = async (item: MatrizItem) => {
-        const natureza = naturezaOptions.find((o) => o.id === item.natureza_juridica_id) || null;
-        const porte = porteOptions.find((o) => o.id === item.enquadramento_porte_id) || null;
-        const regime = regimeOptions.find((o) => o.id === item.regime_tributario_id) || null;
-
         setDialogMode('edit');
         setFormData({
             id: item.id,
             nome: item.nome,
-            natureza_juridica_id: natureza,
-            enquadramento_porte_id: porte,
-            regime_tributario_id: regime,
+            natureza_juridica_id: String(item.natureza_juridica_id ?? '').trim(),
+            enquadramento_porte_id: String(item.enquadramento_porte_id ?? '').trim(),
+            regime_tributario_id: String(item.regime_tributario_id ?? '').trim(),
             aliquota_base: item.aliquota_base,
             possui_fator_r: item.possui_fator_r,
             aliquota_fator_r: item.aliquota_fator_r,
+            substituicao_tributaria: item.substituicao_tributaria,
             ativo: item.ativo,
         });
         setDialogVisible(true);
@@ -217,12 +233,13 @@ const MatrizConfiguracaoTributaria = () => {
         try {
             const params = {
                 nome: formData.nome,
-                natureza_juridica_id: formData.natureza_juridica_id.id,
-                enquadramento_porte_id: formData.enquadramento_porte_id.id,
-                regime_tributario_id: formData.regime_tributario_id.id,
+                natureza_juridica_id: formData.natureza_juridica_id,
+                enquadramento_porte_id: formData.enquadramento_porte_id,
+                regime_tributario_id: formData.regime_tributario_id,
                 aliquota_base: formData.aliquota_base,
                 possui_fator_r: formData.possui_fator_r,
                 aliquota_fator_r: formData.aliquota_fator_r,
+                substituicao_tributaria: formData.substituicao_tributaria,
                 ativo: formData.ativo,
             };
 
@@ -314,6 +331,14 @@ const MatrizConfiguracaoTributaria = () => {
         />
     );
 
+    const substituicaoTributariaTemplate = (rowData: MatrizItem) => (
+        <i
+            className={`pi ${rowData.substituicao_tributaria ? 'pi-circle-fill text-red-500' : 'pi-circle text-gray-300'}`}
+            style={{ fontSize: '0.85rem' }}
+            title={rowData.substituicao_tributaria ? 'Substituição Tributária' : 'Sem Substituição Tributária'}
+        />
+    );
+
     const paginatorLeft = (
         <Button
             type="button"
@@ -379,6 +404,7 @@ const MatrizConfiguracaoTributaria = () => {
                 <Column field="aliquota_base" header="Aliquota Base" body={aliquotaBaseTemplate} sortable style={{ minWidth: '120px' }} />
                 <Column field="possui_fator_r" header="Fator R" body={fatorRTemplate} style={{ minWidth: '90px', textAlign: 'center' }} />
                 <Column field="aliquota_fator_r" header="Aliquota Fator R" body={aliquotaFatorRTemplate} style={{ minWidth: '140px' }} />
+                <Column field="substituicao_tributaria" header="ST" body={substituicaoTributariaTemplate} style={{ minWidth: '60px', textAlign: 'center' }} />
                 <Column field="ativo" header="Ativo" body={ativoTemplate} style={{ minWidth: '80px', textAlign: 'center' }} />
                 <Column header="Acoes" body={actionBodyTemplate} style={{ minWidth: '120px' }} />
             </DataTable>
@@ -424,9 +450,11 @@ const MatrizConfiguracaoTributaria = () => {
                     <Dropdown
                         id="natureza_juridica"
                         value={formData.natureza_juridica_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, natureza_juridica_id: e.value }))}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, natureza_juridica_id: String(e.value ?? '') }))}
                         options={naturezaOptions}
                         optionLabel="descricao"
+                        optionValue="id"
+                        dataKey="id"
                         placeholder="Selecione a natureza juridica"
                         filter
                         showClear
@@ -439,9 +467,11 @@ const MatrizConfiguracaoTributaria = () => {
                     <Dropdown
                         id="porte"
                         value={formData.enquadramento_porte_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, enquadramento_porte_id: e.value }))}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, enquadramento_porte_id: String(e.value ?? '') }))}
                         options={porteOptions}
                         optionLabel="sigla"
+                        optionValue="id"
+                        dataKey="id"
                         placeholder="Selecione o porte"
                         filter
                         showClear
@@ -449,10 +479,6 @@ const MatrizConfiguracaoTributaria = () => {
                         itemTemplate={(option: DropdownOption) => (
                             <span>{option.sigla}{option.descricao ? ` - ${option.descricao}` : ''}</span>
                         )}
-                        valueTemplate={(option: DropdownOption) => {
-                            if (!option) return <span>Selecione o porte</span>;
-                            return <span>{option.sigla}{option.descricao ? ` - ${option.descricao}` : ''}</span>;
-                        }}
                     />
                 </div>
 
@@ -461,9 +487,11 @@ const MatrizConfiguracaoTributaria = () => {
                     <Dropdown
                         id="regime"
                         value={formData.regime_tributario_id}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, regime_tributario_id: e.value }))}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, regime_tributario_id: String(e.value ?? '') }))}
                         options={regimeOptions}
                         optionLabel="nome"
+                        optionValue="id"
+                        dataKey="id"
                         placeholder="Selecione o regime tributario"
                         filter
                         showClear
@@ -522,6 +550,16 @@ const MatrizConfiguracaoTributaria = () => {
                         </small>
                     </div>
                 )}
+
+                <div className="field-checkbox flex align-items-center gap-2 mt-3">
+                    <input
+                        type="checkbox"
+                        id="substituicao_tributaria"
+                        checked={formData.substituicao_tributaria}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, substituicao_tributaria: e.target.checked }))}
+                    />
+                    <label htmlFor="substituicao_tributaria">Substituição Tributária (ST)</label>
+                </div>
 
                 <div className="field-checkbox flex align-items-center gap-2 mt-3">
                     <input

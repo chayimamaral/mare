@@ -1,5 +1,6 @@
 .wrapper {
-  background: #fff;
+  background: var(--surface-card, #fff);
+  color: var(--text-color, #111827);
 }
 
 /* TabView: sem marcadores de lista (evita “pontos” soltos) e sem li da ink bar visível */
@@ -43,12 +44,12 @@
 }
 
 .tabview :global(.p-tabview-nav-link) {
-  border: 1px solid #bfc7cf;
+  border: 1px solid var(--surface-border, #bfc7cf);
   border-radius: 4px;
-  background: #f4f6f8;
+  background: var(--surface-ground, #f4f6f8);
   padding: 0.4rem 0.75rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-color, #1f2937);
 }
 
 .tabview :global(.p-tabview-nav-link::before),
@@ -75,23 +76,25 @@
 }
 
 .fieldset {
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--surface-border, #cfd6dd);
   border-radius: 2px;
   padding: 0.7rem;
   margin: 0 0 0.75rem;
+  background: var(--surface-card, #fff);
 }
 
 .fieldset > legend {
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-color, #1f2937);
   padding: 0 0.4rem;
 }
 
 .box {
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--surface-border, #cfd6dd);
   border-radius: 2px;
   padding: 0.7rem;
   margin-bottom: 0.75rem;
+  background: var(--surface-card, #fff);
 }
 
 .row {
@@ -104,13 +107,14 @@
 }
 
 .cell {
-  border: 1px solid #d6dbe1;
+  border: 1px solid var(--surface-border, #d6dbe1);
   padding: 0.45rem 0.5rem;
+  background: var(--surface-card, #fff);
 }
 
 .label {
   font-size: 0.8rem;
-  color: #4b5563;
+  color: var(--text-color-secondary, #4b5563);
   margin-bottom: 0.15rem;
   font-weight: 600;
 }
@@ -133,12 +137,14 @@
 
 .table th,
 .table td {
-  border: 1px solid #d6dbe1;
+  border: 1px solid var(--surface-border, #d6dbe1);
   padding: 0.4rem 0.45rem;
+  color: var(--text-color, #111827);
 }
 
 .table th {
-  background: #f5f7fa;
+  background: var(--surface-ground, #f5f7fa);
+  color: var(--text-color, #111827);
 }
 
 @media (max-width: 920px) {
@@ -155,9 +161,10 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
-  border: 1px solid #d6dbe1;
+  border: 1px solid var(--surface-border, #d6dbe1);
   border-radius: 2px;
   overflow: hidden;
+  background: var(--surface-card, #fff);
 }
 
 @media (max-width: 920px) {
@@ -167,10 +174,11 @@
 }
 
 .totCell {
-  border-right: 1px solid #d6dbe1;
-  border-bottom: 1px solid #d6dbe1;
+  border-right: 1px solid var(--surface-border, #d6dbe1);
+  border-bottom: 1px solid var(--surface-border, #d6dbe1);
   padding: 0.5rem 0.55rem;
   min-width: 0;
+  background: var(--surface-card, #fff);
 }
 
 .totCell:nth-child(4n) {
@@ -180,7 +188,7 @@
 .totLabel {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #374151;
+  color: var(--text-color-secondary, #374151);
   line-height: 1.25;
   margin-bottom: 0.2rem;
 }
@@ -188,19 +196,19 @@
 .totValue {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-color, #111827);
   word-break: break-word;
 }
 
 .totDestaque {
-  background: #fffbeb;
-  border: 2px solid #f59e0b !important;
+  background: var(--surface-card, #fff);
+  border: 2px solid #16a34a !important;
   border-radius: 2px;
 }
 
 .subBlock {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-ground, #f3f4f6);
+  border: 1px solid var(--surface-border, #e5e7eb);
   border-radius: 4px;
   padding: 0.55rem 0.65rem;
   margin: 0.4rem 0;
@@ -209,7 +217,7 @@
 .subBlockTitle {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text-color, #1f2937);
   margin: 0 0 0.45rem;
 }
 
@@ -236,18 +244,18 @@
 }
 
 .volCard {
-  border: 1px solid #cfd6dd;
+  border: 1px solid var(--surface-border, #cfd6dd);
   border-radius: 6px;
   padding: 0.65rem 0.75rem;
   margin-bottom: 0.65rem;
-  background: #fafbfc;
+  background: var(--surface-ground, #fafbfc);
 }
 
 .volTitle {
   font-weight: 700;
   font-size: 0.85rem;
   margin: 0 0 0.5rem;
-  color: #1f2937;
+  color: var(--text-color, #1f2937);
 }
 
 .preWrap {
@@ -256,7 +264,7 @@
 }
 
 .tableHover tbody tr:hover {
-  background: #f9fafb;
+  background: var(--surface-hover, #f9fafb);
 }
 
 .digest {
@@ -266,7 +274,7 @@
 
 .cellMuted {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-color-secondary, #6b7280);
 }
 
 @media print {

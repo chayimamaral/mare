@@ -32,7 +32,8 @@ export default function RegistroService() {
       ie: params.ie,
       im: params.im,
       observacoes: params.observacoes,
-      tenantid: params.tenantid
+      tenantid: params.tenantid,
+      enviar_resumo_mensal: Boolean(params.enviar_resumo_mensal),
     })
   }
 

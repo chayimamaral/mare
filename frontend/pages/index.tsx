@@ -24,7 +24,7 @@ type ModuloCard = ModuloAtivo | ModuloFuturo;
 const MODULOS: ModuloCard[] = [
   {
     titulo: 'Cadastro de Clientes',
-    descricao: 'Criar, alterar e excluir clientes PJ: município, processo e CNAEs.',
+    descricao: 'Criar, alterar e excluir clientes PJ/PF.',
     href: '/clientes',
     icon: 'pi pi-users',
     tooltip: 'Menu Operações → Cadastros Operacionais → Clientes.',

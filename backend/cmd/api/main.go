@@ -115,6 +115,13 @@ func main() {
 		}
 		go nw.Start(ctx)
 	}
+	if cfg.ResumoMensalWorkerEnabled {
+		rw, err := worker.NewResumoMensalWorker(pool, cfg, worker.LogResumoMensalMailer{})
+		if err != nil {
+			log.Fatalf("init resumo mensal worker: %v", err)
+		}
+		go rw.Start(ctx)
+	}
 
 	go func() {
 		log.Printf("backendgo listening on :%s (runtime=%s)", cfg.Port, cfg.Runtime)

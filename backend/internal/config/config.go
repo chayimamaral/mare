@@ -33,6 +33,11 @@ type Config struct {
 	CompromissosWorkerCron         string
 	CompromissosWorkerRunOnStartup bool
 	CompromissosWorkerTimezone     string
+	ResumoMensalWorkerEnabled      bool
+	ResumoMensalWorkerCron         string
+	ResumoMensalWorkerRunOnStartup bool
+	ResumoMensalWorkerTimezone     string
+	ResumoDiaEnvio                 int
 
 	// Worker de sincronização NFe por provider (EF-920): percorre nfe_sync_estado em todos os tenants.
 	NFESyncWorkerEnabled         bool
@@ -180,6 +185,11 @@ func Load() (Config, error) {
 		CompromissosWorkerCron:         getEnv("COMPROMISSOS_WORKER_CRON", "0 5 1 * *"),
 		CompromissosWorkerRunOnStartup: getEnv("COMPROMISSOS_WORKER_RUN_ON_STARTUP", "false") == "true",
 		CompromissosWorkerTimezone:     getEnv("COMPROMISSOS_WORKER_TIMEZONE", "America/Sao_Paulo"),
+		ResumoMensalWorkerEnabled:      getEnv("RESUMO_MENSAL_WORKER_ENABLED", "false") == "true",
+		ResumoMensalWorkerCron:         getEnv("RESUMO_MENSAL_WORKER_CRON", "0 8 * * *"),
+		ResumoMensalWorkerRunOnStartup: getEnv("RESUMO_MENSAL_WORKER_RUN_ON_STARTUP", "false") == "true",
+		ResumoMensalWorkerTimezone:     getEnv("RESUMO_MENSAL_WORKER_TIMEZONE", "America/Sao_Paulo"),
+		ResumoDiaEnvio:                 parseIntEnv("RESUMO_DIA_ENVIO", 1),
 		NFESyncWorkerEnabled:           getEnv("NFE_SYNC_WORKER_ENABLED", "false") == "true",
 		NFESyncWorkerCron:              getEnv("NFE_SYNC_WORKER_CRON", "*/15 * * * *"),
 		NFESyncWorkerRunOnStartup:      getEnv("NFE_SYNC_WORKER_RUN_ON_STARTUP", "false") == "true",

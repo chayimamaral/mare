@@ -16,19 +16,20 @@ type RegistroCreateInput struct {
 }
 
 type RegistroUpdateInput struct {
-	CNPJ        string `json:"cnpj"`
-	CEP         string `json:"cep"`
-	Endereco    string `json:"endereco"`
-	Bairro      string `json:"bairro"`
-	Cidade      string `json:"cidade"`
-	Estado      string `json:"estado"`
-	Telefone    string `json:"telefone"`
-	Email       string `json:"email"`
-	IE          string `json:"ie"`
-	IM          string `json:"im"`
-	RazaoSocial string `json:"razaosocial"`
-	Fantasia    string `json:"fantasia"`
-	Observacoes string `json:"observacoes"`
+	CNPJ               string `json:"cnpj"`
+	CEP                string `json:"cep"`
+	Endereco           string `json:"endereco"`
+	Bairro             string `json:"bairro"`
+	Cidade             string `json:"cidade"`
+	Estado             string `json:"estado"`
+	Telefone           string `json:"telefone"`
+	Email              string `json:"email"`
+	IE                 string `json:"ie"`
+	IM                 string `json:"im"`
+	RazaoSocial        string `json:"razaosocial"`
+	Fantasia           string `json:"fantasia"`
+	Observacoes        string `json:"observacoes"`
+	EnviarResumoMensal bool   `json:"enviar_resumo_mensal"`
 }
 
 type RegistroService struct {
@@ -36,20 +37,21 @@ type RegistroService struct {
 }
 
 type DadosComplementaresResponse struct {
-	Tenantid    string `json:"tenantid"`
-	CNPJ        string `json:"cnpj"`
-	CEP         string `json:"cep"`
-	Endereco    string `json:"endereco"`
-	Bairro      string `json:"bairro"`
-	Cidade      string `json:"cidade"`
-	Estado      string `json:"estado"`
-	Telefone    string `json:"telefone"`
-	Email       string `json:"email"`
-	IE          string `json:"ie"`
-	IM          string `json:"im"`
-	RazaoSocial string `json:"razaosocial"`
-	Fantasia    string `json:"fantasia"`
-	Observacoes string `json:"observacoes"`
+	Tenantid           string `json:"tenantid"`
+	CNPJ               string `json:"cnpj"`
+	CEP                string `json:"cep"`
+	Endereco           string `json:"endereco"`
+	Bairro             string `json:"bairro"`
+	Cidade             string `json:"cidade"`
+	Estado             string `json:"estado"`
+	Telefone           string `json:"telefone"`
+	Email              string `json:"email"`
+	IE                 string `json:"ie"`
+	IM                 string `json:"im"`
+	RazaoSocial        string `json:"razaosocial"`
+	Fantasia           string `json:"fantasia"`
+	Observacoes        string `json:"observacoes"`
+	EnviarResumoMensal bool   `json:"enviar_resumo_mensal"`
 }
 
 func NewRegistroService(repo *repository.RegistroRepository) *RegistroService {
@@ -66,19 +68,20 @@ func (s *RegistroService) Detail(ctx context.Context, tenantID string) (DadosCom
 
 func (s *RegistroService) UpdateByTenantID(ctx context.Context, tenantID string, input RegistroUpdateInput) (DadosComplementaresResponse, error) {
 	record, err := s.repo.UpdateByTenantID(ctx, tenantID, repository.RegistroUpdateInput{
-		CNPJ:        input.CNPJ,
-		CEP:         input.CEP,
-		Endereco:    input.Endereco,
-		Bairro:      input.Bairro,
-		Cidade:      input.Cidade,
-		Estado:      input.Estado,
-		Telefone:    input.Telefone,
-		Email:       input.Email,
-		IE:          input.IE,
-		IM:          input.IM,
-		RazaoSocial: input.RazaoSocial,
-		Fantasia:    input.Fantasia,
-		Observacoes: input.Observacoes,
+		CNPJ:               input.CNPJ,
+		CEP:                input.CEP,
+		Endereco:           input.Endereco,
+		Bairro:             input.Bairro,
+		Cidade:             input.Cidade,
+		Estado:             input.Estado,
+		Telefone:           input.Telefone,
+		Email:              input.Email,
+		IE:                 input.IE,
+		IM:                 input.IM,
+		RazaoSocial:        input.RazaoSocial,
+		Fantasia:           input.Fantasia,
+		Observacoes:        input.Observacoes,
+		EnviarResumoMensal: input.EnviarResumoMensal,
 	})
 	if err != nil {
 		return DadosComplementaresResponse{}, err
@@ -88,19 +91,20 @@ func (s *RegistroService) UpdateByTenantID(ctx context.Context, tenantID string,
 
 func (s *RegistroService) Update(ctx context.Context, userID string, input RegistroUpdateInput) (DadosComplementaresResponse, error) {
 	record, err := s.repo.UpdateByUser(ctx, userID, repository.RegistroUpdateInput{
-		CNPJ:        input.CNPJ,
-		CEP:         input.CEP,
-		Endereco:    input.Endereco,
-		Bairro:      input.Bairro,
-		Cidade:      input.Cidade,
-		Estado:      input.Estado,
-		Telefone:    input.Telefone,
-		Email:       input.Email,
-		IE:          input.IE,
-		IM:          input.IM,
-		RazaoSocial: input.RazaoSocial,
-		Fantasia:    input.Fantasia,
-		Observacoes: input.Observacoes,
+		CNPJ:               input.CNPJ,
+		CEP:                input.CEP,
+		Endereco:           input.Endereco,
+		Bairro:             input.Bairro,
+		Cidade:             input.Cidade,
+		Estado:             input.Estado,
+		Telefone:           input.Telefone,
+		Email:              input.Email,
+		IE:                 input.IE,
+		IM:                 input.IM,
+		RazaoSocial:        input.RazaoSocial,
+		Fantasia:           input.Fantasia,
+		Observacoes:        input.Observacoes,
+		EnviarResumoMensal: input.EnviarResumoMensal,
 	})
 	if err != nil {
 		return DadosComplementaresResponse{}, err
@@ -130,19 +134,20 @@ func mapDadosComplementares(r domain.DadosComplementaresRecord) DadosComplementa
 		return *p
 	}
 	return DadosComplementaresResponse{
-		Tenantid:    r.Tenantid,
-		CNPJ:        ptrToStr(r.CNPJ),
-		CEP:         ptrToStr(r.CEP),
-		Endereco:    ptrToStr(r.Endereco),
-		Bairro:      ptrToStr(r.Bairro),
-		Cidade:      ptrToStr(r.Cidade),
-		Estado:      ptrToStr(r.Estado),
-		Telefone:    ptrToStr(r.Telefone),
-		Email:       ptrToStr(r.Email),
-		IE:          ptrToStr(r.IE),
-		IM:          ptrToStr(r.IM),
-		RazaoSocial: ptrToStr(r.RazaoSocial),
-		Fantasia:    ptrToStr(r.Fantasia),
-		Observacoes: ptrToStr(r.Observacoes),
+		Tenantid:           r.Tenantid,
+		CNPJ:               ptrToStr(r.CNPJ),
+		CEP:                ptrToStr(r.CEP),
+		Endereco:           ptrToStr(r.Endereco),
+		Bairro:             ptrToStr(r.Bairro),
+		Cidade:             ptrToStr(r.Cidade),
+		Estado:             ptrToStr(r.Estado),
+		Telefone:           ptrToStr(r.Telefone),
+		Email:              ptrToStr(r.Email),
+		IE:                 ptrToStr(r.IE),
+		IM:                 ptrToStr(r.IM),
+		RazaoSocial:        ptrToStr(r.RazaoSocial),
+		Fantasia:           ptrToStr(r.Fantasia),
+		Observacoes:        ptrToStr(r.Observacoes),
+		EnviarResumoMensal: r.EnviarResumoMensal,
 	}
 }

@@ -7,7 +7,6 @@ import { Dialog } from 'primereact/dialog';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { InputTextarea } from 'primereact/inputtextarea';
-import { ProgressBar } from 'primereact/progressbar';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { Toast } from 'primereact/toast';
 import { Tooltip } from 'primereact/tooltip';
@@ -23,10 +22,8 @@ import { TabView, TabPanel } from 'primereact/tabview';
 import MunicipioService from '../../services/cruds/MunicipioService';
 import CertificadoClienteService from '../../services/cruds/CertificadoClienteService';
 import EmpresaService from '../../services/cruds/EmpresaService';
-import EnquadramentoJuridicoPorteService from '../../services/cruds/EnquadramentoJuridicoPorteService';
 import EmpresaDadosService from '../../services/cruds/EmpresaDadosService';
-import RegimeTributarioService from '../../services/cruds/RegimeTributarioService';
-import TipoEmpresaService from '../../services/cruds/TipoEmpresaService';
+import MatrizConfiguracaoTributariaService from '../../services/cruds/MatrizConfiguracaoTributariaService';
 import { isWebRuntime } from '../../constants/runtime';
 import { isValidCNPJ, isValidCPF, onlyDigits } from '../../constants/documento';
 import { parseCookies } from 'nookies';
@@ -78,44 +75,33 @@ type PaginatorCurrentPageReportOptions = {
 
 type IndicadorFaturamentoNivel = 'verde' | 'amarelo' | 'vermelho' | 'neutro';
 
-function indicadorFaturamentoNivel(row: Vec.Empresa): IndicadorFaturamentoNivel {
-  if ((row.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF') {
-    return 'neutro';
+function getRoleFromJwt(token: string): string | null {
+  const raw = String(token ?? '').trim();
+  if (!raw || !raw.includes('.')) {
+    return null;
   }
-  const doc = onlyDigits(row.documento ?? '');
-  if (doc.length !== 14) {
-    return 'neutro';
+  try {
+    const payloadB64 = raw.split('.')[1] ?? '';
+    const normalized = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const json =
+      typeof window !== 'undefined'
+        ? window.atob(padded)
+        : Buffer.from(padded, 'base64').toString('utf8');
+    const payload = JSON.parse(json) as Record<string, unknown>;
+    const roleCandidates = [payload.role, payload.user_role, payload.perfil, payload.userRole];
+    for (const candidate of roleCandidates) {
+      if (typeof candidate === 'string') {
+        const normalizedRole = candidate.trim().toUpperCase();
+        if (normalizedRole) {
+          return normalizedRole;
+        }
+      }
+    }
+  } catch {
+    return null;
   }
-  const lim = row.enquadramento_juridico_porte?.limite_final;
-  if (lim == null || !(lim > 0)) {
-    return 'neutro';
-  }
-  const fat = Number(row.faturamento_acumulado_ano ?? 0);
-  const p = (fat / lim) * 100;
-  if (p < 80) {
-    return 'verde';
-  }
-  if (p < 95) {
-    return 'amarelo';
-  }
-  return 'vermelho';
-}
-
-function corIndicadorFaturamento(nivel: IndicadorFaturamentoNivel): string {
-  switch (nivel) {
-    case 'verde':
-      return '#22c55e';
-    case 'amarelo':
-      return '#eab308';
-    case 'vermelho':
-      return '#ef4444';
-    default:
-      return '#94a3b8';
-  }
-}
-
-function formatBRL(n: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+  return null;
 }
 
 const Clientes = () => {
@@ -156,22 +142,10 @@ const Clientes = () => {
       nome: '',
       categoria: ''
     },
-    regime_tributario: {
+    matriz_tributaria: {
       id: '',
-      nome: '',
-      codigo_crt: undefined,
+      nome: ''
     },
-    tipo_empresa: {
-      id: '',
-      descricao: ''
-    },
-    enquadramento_juridico_porte: {
-      id: '',
-      sigla: '',
-      descricao: '',
-    },
-    classificacao_observacao: '',
-    classificacao_atualizado_em: '',
     uf: '',
     cep: '',
     cnaes: [],
@@ -242,6 +216,7 @@ const Clientes = () => {
   const [deleteEmpresaDialog, setDeleteEmpresaDialog] = useState(false);
   const [a3WebDialogVisible, setA3WebDialogVisible] = useState(false);
   const [faturamentoAnaliseRow, setFaturamentoAnaliseRow] = useState<Vec.Empresa | null>(null);
+  const [faturamentoDialogVisible, setFaturamentoDialogVisible] = useState(false);
   const [empresa, setEmpresa] = useState<Vec.Empresa>(emptyEmpresa);
   const [submitted, setSubmitted] = useState(false);
   const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -264,6 +239,7 @@ const Clientes = () => {
   const localToken =
     typeof window !== 'undefined' ? String(window.localStorage.getItem('vecontab_token') ?? '').trim() : '';
   const authToken = sessionToken || cookieToken || localToken;
+  const roleFromToken = getRoleFromJwt(authToken);
 
   const [lazyState, setLazyState] = useState<LazyTableState>({
     totalRecords: totalRecords,
@@ -311,14 +287,16 @@ const Clientes = () => {
   const empresaService = EmpresaService();
   const empresaDadosService = EmpresaDadosService();
 
-  const podeCadastrarClientes = userRole === 'ADMIN' || userRole === 'SUPER';
-  const podeEditarDadosComplementares = userRole === 'ADMIN' || userRole === 'USER' || userRole === 'SUPER';
+  const effectiveUserRole = userRole ?? roleFromToken;
+  const podeCadastrarClientes = effectiveUserRole === 'ADMIN' || effectiveUserRole === 'SUPER';
+  const podeEditarDadosComplementares =
+    effectiveUserRole === 'ADMIN' || effectiveUserRole === 'USER' || effectiveUserRole === 'SUPER';
   const podeEditarComplementosCliente = podeCadastrarClientes || podeEditarDadosComplementares;
-  /** ADMIN/SUPER podem ajustar natureza jurídica e enquadramento tributário (CRT) mesmo com processo iniciado; USER só complementos. */
-  const podeEditarEnquadramentoRegimePJ =
-    (userRole === 'ADMIN' || userRole === 'SUPER') && !userRoleLoading && !userRoleError;
+  /** ADMIN/SUPER podem ajustar a matriz tributária; USER só complementos. */
+  const podeEditarMatrizTributaria =
+    (effectiveUserRole === 'ADMIN' || effectiveUserRole === 'SUPER') && !userRoleError;
   /** Certificado por cliente: ADMIN do escritório e SUPER; USER não vê nem altera (EF-907). */
-  const podeAnexarCertificadoCliente = userRole === 'ADMIN' || userRole === 'SUPER';
+  const podeAnexarCertificadoCliente = effectiveUserRole === 'ADMIN' || effectiveUserRole === 'SUPER';
   const abaCertificadoClienteHabilitada = podeAnexarCertificadoCliente;
 
   /** O .p-dialog-content usa overflow:auto; overlays dos Dropdown ficam cortados sem appendTo no body. */
@@ -330,79 +308,27 @@ const Clientes = () => {
   const certClienteService = CertificadoClienteService();
 
   const {
-    data: regimesTributariosOptions = [],
-    isPending: regimesTributariosLoading,
-    isError: regimesTributariosError,
-  } = useQuery<Vec.RegimeTributario[]>({
-    queryKey: ['regimes-tributarios', 'cliente-dropdown'],
+    data: matrizTributariaOptions = [],
+    isPending: matrizTributariaLoading,
+  } = useQuery<Vec.MatrizConfiguracaoTributariaLite[]>({
+    queryKey: ['matriz-configuracao-tributaria', 'cliente-dropdown'],
     queryFn: async () => {
-      const svc = RegimeTributarioService();
-      const { data } = await svc.getRegimes({
+      const svc = MatrizConfiguracaoTributariaService();
+      const { data } = await svc.list({
         lazyEvent: JSON.stringify({
           first: 0,
-          rows: 500,
-          sortField: 'codigo_crt',
+          rows: 999,
+          sortField: 'nome',
           sortOrder: 1,
           filters: { nome: { value: '', matchMode: 'contains' } },
         }),
       });
-      return Array.isArray(data?.regimes) ? data.regimes : [];
+      return Array.isArray(data?.items) ? data.items : [];
     },
-    /** Pré-carrega para inclusão e edição: ao abrir o Dialog, a lista já está disponível (evita painel vazio). */
     enabled: true,
     staleTime: 1000 * 60 * 5,
     retry: 2,
   });
-
-  const anoVigenciaPorteClassif = new Date().getFullYear();
-  const enquadramentoPorteSvc = EnquadramentoJuridicoPorteService();
-  const {
-    data: porteClassificacaoOptions = [],
-    isPending: porteClassificacaoLoading,
-    isError: porteClassificacaoError,
-  } = useQuery<Vec.EnquadramentoJuridicoPorte[]>({
-    queryKey: ['enquadramentos-juridicos-porte', 'cliente-classificacao', anoVigenciaPorteClassif],
-    queryFn: async () => {
-      const { data } = await enquadramentoPorteSvc.list(anoVigenciaPorteClassif);
-      return data?.items ?? [];
-    },
-    staleTime: 1000 * 60 * 5,
-    retry: 2,
-  });
-
-  const { data: tiposEmpresaOptions = [] } = useQuery<Vec.TipoEmpresaLite[]>({
-    queryKey: ['tiposempresa-lite', 'cliente-form'],
-    queryFn: async () => {
-      const { data } = await TipoEmpresaService().getTiposEmpresaLite();
-      return Array.isArray(data?.tiposEmpresa) ? data.tiposEmpresa : [];
-    },
-    staleTime: 1000 * 60 * 5,
-    retry: 2,
-  });
-
-  useEffect(() => {
-    if (!empresaDialog || !regimesTributariosError) {
-      return;
-    }
-    toast.current?.show({
-      severity: 'warn',
-      summary: 'Enquadramentos tributários',
-      detail: 'Não foi possível carregar a lista (GET /api/regimes-tributarios). Verifique o console de rede ou o cadastro em Enquadramento tributário.',
-      life: 6000,
-    });
-  }, [empresaDialog, regimesTributariosError]);
-
-  useEffect(() => {
-    if (!empresaDialog || !porteClassificacaoError) {
-      return;
-    }
-    toast.current?.show({
-      severity: 'warn',
-      summary: 'Enquadramento por porte',
-      detail: 'Não foi possível carregar a lista (GET /api/enquadramentos-juridicos-porte). Verifique o cadastro em Enquadramento jurídico por porte.',
-      life: 6000,
-    });
-  }, [empresaDialog, porteClassificacaoError]);
 
   const {
     data: certClienteRemote,
@@ -425,7 +351,7 @@ const Clientes = () => {
     if (!empresaDialog || abaCertificadoClienteHabilitada) {
       return;
     }
-    if (clienteDialogTabIndex === 3) {
+    if (clienteDialogTabIndex === 2) {
       setClienteDialogTabIndex(0);
     }
   }, [empresaDialog, abaCertificadoClienteHabilitada, clienteDialogTabIndex]);
@@ -671,52 +597,19 @@ const Clientes = () => {
     return { id: empresa.municipio.id, nome: empresa.municipio.nome ?? '' };
   })();
 
-  const regimeTributarioFormDropdownValue = (() => {
-    const id = (empresa.regime_tributario?.id ?? '').trim();
+  const matrizTributariaFormDropdownValue = (() => {
+    const id = (empresa.matriz_tributaria?.id ?? '').trim();
     if (!id) {
       return null;
     }
-    const fromList = regimesTributariosOptions.find((r) => (r.id ?? '').trim() === id);
+    const fromList = matrizTributariaOptions.find((m) => (m.id ?? '').trim() === id);
     if (fromList) {
       return fromList;
     }
     return {
-      id: empresa.regime_tributario?.id ?? '',
-      nome: empresa.regime_tributario?.nome ?? '',
-      codigo_crt: empresa.regime_tributario?.codigo_crt,
-    } as Vec.RegimeTributario;
-  })();
-
-  const tipoEmpresaFormDropdownValue = (() => {
-    const id = (empresa.tipo_empresa?.id ?? '').trim();
-    if (!id) {
-      return null;
-    }
-    const fromList = tiposEmpresaOptions.find((t) => (t.id ?? '').trim() === id);
-    if (fromList) {
-      return fromList;
-    }
-    return {
-      id: empresa.tipo_empresa?.id ?? '',
-      descricao: empresa.tipo_empresa?.descricao ?? '',
-    } as Vec.TipoEmpresaLite;
-  })();
-
-  const enquadramentoPorteFormDropdownValue = (() => {
-    const id = (empresa.enquadramento_juridico_porte?.id ?? '').trim();
-    if (!id) {
-      return null;
-    }
-    const fromList = porteClassificacaoOptions.find((p) => (p.id ?? '').trim() === id);
-    if (fromList) {
-      return fromList;
-    }
-    return {
-      id: empresa.enquadramento_juridico_porte?.id ?? '',
-      sigla: empresa.enquadramento_juridico_porte?.sigla ?? '',
-      descricao: empresa.enquadramento_juridico_porte?.descricao ?? '',
-      ano_vigencia: anoVigenciaPorteClassif,
-    } as Vec.EnquadramentoJuridicoPorte;
+      id: empresa.matriz_tributaria?.id ?? '',
+      nome: empresa.matriz_tributaria?.nome ?? '',
+    } as Vec.MatrizConfiguracaoTributariaLite;
   })();
 
   const buildPayloadDados = (empresaId: string) => {
@@ -747,7 +640,7 @@ const Clientes = () => {
     const docOkPf = isClientePF && isValidCPF(docDigits);
     const docOkPj = !isClientePF && (docDigits.length === 0 || isValidCNPJ(docDigits));
     /** Somente USER grava só clientes_dados; ADMIN/SUPER sempre passam por update do cliente (inclui regime/tipo) + dados. */
-    const salvarSomenteClientesDados = !!empresa.id && podeEditarComplementosCliente && userRole === 'USER';
+    const salvarSomenteClientesDados = !!empresa.id && podeEditarComplementosCliente && effectiveUserRole === 'USER';
 
     if (salvarSomenteClientesDados) {
       if (!munOk) {
@@ -789,18 +682,13 @@ const Clientes = () => {
         rotina: { id: (empresa.rotina?.id ?? '').trim() },
         ie: isClientePF ? '' : (empresa.ie ?? ''),
         im: isClientePF ? '' : (empresa.im ?? ''),
-        regime_tributario: isClientePF
+        matriz_tributaria: isClientePF
           ? { id: '' }
-          : { id: (empresa.regime_tributario?.id ?? '').trim() },
-        tipo_empresa: isClientePF ? { id: '' } : { id: (empresa.tipo_empresa?.id ?? '').trim() },
+          : { id: (empresa.matriz_tributaria?.id ?? '').trim() },
         rotina_pf: {
           id: (empresa.rotina_pf?.id ?? '').trim(),
         },
         cnaes: Array.isArray(empresa.cnaes) ? [...empresa.cnaes] : [],
-        enquadramento_juridico_porte: isClientePF
-          ? { id: '' }
-          : { id: (empresa.enquadramento_juridico_porte?.id ?? '').trim() },
-        classificacao_observacao: isClientePF ? '' : String(empresa.classificacao_observacao ?? '').trim(),
       };
 
       const afterEmpresaOk = (id: string) => {
@@ -896,25 +784,14 @@ const Clientes = () => {
       ...row,
       municipio: row.municipio ?? { id: '', nome: '' },
       rotina: row.rotina,
-      enquadramento_juridico_porte: row.enquadramento_juridico_porte?.id
+      matriz_tributaria: row.matriz_tributaria?.id
         ? {
-          id: row.enquadramento_juridico_porte.id,
-          sigla: row.enquadramento_juridico_porte.sigla ?? '',
-          descricao: row.enquadramento_juridico_porte.descricao ?? '',
-          limite_final: row.enquadramento_juridico_porte.limite_final,
+          id: row.matriz_tributaria.id,
+          nome: row.matriz_tributaria.nome ?? '',
         }
-        : { id: '', sigla: '', descricao: '' },
+        : { id: '', nome: '' },
       faturamento_acumulado_ano: row.faturamento_acumulado_ano ?? 0,
-      classificacao_observacao: row.classificacao_observacao ?? '',
-      classificacao_atualizado_em: row.classificacao_atualizado_em ?? '',
       rotina_pf: row.rotina_pf ?? { id: '', nome: '', categoria: '' },
-      regime_tributario: row.regime_tributario?.id
-        ? {
-          id: row.regime_tributario.id,
-          nome: row.regime_tributario.nome ?? '',
-          codigo_crt: row.regime_tributario.codigo_crt,
-        }
-        : { id: '', nome: '', codigo_crt: undefined },
       ie: row.ie ?? '',
       im: row.im ?? '',
       bairro: row.bairro ?? '',
@@ -994,13 +871,9 @@ const Clientes = () => {
         tipo_pessoa: 'PF',
         rotina: { id: '', descricao: '' },
         rotina_pf: { id: '', nome: '', categoria: '' },
-        regime_tributario: { id: '', nome: '', codigo_crt: undefined },
+        matriz_tributaria: { id: '', nome: '' },
         ie: '',
         im: '',
-        tipo_empresa: { id: '', descricao: '' },
-        enquadramento_juridico_porte: { id: '', sigla: '', descricao: '' },
-        classificacao_observacao: '',
-        classificacao_atualizado_em: '',
         cnaes: [],
       }));
       return;
@@ -1118,38 +991,6 @@ const Clientes = () => {
     );
   };
 
-  const indicadorFaturamentoStBodyTemplate = (rowData: Vec.Empresa) => {
-    const nivel = indicadorFaturamentoNivel(rowData);
-    const cor = corIndicadorFaturamento(nivel);
-    return (
-      <>
-        <span className="p-column-title">ST</span>
-        <button
-          type="button"
-          className="cliente-indicador-faturamento-dot p-0 border-none bg-transparent cursor-pointer p-component"
-          style={{ lineHeight: 0, padding: '2px' }}
-          aria-label="Indicador de faturamento em relação ao teto do porte"
-          onClick={(e) => {
-            e.stopPropagation();
-            setFaturamentoAnaliseRow(rowData);
-          }}
-        >
-          <span
-            className="border-circle inline-block"
-            style={{
-              width: '0.65rem',
-              height: '0.65rem',
-              minWidth: '0.65rem',
-              minHeight: '0.65rem',
-              backgroundColor: cor,
-              boxShadow: nivel === 'neutro' ? 'inset 0 0 0 1px rgba(0,0,0,0.15)' : undefined,
-            }}
-          />
-        </button>
-      </>
-    );
-  };
-
   const municipioBodyTemplate = (rowData: Vec.Empresa) => {
     const n = rowData.municipio?.nome?.trim();
     return (
@@ -1160,36 +1001,59 @@ const Clientes = () => {
     );
   };
 
-  const tipoEmpresaBodyTemplate = (rowData: Vec.Empresa) => {
+  const matrizTributariaBodyTemplate = (rowData: Vec.Empresa) => {
     return (
       <>
-        <span className="p-column-title">Natureza Jurídica</span>
-        {rowData.tipo_empresa?.descricao ?? '—'}
+        <span className="p-column-title">Matriz Tributária</span>
+        {rowData.matriz_tributaria?.nome ?? '—'}
       </>
     );
   };
 
-  const regimeTributarioBodyTemplate = (rowData: Vec.Empresa) => {
-    const r = rowData.regime_tributario;
-    const nome = (r?.nome ?? '').trim();
-    const crt = r?.codigo_crt;
-    const crtTxt = crt !== undefined && crt !== null && Number(crt) > 0 ? ` (CRT ${crt})` : '';
+  const substituicaoTributariaBodyTemplate = (rowData: Vec.Empresa) => {
+    const st = rowData.matriz_tributaria?.substituicao_tributaria;
     return (
       <>
-        <span className="p-column-title">Enquadramento tributário</span>
-        {nome ? `${nome}${crtTxt}` : '—'}
+        <span className="p-column-title">ST</span>
+        <button
+          type="button"
+          className="p-button p-button-text p-button-rounded p-0 cliente-indicador-faturamento-dot"
+          style={{ width: '1.6rem', height: '1.6rem' }}
+          onClick={() => {
+            setFaturamentoAnaliseRow(rowData);
+            setFaturamentoDialogVisible(true);
+          }}
+          title={st ? 'Substituição Tributária' : 'Sem Substituição Tributária'}
+          aria-label="Abrir análise de faturamento"
+        >
+          <i
+            className={`pi ${st ? 'pi-circle-fill text-red-500' : 'pi-circle text-gray-300'}`}
+            style={{ fontSize: '0.9rem' }}
+          />
+        </button>
       </>
     );
   };
 
-  const enquadramentoPorteBodyTemplate = (rowData: Vec.Empresa) => {
-    const s = (rowData.enquadramento_juridico_porte?.sigla ?? '').trim();
-    return (
-      <>
-        <span className="p-column-title">Porte</span>
-        {s || '—'}
-      </>
-    );
+  const formatBRL = (value: number) =>
+    Number(value ?? 0).toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const indicadorFaturamentoNivel = (valor: number): IndicadorFaturamentoNivel => {
+    if (!Number.isFinite(valor) || valor <= 0) {
+      return 'neutro';
+    }
+    if (valor <= 360000) {
+      return 'verde';
+    }
+    if (valor <= 4800000) {
+      return 'amarelo';
+    }
+    return 'vermelho';
   };
 
   const template = {
@@ -1244,7 +1108,7 @@ const Clientes = () => {
     if (!authToken) {
       return <span className="text-500 text-sm ml-1">Sem sessão ativa</span>;
     }
-    if (userRoleLoading) {
+    if (userRoleLoading && !effectiveUserRole) {
       return <ProgressSpinner style={{ width: '1.35rem', height: '1.35rem' }} />;
     }
     if (userRoleError) {
@@ -1344,12 +1208,6 @@ const Clientes = () => {
             totalRecords={totalRecords}
             paginatorLeft={paginatorLeft}
           >
-            <Column
-              field="faturamento_indicador"
-              header="ST"
-              body={indicadorFaturamentoStBodyTemplate}
-              headerStyle={{ width: '3.25rem', maxWidth: '4rem' }}
-            ></Column>
             <Column field="nome" header="Nome" sortable body={nomeBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
             <Column
               field="tipo_pessoa"
@@ -1363,14 +1221,8 @@ const Clientes = () => {
               headerStyle={{ minWidth: '6rem' }}
             />
             <Column field="municipio" header="Municipio" body={municipioBodyTemplate} headerStyle={{ minWidth: '15rem' }}></Column>
-            <Column field="tipo_empresa" header="Natureza Jurídica" body={tipoEmpresaBodyTemplate} headerStyle={{ minWidth: '12rem' }}></Column>
-            <Column
-              field="enquadramento_juridico_porte"
-              header="Porte"
-              body={enquadramentoPorteBodyTemplate}
-              headerStyle={{ minWidth: '7rem' }}
-            ></Column>
-            <Column field="regime_tributario" header="Enquadramento tributário" body={regimeTributarioBodyTemplate} headerStyle={{ minWidth: '14rem' }}></Column>
+            <Column field="matriz_tributaria" header="Matriz Tributária" body={matrizTributariaBodyTemplate} headerStyle={{ minWidth: '14rem' }}></Column>
+            <Column field="st" header="ST" body={substituicaoTributariaBodyTemplate} headerStyle={{ minWidth: '4rem' }}></Column>
             <Column body={actionBodyTemplate} header="Ações" headerStyle={{ minWidth: '10rem' }}></Column>
           </DataTable>
 
@@ -1413,7 +1265,7 @@ const Clientes = () => {
                 />
                 <Button
                   type="button"
-                  tooltip="Classificação fiscal e jurídica"
+                  tooltip="Endereço e meios de contato"
                   tooltipOptions={{ position: 'bottom' }}
                   onClick={() => setClienteDialogTabIndex(1)}
                   className="w-2rem h-2rem p-0"
@@ -1423,34 +1275,24 @@ const Clientes = () => {
                 />
                 <Button
                   type="button"
-                  tooltip="Endereço e meios de contato"
-                  tooltipOptions={{ position: 'bottom' }}
-                  onClick={() => setClienteDialogTabIndex(2)}
-                  className="w-2rem h-2rem p-0"
-                  rounded
-                  outlined={clienteDialogTabIndex !== 2}
-                  label="3"
-                />
-                <Button
-                  type="button"
                   tooltip={
                     abaCertificadoClienteHabilitada
                       ? 'Certificado digital'
                       : 'Certificado digital (somente administrador do escritório)'
                   }
                   tooltipOptions={{ position: 'bottom' }}
-                  onClick={() => setClienteDialogTabIndex(3)}
+                  onClick={() => setClienteDialogTabIndex(2)}
                   className="w-2rem h-2rem p-0"
                   rounded
-                  outlined={clienteDialogTabIndex !== 3}
-                  label="4"
+                  outlined={clienteDialogTabIndex !== 2}
+                  label="3"
                   disabled={!abaCertificadoClienteHabilitada}
                 />
               </div>
               <TabView
                 activeIndex={clienteDialogTabIndex}
                 onTabChange={(e) => {
-                  if (!abaCertificadoClienteHabilitada && e.index === 3) {
+                  if (!abaCertificadoClienteHabilitada && e.index === 2) {
                     return;
                   }
                   setClienteDialogTabIndex(e.index);
@@ -1544,6 +1386,45 @@ const Clientes = () => {
                       appendTo={dropdownAppendTo}
                     />
                   </div>
+
+                  {!isClientePF && (
+                    <div className="field">
+                      <label htmlFor="dd_matriz_trib">Matriz Tributária</label>
+                      <Dropdown
+                        id="dd_matriz_trib"
+                        value={matrizTributariaFormDropdownValue}
+                        options={matrizTributariaOptions}
+                        onChange={(e) => {
+                          const opt = e.value as Vec.MatrizConfiguracaoTributariaLite | null;
+                          if (!opt?.id) {
+                            setEmpresa((prev) => ({
+                              ...prev,
+                              matriz_tributaria: { id: '', nome: '' },
+                            }));
+                            return;
+                          }
+                          setEmpresa((prev) => ({
+                            ...prev,
+                            matriz_tributaria: {
+                              id: opt.id ?? '',
+                              nome: opt.nome ?? '',
+                            },
+                          }));
+                        }}
+                        optionLabel="nome"
+                        dataKey="id"
+                        placeholder="Selecione a matriz tributária"
+                        emptyMessage="Cadastre em Matriz de Configuração Tributária"
+                        disabled={!podeEditarMatrizTributaria}
+                        className="w-full"
+                        showClear
+                        filter
+                        filterBy="nome"
+                        loading={matrizTributariaLoading}
+                        appendTo={dropdownAppendTo}
+                      />
+                    </div>
+                  )}
 
                   {!isClientePF && (
                     <div className="p-fluid field">
@@ -1651,191 +1532,9 @@ const Clientes = () => {
                   )}
                 </TabPanel>
 
-                <TabPanel header="Classificação Fiscal e Jurídica" headerStyle={{ whiteSpace: 'nowrap' }}>
-                  {isClientePF ? (
-                    <p className="text-600 text-sm mt-0">
-                      Classificação fiscal e jurídica não se aplica a pessoa física.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-600 text-sm mt-0 mb-3">
-                        Natureza jurídica, porte por faturamento e regime tributário (CRT). Listas de porte conforme vigência{' '}
-                        <strong>{anoVigenciaPorteClassif}</strong> — ajuste anual conforme o cadastro base.
-                      </p>
-                      <div className="formgrid grid">
-                        <div className="field col-12 md:col-6">
-                          <label htmlFor="dd_tipo_emp_cli">Natureza jurídica</label>
-                          <Dropdown
-                            id="dd_tipo_emp_cli"
-                            value={tipoEmpresaFormDropdownValue}
-                            options={tiposEmpresaOptions}
-                            onChange={(e) => {
-                              const opt = e.value as Vec.TipoEmpresaLite | null;
-                              if (!opt?.id) {
-                                setEmpresa((prev) => ({
-                                  ...prev,
-                                  tipo_empresa: { id: '', descricao: '' },
-                                }));
-                                return;
-                              }
-                              setEmpresa((prev) => ({
-                                ...prev,
-                                tipo_empresa: {
-                                  id: opt.id ?? '',
-                                  descricao: opt.descricao ?? '',
-                                },
-                              }));
-                            }}
-                            optionLabel="descricao"
-                            dataKey="id"
-                            placeholder="Selecione a natureza jurídica"
-                            emptyMessage="Cadastre em Natureza jurídica (menu Cadastros Contábeis)"
-                            disabled={!podeEditarEnquadramentoRegimePJ}
-                            className="w-full"
-                            showClear
-                            filter
-                            filterBy="descricao"
-                            appendTo={dropdownAppendTo}
-                          />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                          <label htmlFor="dd_porte_classif">Enquadramento por porte</label>
-                          <Dropdown
-                            id="dd_porte_classif"
-                            value={enquadramentoPorteFormDropdownValue}
-                            options={porteClassificacaoOptions}
-                            onChange={(e) => {
-                              const opt = e.value as Vec.EnquadramentoJuridicoPorte | null;
-                              if (!opt?.id) {
-                                setEmpresa((prev) => ({
-                                  ...prev,
-                                  enquadramento_juridico_porte: { id: '', sigla: '', descricao: '' },
-                                }));
-                                return;
-                              }
-                              setEmpresa((prev) => ({
-                                ...prev,
-                                enquadramento_juridico_porte: {
-                                  id: opt.id ?? '',
-                                  sigla: opt.sigla ?? '',
-                                  descricao: opt.descricao ?? '',
-                                },
-                              }));
-                            }}
-                            dataKey="id"
-                            itemTemplate={(p: Vec.EnquadramentoJuridicoPorte) => (
-                              <span>
-                                {(p.sigla ?? '').trim()}
-                                {(p.sigla ?? '').trim() && (p.descricao ?? '').trim() ? ' — ' : ''}
-                                {p.descricao ?? ''}
-                              </span>
-                            )}
-                            valueTemplate={(p: Vec.EnquadramentoJuridicoPorte | null) =>
-                              p?.id ? (
-                                <span>
-                                  {(p.sigla ?? '').trim()}
-                                  {(p.sigla ?? '').trim() && (p.descricao ?? '').trim() ? ' — ' : ''}
-                                  {p.descricao ?? ''}
-                                </span>
-                              ) : (
-                                <span className="text-500">Selecione o porte</span>
-                              )
-                            }
-                            placeholder="Selecione o porte"
-                            emptyMessage="Cadastre em Enquadramento jurídico por porte"
-                            disabled={!podeEditarEnquadramentoRegimePJ}
-                            className="w-full"
-                            showClear
-                            loading={porteClassificacaoLoading}
-                            filter
-                            filterBy="descricao"
-                            appendTo={dropdownAppendTo}
-                          />
-                        </div>
-                        <div className="field col-12">
-                          <label htmlFor="dd_regime_trib">Regime tributário (CRT)</label>
-                          <Dropdown
-                            id="dd_regime_trib"
-                            value={regimeTributarioFormDropdownValue}
-                            options={regimesTributariosOptions}
-                            onChange={(e) => {
-                              const opt = e.value as Vec.RegimeTributario | null;
-                              if (!opt?.id) {
-                                setEmpresa((prev) => ({
-                                  ...prev,
-                                  regime_tributario: { id: '', nome: '', codigo_crt: undefined },
-                                }));
-                                return;
-                              }
-                              setEmpresa((prev) => ({
-                                ...prev,
-                                regime_tributario: {
-                                  id: opt.id ?? '',
-                                  nome: opt.nome ?? '',
-                                  codigo_crt: opt.codigo_crt,
-                                },
-                              }));
-                            }}
-                            optionLabel="nome"
-                            itemTemplate={(r: Vec.RegimeTributario) => (
-                              <span>
-                                {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
-                              </span>
-                            )}
-                            valueTemplate={(r: Vec.RegimeTributario | null) =>
-                              r?.id ? (
-                                <span>
-                                  {r.nome ?? ''} (CRT {r.codigo_crt ?? ''})
-                                </span>
-                              ) : (
-                                <span className="text-500">Selecione o regime (CRT)</span>
-                              )
-                            }
-                            dataKey="id"
-                            placeholder="Selecione o regime (CRT)"
-                            emptyMessage="Cadastre em Enquadramento tributário"
-                            disabled={!podeEditarEnquadramentoRegimePJ}
-                            className="w-full"
-                            showClear
-                            loading={regimesTributariosLoading}
-                            filter
-                            filterBy="nome"
-                            appendTo={dropdownAppendTo}
-                          />
-                        </div>
-                      </div>
-                      <div className="field">
-                        <label htmlFor="classif_obs_cli">Observação da classificação</label>
-                        <InputTextarea
-                          id="classif_obs_cli"
-                          value={empresa.classificacao_observacao ?? ''}
-                          onChange={(e) => setEmpresa((prev) => ({ ...prev, classificacao_observacao: e.target.value }))}
-                          disabled={!podeEditarEnquadramentoRegimePJ}
-                          rows={3}
-                          className="w-full"
-                          autoResize
-                          placeholder="Ex.: alteração de porte ou regime no exercício…"
-                        />
-                      </div>
-                      {(empresa.classificacao_atualizado_em ?? '').trim() ? (
-                        <p className="text-600 text-sm mt-0 mb-0">
-                          Última atualização registrada:{' '}
-                          <strong>
-                            {(() => {
-                              const raw = String(empresa.classificacao_atualizado_em ?? '').trim();
-                              const d = new Date(raw);
-                              return Number.isNaN(d.getTime()) ? raw : d.toLocaleString('pt-BR');
-                            })()}
-                          </strong>
-                        </p>
-                      ) : null}
-                    </>
-                  )}
-                </TabPanel>
-
                 <TabPanel header="Endereço e Meios de Contato" headerStyle={{ whiteSpace: 'nowrap' }}>
                   <p className="text-600 text-sm mt-0 mb-3">
-                    Município foi informado na aba <strong>Dados Principais</strong>. Classificação fiscal e jurídica na aba homônima.
+                    Município foi informado na aba <strong>Dados Principais</strong>. Matriz Tributária também é definida na aba de dados principais.
                   </p>
 
                   <div className="formgrid grid">
@@ -2102,140 +1801,6 @@ const Clientes = () => {
             </div>
           </Dialog>
 
-          <Dialog
-            visible={!!faturamentoAnaliseRow}
-            style={{ width: 'min(34rem, 94vw)' }}
-            header={
-              faturamentoAnaliseRow
-                ? `Análise de Faturamento - ${faturamentoAnaliseRow.nome ?? ''}`
-                : ''
-            }
-            modal
-            className="p-fluid"
-            onHide={() => setFaturamentoAnaliseRow(null)}
-            footer={
-              <Button
-                type="button"
-                label="Fechar"
-                icon="pi pi-times"
-                text
-                onClick={() => setFaturamentoAnaliseRow(null)}
-              />
-            }
-          >
-            {faturamentoAnaliseRow ? (
-              (() => {
-                const fa = faturamentoAnaliseRow;
-                const anoCalendario = new Date().getFullYear();
-                const isPF = (fa.tipo_pessoa ?? 'PJ').toUpperCase() === 'PF';
-                const docDigits = onlyDigits(fa.documento ?? '');
-                const doc14 = docDigits.length === 14;
-                const limRaw = fa.enquadramento_juridico_porte?.limite_final;
-                const limNum = limRaw != null ? Number(limRaw) : NaN;
-                const limOk = Number.isFinite(limNum) && limNum > 0;
-                const fat = Number(fa.faturamento_acumulado_ano ?? 0);
-                const nivel = indicadorFaturamentoNivel(fa);
-                const pct = limOk ? (fat / limNum) * 100 : 0;
-                const porteRotulo = [fa.enquadramento_juridico_porte?.sigla, fa.enquadramento_juridico_porte?.descricao]
-                  .map((s) => (s ?? '').trim())
-                  .filter(Boolean)
-                  .join(' — ');
-                const barColor =
-                  nivel === 'vermelho' ? '#ef4444' : nivel === 'amarelo' ? '#eab308' : '#22c55e';
-
-                return (
-                  <div className="flex flex-column gap-3">
-                    <p className="text-600 text-sm m-0">
-                      Valores com base nas notas fiscais em que o CNPJ do cliente é o{' '}
-                      <strong>emitente</strong>, somando <strong>Valor Total</strong> no ano calendário{' '}
-                      <strong>{anoCalendario}</strong>.
-                    </p>
-                    {isPF ? (
-                      <Message
-                        severity="info"
-                        text="Indicador de porte (ME, EPP, etc.) não se aplica a pessoa física."
-                        className="w-full"
-                      />
-                    ) : null}
-                    {!isPF && !doc14 ? (
-                      <Message
-                        severity="info"
-                        text="Informe um CNPJ válido (14 dígitos) no cadastro do cliente para vincular o faturamento das NF-e emitidas."
-                        className="w-full"
-                      />
-                    ) : null}
-                    {!isPF && doc14 ? (
-                      <div className="field mb-0">
-                        <label className="block text-900 font-medium mb-1">Valor total faturado (acumulado no ano)</label>
-                        <span className="text-xl">{formatBRL(fat)}</span>
-                      </div>
-                    ) : null}
-                    {!isPF && doc14 && limOk ? (
-                      <div className="field mb-0">
-                        <label className="block text-900 font-medium mb-1">Teto do enquadramento por porte</label>
-                        <span className="text-lg">
-                          {formatBRL(limNum)}
-                          {porteRotulo ? (
-                            <span className="text-600 text-base font-normal">
-                              {' '}
-                              ({porteRotulo})
-                            </span>
-                          ) : null}
-                        </span>
-                      </div>
-                    ) : null}
-                    {!isPF && doc14 && !limOk ? (
-                      <Message
-                        severity="info"
-                        text="Defina o enquadramento por porte no cliente (aba Classificação fiscal e jurídica) para exibir o teto e o percentual em relação ao faturamento."
-                        className="w-full"
-                      />
-                    ) : null}
-                    {!isPF && doc14 && limOk ? (
-                      <>
-                        <div>
-                          <label className="block text-900 font-medium mb-2">Progresso em relação ao teto</label>
-                          <ProgressBar
-                            value={Math.min(100, Math.round(pct * 10) / 10)}
-                            showValue={false}
-                            style={{ height: '12px' }}
-                            pt={{
-                              value: {
-                                style: {
-                                  background: barColor,
-                                },
-                              },
-                            }}
-                          />
-                          <div className="flex justify-content-between align-items-center mt-2">
-                            <span className="text-600 text-sm">
-                              {pct >= 100 ? 'Atingido ou superado o teto' : 'Percentual utilizado'}
-                            </span>
-                            <span className="text-900 font-semibold">{pct.toFixed(1)}%</span>
-                          </div>
-                        </div>
-                        {nivel === 'amarelo' ? (
-                          <Message
-                            severity="warn"
-                            text="Atenção: o faturamento acumulado ultrapassou 80% do teto do enquadramento por porte. Monitore a proximidade do limite."
-                            className="w-full"
-                          />
-                        ) : null}
-                        {nivel === 'vermelho' ? (
-                          <Message
-                            severity="error"
-                            text="Alerta: o faturamento atingiu ou ultrapassou 95% do teto. Avalie o enquadramento e o planejamento fiscal."
-                            className="w-full"
-                          />
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                );
-              })()
-            ) : null}
-          </Dialog>
-
           <Dialog visible={deleteEmpresaDialog} style={{ width: '450px' }} header="Confirma a exclusão ?" modal footer={deleteEmpresaDialogFooter} onHide={hideDeleteEmpresaDialog} className="red-header">
             <div className="flex align-items-center justify-content-center">
               <i className="pi pi-exclamation-triangle mr-3" style={{ fontSize: '2rem', color: '#d6551e' }} />
@@ -2265,6 +1830,63 @@ const Clientes = () => {
             <p className="m-0">
               Para uso de certificado tipo A3, utilize a versão desktop do Vecontab.
             </p>
+          </Dialog>
+
+          <Dialog
+            visible={faturamentoDialogVisible}
+            header="Análise de Faturamento"
+            modal
+            style={{ width: 'min(36rem, 94vw)' }}
+            onHide={() => setFaturamentoDialogVisible(false)}
+            footer={
+              <Button
+                type="button"
+                label="Fechar"
+                icon="pi pi-times"
+                onClick={() => setFaturamentoDialogVisible(false)}
+              />
+            }
+          >
+            {faturamentoAnaliseRow ? (
+              <div className="flex flex-column gap-3">
+                <div>
+                  <strong>Cliente:</strong> {faturamentoAnaliseRow.nome}
+                </div>
+                <div>
+                  <strong>Matriz Tributária:</strong> {faturamentoAnaliseRow.matriz_tributaria?.nome ?? '—'}
+                </div>
+                <div>
+                  <strong>ST na Matriz:</strong>{' '}
+                  {faturamentoAnaliseRow.matriz_tributaria?.substituicao_tributaria ? 'Ativo' : 'Inativo'}
+                </div>
+                <div>
+                  <strong>Faturamento acumulado no ano:</strong>{' '}
+                  {formatBRL(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0))}
+                </div>
+                <Message
+                  severity={
+                    indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'vermelho'
+                      ? 'error'
+                      : indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'amarelo'
+                        ? 'warn'
+                        : indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'verde'
+                          ? 'success'
+                          : 'info'
+                  }
+                  text={`Situação do faturamento: ${
+                    indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'vermelho'
+                      ? 'Acima de 4,8M no ano'
+                      : indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'amarelo'
+                        ? 'Entre 360 mil e 4,8M no ano'
+                        : indicadorFaturamentoNivel(Number(faturamentoAnaliseRow.faturamento_acumulado_ano ?? 0)) === 'verde'
+                          ? 'Até 360 mil no ano'
+                          : 'Sem faturamento no ano'
+                  }`}
+                />
+              </div>
+            ) : (
+              <p className="m-0">Nenhum cliente selecionado.</p>
+            )}
           </Dialog>
 
         </div>

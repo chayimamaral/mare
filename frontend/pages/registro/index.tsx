@@ -1,9 +1,9 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InputText } from 'primereact/inputtext';
 import { Button } from 'primereact/button';
 
 import { Toast } from 'primereact/toast';
-import { Dropdown } from 'primereact/dropdown';
+import { TabPanel, TabView } from 'primereact/tabview';
 
 import { InputTextarea } from 'primereact/inputtextarea';
 import RegistroService from '../../services/cruds/RegistroService';
@@ -23,7 +23,8 @@ interface Registro {
     cnpj: string,
     ie: string,
     im: string,
-    observacoes: string
+    observacoes: string,
+    enviar_resumo_mensal: boolean
 }
 
 function Registro() {
@@ -46,8 +47,10 @@ function Registro() {
         cnpj: '',
         ie: '',
         im: '',
-        observacoes: ''
+        observacoes: '',
+        enviar_resumo_mensal: false
     });
+    const [activeTabIndex, setActiveTabIndex] = useState(0);
 
     const registroService = RegistroService();
 
@@ -61,8 +64,17 @@ function Registro() {
             toast.current?.show({ severity: 'warn', summary: 'Atenção', detail: 'CNPJ inválido.', life: 3500 });
             return;
         }
-        registroService.gravaRegistro(registro)
-        toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Dados atualizados com Sucesso', life: 3000 });
+        try {
+            await registroService.gravaRegistro(registro);
+            toast.current?.show({ severity: 'success', summary: 'Sucesso', detail: 'Dados atualizados com Sucesso', life: 3000 });
+        } catch (error: any) {
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Erro',
+                detail: error?.response?.data?.message || 'Falha ao gravar os dados',
+                life: 3500,
+            });
+        }
     }
 
     useEffect(() => {
@@ -102,6 +114,7 @@ function Registro() {
         ie: toSafeString(raw?.ie),
         im: toSafeString(raw?.im),
         observacoes: toSafeString(raw?.observacoes),
+        enviar_resumo_mensal: Boolean(raw?.enviar_resumo_mensal),
     });
 
     const loadLazyRegistro = async () => {
@@ -123,78 +136,145 @@ function Registro() {
 
     }
 
+    const onToggleResumoMensal = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setRegistro((prev) => ({ ...prev, enviar_resumo_mensal: e.target.checked }));
+    };
+
     return (
         <div className="grid">
             <div className="col-12">
                 <div className="card">
-                    <h5>Dados da Empresa</h5>
-                    <div className="p-fluid formgrid grid">
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="razaosocial_">Razão Social</label>
-                            <InputText value={registro.razaosocial ?? ''} onChange={(e) => onInputChange(e, 'razaosocial')} id="razaosocial_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="fantasia_">Nome Fantasia</label>
-                            <InputText value={registro.fantasia ?? ''} onChange={(e) => onInputChange(e, 'fantasia')} id="fantasia_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="endereco_">Endereço</label>
-                            <InputText value={registro.endereco ?? ''} onChange={(e) => onInputChange(e, 'endereco')} id="endereco_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="_bairro_">Bairro</label>
-                            <InputText value={registro.bairro ?? ''} onChange={(e) => onInputChange(e, 'bairro')} id="bairro_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="cidade_">Cidade</label>
-                            <InputText value={registro.cidade ?? ''} onChange={(e) => onInputChange(e, 'cidade')} id="cidade_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-3">
-                            <label htmlFor="estado_">Estado</label>
-                            <InputText value={registro.estado ?? ''} onChange={(e) => onInputChange(e, 'estado')} id="estado_" type='text' />
-                        </div>
-                        <div className="field col-12 md:col-3">
-                            <label htmlFor="cep_">CEP</label>
-                            <InputText value={registro.cep ?? ''} onChange={(e) => onInputChange(e, 'cep')} id="cep_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="telefone_">Telefone</label>
-                            <InputText value={registro.telefone ?? ''} onChange={(e) => onInputChange(e, 'telefone')} id="telefone" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-6">
-                            <label htmlFor="email_">Email</label>
-                            <InputText value={registro.email ?? ''} onChange={(e) => onInputChange(e, 'email')} id="email_" type="text" />
-                        </div>
+                    <TabView
+                        activeIndex={activeTabIndex}
+                        onTabChange={(e) => setActiveTabIndex(e.index)}
+                        className="w-full"
+                        pt={{
+                            navContainer: {
+                                className: 'w-full',
+                                style: {
+                                    boxSizing: 'border-box',
+                                    borderBottom: 'none',
+                                    paddingLeft: 0,
+                                    paddingRight: 0,
+                                    marginBottom: '0.5rem',
+                                },
+                            },
+                            navContent: {
+                                style: {
+                                    flex: '1 1 auto',
+                                    minWidth: 0,
+                                    overflowX: 'auto',
+                                    overflowY: 'hidden',
+                                },
+                            },
+                            inkbar: { style: { display: 'none' } },
+                            nav: {
+                                style: {
+                                    display: 'flex',
+                                    flexWrap: 'nowrap',
+                                    width: '100%',
+                                    justifyContent: 'flex-start',
+                                    alignItems: 'flex-end',
+                                    columnGap: '1rem',
+                                    listStyle: 'none',
+                                    margin: 0,
+                                    paddingLeft: 0,
+                                    paddingRight: 0,
+                                },
+                            },
+                            panelContainer: {
+                                style: {
+                                    marginTop: '0.25rem',
+                                },
+                            },
+                        }}
+                    >
+                        <TabPanel header="Dados da Empresa" headerStyle={{ whiteSpace: 'nowrap' }}>
+                            <div className="p-fluid formgrid grid">
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="razaosocial_">Razão Social</label>
+                                    <InputText value={registro.razaosocial ?? ''} onChange={(e) => onInputChange(e, 'razaosocial')} id="razaosocial_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="fantasia_">Nome Fantasia</label>
+                                    <InputText value={registro.fantasia ?? ''} onChange={(e) => onInputChange(e, 'fantasia')} id="fantasia_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="endereco_">Endereço</label>
+                                    <InputText value={registro.endereco ?? ''} onChange={(e) => onInputChange(e, 'endereco')} id="endereco_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="_bairro_">Bairro</label>
+                                    <InputText value={registro.bairro ?? ''} onChange={(e) => onInputChange(e, 'bairro')} id="bairro_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="cidade_">Cidade</label>
+                                    <InputText value={registro.cidade ?? ''} onChange={(e) => onInputChange(e, 'cidade')} id="cidade_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-3">
+                                    <label htmlFor="estado_">Estado</label>
+                                    <InputText value={registro.estado ?? ''} onChange={(e) => onInputChange(e, 'estado')} id="estado_" type='text' />
+                                </div>
+                                <div className="field col-12 md:col-3">
+                                    <label htmlFor="cep_">CEP</label>
+                                    <InputText value={registro.cep ?? ''} onChange={(e) => onInputChange(e, 'cep')} id="cep_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="telefone_">Telefone</label>
+                                    <InputText value={registro.telefone ?? ''} onChange={(e) => onInputChange(e, 'telefone')} id="telefone" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-6">
+                                    <label htmlFor="email_">Email</label>
+                                    <InputText value={registro.email ?? ''} onChange={(e) => onInputChange(e, 'email')} id="email_" type="text" />
+                                </div>
 
-                        <div className="field col-12 md:col-4">
-                            <label htmlFor="cnpj_">CNPJ</label>
-                            <InputText
-                                value={registro.cnpj ?? ''}
-                                onChange={(e) => onInputChange(e, 'cnpj')}
-                                id="cnpj_"
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={18}
-                                className={isInvalid || (onlyDigits(registro.cnpj ?? '').length > 0 && !isValidCNPJ(registro.cnpj ?? '')) ? 'p-invalid' : ''}
-                            />
-                        </div>
-                        <div className="field col-12 md:col-4">
-                            <label htmlFor="ie_">Inscrição Estadual</label>
-                            <InputText value={registro.ie ?? ''} onChange={(e) => onInputChange(e, 'ie')} id="ie_" type="text" />
-                        </div>
-                        <div className="field col-12 md:col-4">
-                            <label htmlFor="im_">Inscrição Municipal</label>
-                            <InputText value={registro.im ?? ''} onChange={(e) => onInputChange(e, 'im')} id="im_" type="text" />
-                        </div>
-                        <div className="field col-12">
-                            <label htmlFor="observacoes_">Observações</label>
-                            <InputTextarea name='observacoes' value={registro.observacoes ?? ''} onChange={(e) => onInputChange(e, 'observacoes')} id="observacoes_" rows={4} />
-                        </div>
-
-                        <div className="field col-12 md:col-12">
-                            <Toast ref={toast} />
-                            <Button label="Gravar" onClick={handleUpdateEmpresa}></Button>
-                        </div>
+                                <div className="field col-12 md:col-4">
+                                    <label htmlFor="cnpj_">CNPJ</label>
+                                    <InputText
+                                        value={registro.cnpj ?? ''}
+                                        onChange={(e) => onInputChange(e, 'cnpj')}
+                                        id="cnpj_"
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={18}
+                                        className={isInvalid || (onlyDigits(registro.cnpj ?? '').length > 0 && !isValidCNPJ(registro.cnpj ?? '')) ? 'p-invalid' : ''}
+                                    />
+                                </div>
+                                <div className="field col-12 md:col-4">
+                                    <label htmlFor="ie_">Inscrição Estadual</label>
+                                    <InputText value={registro.ie ?? ''} onChange={(e) => onInputChange(e, 'ie')} id="ie_" type="text" />
+                                </div>
+                                <div className="field col-12 md:col-4">
+                                    <label htmlFor="im_">Inscrição Municipal</label>
+                                    <InputText value={registro.im ?? ''} onChange={(e) => onInputChange(e, 'im')} id="im_" type="text" />
+                                </div>
+                                <div className="field col-12">
+                                    <label htmlFor="observacoes_">Observações</label>
+                                    <InputTextarea name='observacoes' value={registro.observacoes ?? ''} onChange={(e) => onInputChange(e, 'observacoes')} id="observacoes_" rows={4} />
+                                </div>
+                            </div>
+                        </TabPanel>
+                        <TabPanel header="Configurações" headerStyle={{ whiteSpace: 'nowrap' }}>
+                            <div className="p-fluid formgrid grid">
+                                <div className="field col-12">
+                                    <div className="field-checkbox mb-3">
+                                        <input
+                                            id="registro_enviar_resumo_mensal"
+                                            type="checkbox"
+                                            checked={Boolean(registro.enviar_resumo_mensal)}
+                                            onChange={onToggleResumoMensal}
+                                        />
+                                        <label htmlFor="registro_enviar_resumo_mensal" className="ml-2">
+                                            Enviar resumo mensal de notas fiscais recebidas para os clientes
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </TabPanel>
+                    </TabView>
+                    <div className="mt-3">
+                        <Toast ref={toast} />
+                        <Button label="Gravar" onClick={handleUpdateEmpresa}></Button>
                     </div>
                 </div>
             </div>

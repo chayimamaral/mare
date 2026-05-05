@@ -17,15 +17,16 @@ type MatrizConfiguracaoTributariaHandler struct {
 
 type matrizConfiguracaoTributariaEnvelope struct {
 	Params struct {
-		ID                  string  `json:"id"`
-		Nome                string  `json:"nome"`
-		NaturezaJuridicaID  string  `json:"natureza_juridica_id"`
-		EnquadramentoPorteID string `json:"enquadramento_porte_id"`
-		RegimeTributarioID  string  `json:"regime_tributario_id"`
-		AliquotaBase        float64 `json:"aliquota_base"`
-		PossuiFatorR        bool    `json:"possui_fator_r"`
-		AliquotaFatorR      float64 `json:"aliquota_fator_r"`
-		Ativo               *bool   `json:"ativo"`
+		ID                   string  `json:"id"`
+		Nome                 string  `json:"nome"`
+		NaturezaJuridicaID   string  `json:"natureza_juridica_id"`
+		EnquadramentoPorteID string  `json:"enquadramento_porte_id"`
+		RegimeTributarioID   string  `json:"regime_tributario_id"`
+		AliquotaBase         float64 `json:"aliquota_base"`
+		PossuiFatorR         bool    `json:"possui_fator_r"`
+		AliquotaFatorR       float64 `json:"aliquota_fator_r"`
+		SubstituicaoTributaria bool  `json:"substituicao_tributaria"`
+		Ativo                *bool   `json:"ativo"`
 	} `json:"params"`
 }
 
@@ -75,7 +76,7 @@ func (h *MatrizConfiguracaoTributariaHandler) Create(w http.ResponseWriter, r *h
 		return
 	}
 
-	response, err := h.service.Create(r.Context(), payload.Params.Nome, payload.Params.NaturezaJuridicaID, payload.Params.EnquadramentoPorteID, payload.Params.RegimeTributarioID, payload.Params.AliquotaBase, payload.Params.PossuiFatorR, payload.Params.AliquotaFatorR)
+	response, err := h.service.Create(r.Context(), payload.Params.Nome, payload.Params.NaturezaJuridicaID, payload.Params.EnquadramentoPorteID, payload.Params.RegimeTributarioID, payload.Params.AliquotaBase, payload.Params.PossuiFatorR, payload.Params.AliquotaFatorR, payload.Params.SubstituicaoTributaria)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -101,7 +102,7 @@ func (h *MatrizConfiguracaoTributariaHandler) Update(w http.ResponseWriter, r *h
 		ativo = *payload.Params.Ativo
 	}
 
-	response, err := h.service.Update(r.Context(), payload.Params.ID, payload.Params.Nome, payload.Params.NaturezaJuridicaID, payload.Params.EnquadramentoPorteID, payload.Params.RegimeTributarioID, payload.Params.AliquotaBase, payload.Params.PossuiFatorR, payload.Params.AliquotaFatorR, ativo)
+	response, err := h.service.Update(r.Context(), payload.Params.ID, payload.Params.Nome, payload.Params.NaturezaJuridicaID, payload.Params.EnquadramentoPorteID, payload.Params.RegimeTributarioID, payload.Params.AliquotaBase, payload.Params.PossuiFatorR, payload.Params.AliquotaFatorR, payload.Params.SubstituicaoTributaria, ativo)
 	if err != nil {
 		render.WriteError(w, http.StatusBadRequest, err.Error())
 		return

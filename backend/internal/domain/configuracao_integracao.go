@@ -12,6 +12,7 @@ type TenantConfiguracoes struct {
 	TenantID                      string `json:"tenant_id"`
 	GerarDASPorProcuracao         bool   `json:"gerar_das_por_procuracao"`
 	GerarDARFDCTFWebPorProcuracao bool   `json:"gerar_darf_dctfweb_por_procuracao"`
+	EnviarResumoMensal            bool   `json:"enviar_resumo_mensal"`
 	TipoCertificado               string `json:"tipo_certificado"`
 	LocalArquivoCertificado       string `json:"local_arquivo_certificado"`
 	SenhaCertificado              string `json:"senha_certificado"`

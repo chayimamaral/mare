@@ -13,7 +13,6 @@ import { Vec } from '../../types/types';
 import { Dropdown } from 'primereact/dropdown';
 import PassoService from '../../services/cruds/PassoService';
 import { InputNumber, InputNumberChangeEvent, InputNumberValueChangeEvent } from 'primereact/inputnumber';
-import { RadioButton, RadioButtonChangeEvent } from 'primereact/radiobutton';
 import MunicipioService from '../../services/cruds/MunicipioService';
 
 interface LazyTableState {
@@ -85,7 +84,6 @@ const Passos = () => {
         return <span>{tipoPassoLabel}</span>;
     };
 
-    const [selectedTipoPasso, setSelectedTipoPasso] = useState(tipospasso[0]);
 
     const passoService = PassoService();
 
@@ -291,10 +289,10 @@ const Passos = () => {
         setPasso(_passo);
     };
 
-    function onTipoPassoChange(e: RadioButtonChangeEvent, tipopasso: string): void {
+    function onTipoPassoChange(e: React.ChangeEvent<HTMLInputElement>, tipopasso: string): void {
         let _passo = { ...passo };
-        setSelectedTipoPasso(e.value);
-        _passo[`${tipopasso}`] = e.value;
+        const value = e.target.value;
+        _passo[`${tipopasso}`] = value;
 
         setPasso(_passo);
     }
@@ -516,8 +514,15 @@ const Passos = () => {
                             <label htmlFor="tipopasso">Tipo de Passo :  </label>
                             {tipospasso.map((tipopasso) => {
                                 return (
-                                    <div key={tipopasso.key} className="flex align-items-center">
-                                        <RadioButton inputId={tipopasso.key} name="tipopasso" value={tipopasso.key} onChange={(e) => onTipoPassoChange(e, 'tipopasso')} checked={passo.tipopasso === tipopasso.key} />
+                                    <div key={tipopasso.key} className="field-radiobutton flex align-items-center">
+                                        <input
+                                            type="radio"
+                                            id={tipopasso.key}
+                                            name="tipopasso"
+                                            value={tipopasso.key}
+                                            onChange={(e) => onTipoPassoChange(e, 'tipopasso')}
+                                            checked={passo.tipopasso === tipopasso.key}
+                                        />
                                         <label htmlFor={tipopasso.key} className="ml-2">{tipopasso.name}</label>
                                     </div>
                                 );
